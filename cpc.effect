@@ -1,7 +1,4 @@
 // Provided by OBS and StreamFX
-// CPC FX - V8 - Benjamin Forgeau 2020/05/xx
-// Default colors from Cédric Andreu 2020/05/19 - mode 0 : set color [9] to 0 instead of 25 to remove golden style. Overscan resolution : 768x544 pixels.
-
 uniform float4x4 ViewProj<bool automatic = true;>;
 uniform float4 Time<bool automatic = true;>;
 uniform float4 ViewSize<bool automatic = true;>;
@@ -31,9 +28,7 @@ uniform float DisplayFrameOverscan<
 	string field_type = "slider";
 	float minimum = 0.0;
 	float maximum = 1.0;
-> = 1.00;
-
-
+> = 0.0;
 
 uniform float DisplayGammaCorrection <
 	string name = "Gamma correction";
@@ -46,23 +41,13 @@ uniform bool DisplayGrayscale <
 	string name = "Grayscale conversion of the source";
 > = false;
 
-/*
-uniform float DitheringOffset <
-	string name = "Dithering Luminosity Offset";
-	string description = "Fine-tune the luminosity of the Dithering by adding a constant offset to dithering level given by the dithering matrix";
-	string field_type = "slider";
-	float minimum = -0.5;
-	float maximum = 0.5;
-> = 0.0;
-*/
-
 uniform float DitheringSpread <
 	string name = "Dithering Spread";
 	string description = "Spread of the dithering effect (0 means no dithering), factor multiplied to the related value of the Bayer matrix";
 	string field_type = "slider";
 	float minimum = 0.0;
 	float maximum = 1.0;
-> = 0.15;
+> = 0.50;
 
 uniform int DitheringMatrix <
 	string name = "Dithering Matrix";
@@ -78,7 +63,7 @@ uniform float OutlineEdge <
 	string field_type = "slider";
 	float minimum = 0.0;
 	float maximum = 4.0;
-> = 0.5;
+> = 0.0;
 
 uniform float3 OutlineEdgeColor <
 	bool visible = true;
@@ -112,7 +97,7 @@ uniform float4x4 PaletteInks<
 	float4x4 minimum = {0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.};
 	float4x4 maximum = {26.,26.,26.,26.,26.,26.,26.,26.,26.,26.,26.,26.,26.,26.,26.,26.};
 	float4x4 step = {1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.};
-> = {0., 26., 15., 2., 1., 6., 3., 18., 9., 25., 0., 0., 0., 0., 0., 0.};
+> = {1., 24., 20., 6., 26., 0., 2., 8., 10., 12., 14., 16., 18., 22., 13., 25.};
 
 uniform float TransparencyBorder<
 	string name = "Transparency level of the Border";
