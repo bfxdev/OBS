@@ -116,11 +116,25 @@ An outline based on edge detection on luminance can be added to increase the pix
 ![Transparency](pics/apple-mode-1-edges.png)
 
 
+### Use for streaming
+
+You're of course welcome to use it on Twitch or wherever you want to. The shader was [already used](https://www.twitch.tv/videos/614098028) by PifLyon on the Twitch canal [Vieilles Touches](https://www.twitch.tv/vieillestouches).
+
+![Cedric](pics/cedric-oh-502x285.jpg)
+
+
 ## Large message scroll with Amstrad CPC font for StreamFX
 
-The purpose here is to display a text with a raster-like effect using the Amstrad CPC common character font:
+The purpose of [cpc-scroll.effect](cpc-scroll.effect) is to display a text with a raster-like effect using the Amstrad CPC common character font:
 
-![Transparency](pics/scroll.png)
+![Scroll](pics/scroll.png)
 
 With the current setting the messages scrolls horizontally. Few input parameters are available. Modify the shader directly to fullfil your needs.
+
+
+## Port of Starfield effect ShaderToy XtjcW3
+
+The file [shadertoy-XtjcW3.effect](shadertoy-XtjcW3.effect) is a port of a [starfield animation on ShaderToy](https://www.shadertoy.com/view/XtjcW3). Many parameters were deduced and added by PifLyon, creator of [Anceder and Noix De Croco](http://www.noixdecroco.com).
+
+![Starfield](pics/starfield.png)
 

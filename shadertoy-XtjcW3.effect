@@ -1,0 +1,248 @@
+// Based on https://www.shadertoy.com/view/XtjcW3
+
+#define vec2 float2
+#define vec3 float3
+#define vec4 float4
+#define ivec2 int2
+#define ivec3 int3
+#define ivec4 int4
+#define mat2 float2x2
+#define mat3 float3x3
+#define mat4 float4x4
+#define fract frac
+#define mix lerp
+#define iTime Time.x
+#define iResolution ViewSize
+
+// values ajout CedricAndreu (2020/05/02)***********************
+
+uniform float forwardSpeed<
+	string name = "forwardSpeed";
+	string field_type = "slider";
+	float minimum = 0.0;
+	float maximum = 2.0;
+> = 0.03;
+
+uniform float camYaw<
+	string name = "camYaw";
+	string field_type = "slider";
+	float minimum = 0.0;
+	float maximum = 2.0;
+> = 0.01;
+
+uniform float contraste<
+	string name = "contraste";
+	string field_type = "slider";
+	float minimum = 0.1;
+	float maximum = 4.0;
+> = 1.1;
+
+uniform float glowCoef<
+	string name = "glowCoef";
+	string field_type = "slider";
+	float minimum = 0.0;
+	float maximum = 4.0;
+> = 0.15;
+uniform float fadeCoef<
+	string name = "fadeCoef";
+	string field_type = "slider";
+	float minimum = 0.01;
+	float maximum = 0.10;
+> = 0.04;
+
+uniform float zoom<
+	string field_type = "slider";
+	float minimum = 0.01;
+	float maximum = 100;
+> = 1.0;
+
+//Fin ajout CedricAndreu**********************
+
+uniform float2 mouse<
+	string name = "Virtual Mouse Coordinates";
+	//string field_type = "slider";
+	//float2 minimum = {0, 0};
+	//float2 maximum = {100., 100.};
+	//float2 scale = {.01, .01};
+	//float2 step = {.01, .01};
+> = {0., 0.};
+
+uniform float4x4 ViewProj<
+	bool automatic = true;
+>;
+
+uniform float4 Time<
+	bool automatic = true;
+>;
+
+uniform float4 ViewSize<
+	bool automatic = true;
+>;
+
+int2 iMouse() {
+	return int2(mouse.x * ViewSize.x, mouse.y * ViewSize.y);
+}
+
+#define TAU 6.2831853
+struct M {
+	float d;
+	vec3 c;
+};
+void mmin(float d, vec3 c, inout M m){if (d<m.d){m.d=d;m.c=c;}}
+
+mat2 rz2(float a){
+	float c=cos(a),s=sin(a);
+	return mat2(c,-s,s,c);
+}
+
+float amod(float a,float m) {
+	return mod(a,m)-m*.5;
+}
+
+float random(float x) {
+	return fract(sin(x*13.+4375.));
+}
+
+float height(vec2 iuv) {
+	return sin(sin(iuv.x+iTime)*sin(iuv.y+iTime)*5.)*(pow(abs(iuv.x),2.)*.02+0.1);
+}
+
+void map(vec3 p, inout M m){
+   	m.d=max(max(p.y,.0),max(p.z-6.,0.));
+	vec2 uv=p.xz*2.;
+	uv.y+=iTime;
+	vec2 f=fract(uv)-.5;
+	float fft=mouse.x;
+	float l=fft/(abs(f.x)*abs(f.y));
+	l+=.1*fft/(abs(p.z-6.));
+	m.c=mix(vec3(0.196, 0.003, 0.149),vec3(1, 0.019, 0.384),l);
+	
+	uv=p.xz-.5;
+	vec2 iuv=floor(uv);
+	vec2 fuv=fract(uv);
+	float h=mix(
+		mix(height(iuv+vec2(0.,0.)), height(iuv+vec2(1.,0.)), fuv.x),
+		mix(height(iuv+vec2(0.,1.)), height(iuv+vec2(1.,1.)), fuv.x),
+		fuv.y)-1.;
+	float d=p.y-h;
+	d=max(d,abs(p.z-10.)-4.);
+	vec2 vuv=fuv*(1.-fuv);
+	float v=vuv.x*vuv.y;
+	l=.01*fft/v;
+	mmin(d, vec3(0.,0.,1.)*l, m);
+}
+
+float hash( float n )
+{
+	return fract(sin(n)*43758.5453123);
+}
+
+float _noise( in vec3 x )
+{
+	vec3 p = floor(x);
+	vec3 f = fract(x);
+	f = f*f*(3.0-2.0*f);
+	float n = p.x + p.y*57.0 + 113.0*p.z;
+	float res = mix(mix(mix( hash(n+  0.0), hash(n+  1.0),f.x), mix( hash(n+ 57.0), hash(n+ 58.0),f.x),f.y), mix(mix( hash(n+113.0), hash(n+114.0),f.x), mix( hash(n+170.0), hash(n+171.0),f.x),f.y),f.z);
+	return res;
+}
+
+vec3 noise(vec2 uv) {
+	uv *= 100.;
+	return vec3(_noise(vec3(uv.x, uv.y, 0.)), _noise(vec3(uv.x, uv.y, 2832)), _noise(vec3(uv.y, uv.x, -2371.)));
+	//return texture(iChannel1,uv*.1).rgb;
+}
+
+// Added by bfxdev
+//#define mod(par1,par2) (fmod((par1),(par2)))
+#define mod(x, y) ((x) - (y) * floor((x) / (y)))
+
+// ---------------------------------------------------------
+
+// PI value
+#define PI 3.14159265
+
+// random
+#define H(P) fract(sin(dot((P),vec2(127.1,311.7)))*43758.545)
+
+void mainImage(out vec4 fragColor, in vec2 fragCoord)
+{
+    vec2 uv = (fragCoord - .5 * iResolution.xy - .5) / iResolution.y;
+
+    uv *= 2.4; // FOV
+    
+    // camera
+    vec3 vuv = vec3(sin(iTime * camYaw), 1., cos(iTime * camYaw)); // up//********* *.3 CedricAndreu
+    vec3 ro = vec3(0., 0., 134.); // pos
+    vec3 vrp = vec3(5., sin(iTime) * 10., 20.); // look at // ******** *60. CedricAndreu
+    
+    vec3 vpn = normalize(vrp - ro);
+    vec3 u = normalize(cross(vuv, vpn));
+    vec3 rd = normalize(vpn + uv.x * u  + uv.y * cross(vpn, u)); // ray direction
+    
+    vec3 sceneColor = vec3(0.0, 0., 0.); // background color
+    
+    vec3 flareCol = vec3(0., 0., 0.); // flare color accumulator   
+    float flareIntensivity = 0.; // flare intensity accumulator
+
+    for (float k = 0.; k < 800.; k++)
+    {
+        float r = H(vec2(k,k)) * 2. - 1.; // random
+
+        // 3d flare position, xyz
+        //vec3 flarePos =  vec3(H(vec2(k,k) * r) * 20. - 10., r * 8.,
+        //    (mod(sin(k / 200. * PI * 4.) * 15. - (iTime * forwardSpeed) * 13. * k * .007, 25.)));//****************.6 CedricAndreu
+				vec3 flarePos = vec3(zoom*(H(vec2(k,k) * r) * 20. - 10.), r*8*zoom,
+            (mod(sin(k / 200. * PI * 4.) * 15. - (iTime * forwardSpeed) * 13. * k * .007, 25.)));//*******************.6 CedricAndreu
+
+        float v = max(0., abs(dot(normalize(flarePos), rd)));
+        
+        // main dot
+        flareIntensivity += pow(abs(v), 30000.) * 4.;
+        
+        // dot glow
+        flareIntensivity += pow(abs(v), 1e2) * glowCoef; //.15; *********************CedricAndreu
+        
+        // fade far
+        flareIntensivity *= 1.- flarePos.z * fadeCoef;// **************/25 CedricAndreu
+      
+        // accumulate
+        flareCol += vec3(flareIntensivity,flareIntensivity,flareIntensivity) * (vec3(sin(r * 3.12 - k), r, cos(k) * 2.)) * .3; 
+    }
+    
+    sceneColor += abs(flareCol);
+    
+    // go grayscale from screen center
+    sceneColor = mix(sceneColor, sceneColor.rrr * 1.4, length(uv) / 2.);
+    
+    // adjust contrast
+    fragColor = vec4(pow(abs(sceneColor), vec3(contraste, contraste, contraste)), 1.0);
+}
+
+// ---------------------------------------------------------
+
+struct VertFragData {
+	float4 pos : POSITION;
+	float2 uv  : TEXCOORD0;
+};
+
+VertFragData VSDefault(VertFragData vtx) {
+	vtx.pos = mul(float4(vtx.pos.xyz, 1.0), ViewProj);
+	return vtx;
+}
+
+float4 PSDefault(VertFragData vtx) : TARGET {
+	float4 col = float4(1., 1., 1., 1.);
+	float2 uvx = float2(vtx.uv.x, 1.0 - vtx.uv.y) * ViewSize.xy;
+	mainImage(col, uvx);
+	return col;
+}
+
+technique Draw 
+{
+	pass
+	{
+		vertex_shader = VSDefault(vtx);
+		pixel_shader  = PSDefault(vtx); 
+	}
+}
