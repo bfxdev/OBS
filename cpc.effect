@@ -1,3 +1,13 @@
+/* Amstrad CPC Shader for StreamFX plugin in OBS by bfxdev
+
+   Usage:
+	  - Install StreamFX in OBS: see https://obsproject.com/forum/resources/streamfx-for-obs-studio.578/
+		- Right-click on a source and select "Filters"
+		- Add a Filter, select "Shader"
+		- Select the file "cpc.effect", then click on "Refresh Options and Parameters"
+		- Adapt the parameters
+*/
+
 // Provided by OBS and StreamFX
 uniform float4x4 ViewProj<bool automatic = true;>;
 uniform float4 Time<bool automatic = true;>;
@@ -16,7 +26,7 @@ uniform int DisplayCPCMode <
 
 uniform float DisplayDownscale <
 	string name = "Pixel size (0 for exact CPC resolution)";
-	string description = "Number of source pixels in displayed downscaled pixels. If set to 0 then the exact resolution of the CPC is determined (e.g. 320x200 for Mode 1) and displayed. This may lead to aliasing on the displayed picture due to inadequation between the source and the displayed area. Use supersampling (i.e. 400% or more shader display size) for better results.";
+	string description = "Number of source pixels in displayed downscaled pixels.\nIf set to 0 then the exact resolution of the CPC is determined (e.g. 320x200 for Mode 1) and displayed.\nThis may lead to aliasing on the displayed picture due to inadequation between the source and the displayed area.\nUse supersampling (i.e. 400% or more shader display size) for better results.";
 	float minimum = 0.0;
 	float maximum = 8.0;
 	float step = 1.0;
@@ -51,21 +61,29 @@ uniform float DitheringSpread <
 
 uniform int DitheringMatrix <
 	string name = "Dithering Matrix";
-	string description = "Dithering matrix, among different sizes and shapes:\n1: 2x2 Bayer\n2: 4x4 Bayer\n3: 8x8 Bayer\n4: 3x3 Dot\n5: 3x3 Dot with RGB offsets\n4: 5x5 Dot\n5: 5x5 Dot with RGB offsets\n4: 6x6 Dot\n5: 6x6 Dot with RGB offsets";
+	string description = "Dithering matrix, among different sizes and shapes:\n1: 2x2 Bayer\n2: 4x4 Bayer\n3: 8x8 Bayer\n4: 3x3 Dot\n5: 3x3 Dot with RGB offsets\n6: 5x5 Dot\n7: 5x5 Dot with RGB offsets\n8: 6x6 Dot\n9: 6x6 Dot with RGB offsets";
 	int minimum = 1;
 	int maximum = 9;
 	string field_type = "slider";
 > = 3;
 
-uniform float OutlineEdge <
-	string name = "Outline Edge Level";
-	string description = "Threshold/Factor to draw Outline based on edge detection (0.0 no Outline)";
+uniform float OutlineEdgeThreshold <
+	string name = "Outline Edge Threshold";
+	string description = "Threshold on the edge intensity triggering Outline display";
 	string field_type = "slider";
 	float minimum = 0.0;
-	float maximum = 4.0;
+	float maximum = 1.0;
 > = 0.0;
 
-uniform float3 OutlineEdgeColor <
+uniform float OutlineEdgeMix <
+	string name = "Outline Edge Mix";
+	string description = "Mix level to blend outline color and current color (for a colored outline, set to 1.0 for solid outline)";
+	string field_type = "slider";
+	float minimum = 0.0;
+	float maximum = 1.0;
+> = 0.5;
+
+uniform float3 XOutlineEdgeColor <
 	bool visible = true;
 	string name = "Outline Color";
 	string field_type = "slider";
@@ -423,8 +441,11 @@ float4 PSDefault(VertFragData vtx) : TARGET
 	float3 attempt = smp.rgb + XDitheringRGBCorrection.rgb*getDitheringLevels(pos.x, pos.y) *
 	 														DitheringSpread;
 
-	// Determines closest color, overwritten by edge outline if sufficent intensity
-	float4 col = getClosestColor(lerp(attempt, OutlineEdgeColor, edge*OutlineEdge));
+	// Determines if the current pixel is an outline (with some handy parameter adaptation)
+	bool isOutline = log(1.0+2.0*length(edge)) > (1.0-OutlineEdgeThreshold);
+
+	// Determines closest color to either dithered color or a mix of outline and dithered colors
+	float4 col = getClosestColor(isOutline ? lerp(attempt, XOutlineEdgeColor, OutlineEdgeMix) : attempt);
 	int ink = col.a;
 
 	// For mode 3 (no ink numbers) the transparency levels set

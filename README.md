@@ -4,7 +4,26 @@
 
 At its kernel, for maximal performance, OBS is largely based on GPU-based video processing in the form of [DirectX / OpenGL shaders](https://obsproject.com/docs/graphics.html) (encapsulated in DirectX-like `.effect` files).
 
-Various stuff running under OBS with the [StreamFX](https://obsproject.com/forum/resources/streamfx-for-obs-studio.578/) plugin can be found in this repository.
+Various stuff running under OBS with the StreamFX plugin can be found in this repository.
+
+## Usage of the shaders in StreamFX
+
+For the shaders running under StreamFX, obviously the first step is to install StreamFX in OBS if not already done:
+- Go to the [StreamFX plugin page](https://obsproject.com/forum/resources/streamfx-for-obs-studio.578/) and download a release (at time of writing, the shaders were tested on StreamFX 0.8.0b3).
+- Follow the [installation instructions on the Wiki pages](https://github.com/Xaymar/obs-streamfx/wiki/Installation). The plugin is correctly installed if a new entry "StreamFX" appears in the menu "Tools".
+
+StreamFX supports 3 types of custom shaders: filter (e.g. CPC shader), source (e.g. starfield) and transition.
+
+For a filter shader:
+- Right-click on a source and select "Filters"
+- Add a Filter, select "Shader"
+- Select the shader file e.g. [cpc.effect](cpc.effect), then click on "Refresh Options and Parameters"
+- Adapt the parameters
+
+For a source shader:
+- Create a source of type "Shader"
+- Select the shader file e.g. [shadertoy-XtjcW3.effect](shadertoy-XtjcW3.effect), then click on "Refresh Options and Parameters"
+- Adapt the parameters
 
 ## Amstrad CPC display filter for StreamFX
 
@@ -22,7 +41,7 @@ It is recommended to **set the shader resolution to 768x544**, which corresponds
 
 The display area of the CPC is surrounded by a border with a solid color. The width of the border is configurable to mimic the so-called *overscan*. The default setting of the *overscan level* is such that the classical CPC border as in BASIC is displayed. Set it to 1.0 to let the border disappear completely. The borders crops the image, there is no re-scale performed by adapting the overscan level.
 
- On a 768x544 picture, with the *default settings* i.e. Mode 1, no outline, no overscan, dithering 50% with Bayer8x8 matrix, standard colors as in BASIC, the output should look like this (source [apple picture from Wikimedia](https://commons.wikimedia.org/wiki/File:The_SugarBee_Apple_now_grown_in_Washington_State.jpg)):
+On a 768x544 picture, with the *default settings* i.e. Mode 1, no outline, no overscan, dithering 50% with Bayer8x8 matrix, standard colors as in BASIC, the output should look like this (source [apple picture from Wikimedia](https://commons.wikimedia.org/wiki/File:The_SugarBee_Apple_now_grown_in_Washington_State.jpg)):
 
 ![Mode 1](pics/apple-mode-1-default.png)
 
@@ -42,16 +61,14 @@ It is possible to convert the source picture to a *gray scale* (based on classic
 
 ![Gray scale](pics/apple-mode-2-gray-scale.png)
 
-
-
-
-
 The parameter *pixel size* can be used to re-fine the resolution:
 - 0: Exact scaled resolution of the CPC. ATTENTION: even if this pixel size mimics perfectly the CPC resolution, it leads to aliasing effects if the resolution of the source is to low. For better results it is recommended to increase the filter resolution to e.g. 500% or force it to 768x544.
 - 1: Uses the resolution of the source (if the filter resolution is set to 100%), or the resolution of the filter
 - 2 - 8: Same as 1 but uses blocks of 2x2 pixels if set to 2, 3x3 if set to 3, etc
 
-In Mode 1 with pixel size 4:
+As a side-note, with the recommended 768x544 setting, there is no difference between pixel sizes of 0 or 1. With full overscan in Mode 1, 384x272 pixels are displayed (half of the original resolution).
+
+The parameter can be used to over-pixelate the display, e.g. in Mode 1 with pixel size 4:
 
 ![Pixel Size 4](pics/apple-pixel-size-4.png)
 
@@ -70,8 +87,8 @@ The complete palette of the Amstrad CPC contains 27 colors. Three slightly diffe
 
 ### Dithering
 
-The common "ordered" [dithering algorithm](https://en.wikipedia.org/wiki/Dither) is used. The processing on each pixel can be described as:
-- Adds a small value to each RGB component, value which is extracted from the *dithering matrix* wrapped using a modulo on the position of the pixel
+A common [dithering algorithm](https://en.wikipedia.org/wiki/Dither) is used. The processing on each pixel can be described as:
+- Adds a small error value to color of the current pixel, value which is extracted from the *dithering matrix* wrapped using a modulo on the position of the pixel
 - Finds the closest color, from the selected inks, to this color with error
 
 In average, the mix of the determined color approaches the original color.
@@ -104,14 +121,16 @@ Finally, to fine-tune the dithering, a *gamma correction* can be used.
 
 ### Transparency
 
-The transparency level of each ink can be set:
+The transparency level of each ink and the border can be set:
 
 ![Transparency](pics/apple-mode-1-transparent.png)
 
 
 ### Outline
 
-An outline based on edge detection on luminance can be added to increase the pixel-art look:
+An outline based on edge detection on luminance can be drawn. It is set using a *threshold* that determines if the outline must be drawn and a *mix* factor that controls the mix between the *outline color* and the color that would be displayed without outline. The purpose of the mix factor is to draw colored outlines (the outline only darkens the original color on the edges).
+
+Adapt both parameters to achieve the desired result, depending on the context, here with high threshold and low mix factor:
 
 ![Transparency](pics/apple-mode-1-edges.png)
 
