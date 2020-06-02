@@ -17,20 +17,35 @@ uniform float4x4 Random<bool automatic = true;>;  // Apparently not initialized
 
 // User settings
 uniform int DisplayCPCMode <
-	string name = "CPC Video Mode (MODE 0/1/2 or 3)";
+	string name = "CPC Video Mode";
 	string description = "Modes: \n0: 160x200 with 16 colors out of 27\n1: 320x200 with 4 colors out of 27\n2: 640x200 with 2 colors out of 27\n3: 640x400 with 27 colors (for tests - not available on CPC)";
-	int minimum = 0;
-	int maximum = 3;
-	string field_type = "slider";
+	string field_type = "enum";
+	int enum_0 = 0;
+	string enum_0_name = "Mode 0 - 160x200x16";
+	int enum_1 = 1;
+	string enum_1_name = "Mode 1 - 320x200x4";
+	int enum_2 = 2;
+	string enum_2_name = "Mode 2 - 640x200x2";
+	int enum_3 = 3;
+	string enum_3_name = "Mode 3 - 640x400x27 non-existing";
 > = 1;
 
 uniform float DisplayDownscale <
-	string name = "Pixel size (0 for exact CPC resolution)";
+	string name = "Pixel size";
 	string description = "Number of source pixels in displayed downscaled pixels.\nIf set to 0 then the exact resolution of the CPC is determined (e.g. 320x200 for Mode 1) and displayed.\nThis may lead to aliasing on the displayed picture due to inadequation between the source and the displayed area.\nUse supersampling (i.e. 400% or more shader display size) for better results.";
-	float minimum = 0.0;
-	float maximum = 8.0;
-	float step = 1.0;
-	string field_type = "slider";
+	string field_type = "enum";
+	float enum_0 = 0;
+	string enum_0_name = "Scaled CPC resolution";
+	float enum_1 = 1;
+	string enum_1_name = "Source zoom 1";
+	float enum_2 = 2;
+	string enum_2_name = "Source zoom 2";
+	float enum_3 = 3;
+	string enum_3_name = "Source zoom 3";
+	float enum_4 = 4;
+	string enum_4_name = "Source zoom 4";
+	float enum_5 = 5;
+	string enum_5_name = "Source zoom 5";
 > = 1.0;
 
 uniform float DisplayFrameOverscan<
@@ -62,9 +77,25 @@ uniform float DitheringSpread <
 uniform int DitheringMatrix <
 	string name = "Dithering Matrix";
 	string description = "Dithering matrix, among different sizes and shapes:\n1: 2x2 Bayer\n2: 4x4 Bayer\n3: 8x8 Bayer\n4: 3x3 Dot\n5: 3x3 Dot with RGB offsets\n6: 5x5 Dot\n7: 5x5 Dot with RGB offsets\n8: 6x6 Dot\n9: 6x6 Dot with RGB offsets";
-	int minimum = 1;
-	int maximum = 9;
-	string field_type = "slider";
+	string field_type = "enum";
+	int enum_0 = 1;
+	string enum_0_name = "Bayer 2x2";
+	int enum_1 = 2;
+	string enum_1_name = "Bayer 4x4";
+	int enum_2 = 3;
+	string enum_2_name = "Bayer 8x8";
+	int enum_3 = 4;
+	string enum_3_name = "Dot 3x3";
+	int enum_4 = 5;
+	string enum_4_name = "Dot 3x3 with RGB offsets";
+	int enum_5 = 6;
+	string enum_5_name = "Dot 5x5";
+	int enum_6 = 7;
+	string enum_6_name = "Dot 5x5 with RGB offsets";
+	int enum_7 = 8;
+	string enum_7_name = "Dot 6x6";
+	int enum_8 = 9;
+	string enum_8_name = "Dot 6x6 with RGB offsets";
 > = 3;
 
 uniform float OutlineEdgeThreshold <
@@ -93,11 +124,15 @@ uniform float3 XOutlineEdgeColor <
 
 
 uniform int PaletteAdaptedColors<
-	string name = "Palette signals (1: Gate Array, 2: ASIC, 3: Perfect)";
+	string name = "Palette signals";
 	string description = "The Colors used in the Palette can reproduce:\n0: Gate-Array based CPC\n1: ASIC-based CPC (later generation before CPC+)\n2: Perfect palette";
-	string field_type = "slider";
-	int minimum = 1;
-	int maximum = 3;
+	string field_type = "enum";
+	int enum_0 = 1;
+	string enum_0_name = "Gate Array";
+	int enum_1 = 2;
+	string enum_1_name = "ASIC";
+	int enum_2 = 3;
+	string enum_2_name = "Perfect";
 > = 1;
 
 uniform float PaletteBorder<
