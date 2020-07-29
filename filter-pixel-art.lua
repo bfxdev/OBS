@@ -19,8 +19,7 @@
 
 ------------------------------------------------- SCRIPT GLOBAL FUNCTIONS ----------------------------------------------
 
--- Global variable to be used between script global functions and source_info
--- This is the default preset to apply if a source is created and added to a video source
+-- Default preset to apply if a source is created and added to a video source
 default_preset = 1
 
 -- Initial call sequence: script_defaults, script_description, script_load, script_update, script_properties
@@ -170,8 +169,21 @@ source_info.get_defaults = function(settings)
 
     print("In source_info.get_defaults")
 
+    -- Downscaled resolution
     obslua.obs_data_set_default_int(settings, "width", 320)
     obslua.obs_data_set_default_int(settings, "height", 200)
+
+    -- Palette
+    -- obslua.obs_data_set_default_string(settings, "palette_image_path", "")
+    obslua.obs_data_set_default_int(settings, "palette_preset", 0)
+    obslua.obs_data_set_default_bool(settings, "palette_use_bit_depths", false)
+    obslua.obs_data_set_default_int(settings, "palette_red_bit_depth", 3)
+    obslua.obs_data_set_default_int(settings, "palette_green_bit_depth", 3)
+    obslua.obs_data_set_default_int(settings, "palette_blue_bit_depth", 3)
+    obslua.obs_data_set_default_int(settings, "palette_length", 16)
+    for i=1,64 do
+        obslua.obs_data_set_default_int(settings, "palette_color_" .. i, 0xFFFFFFFF)
+    end
 
 end
 
@@ -180,8 +192,40 @@ source_info.update = function(data, settings)
 
     print("In source_info.update")
 
+    -- Downscaled resolution
     data.width = obslua.obs_data_get_int(settings, "width")
     data.height = obslua.obs_data_get_int(settings, "height")
+
+    -- Palette image
+    local current_path = obslua.obs_data_get_string(settings, "palette_image_path")
+    if data.palette_image_path ~= current_path then
+
+        obslua.obs_enter_graphics()
+
+        local image = obslua.gs_image_file()
+        obslua.gs_image_file_init(image, current_path)
+        obslua.gs_image_file_init_texture(image)
+        local tex = image.tex -- obslua.gs_texture_create_from_file(current_path)
+        if tex ~= nil then
+            data.palette_image_path = current_path
+            print("Texture created")
+            --obslua.gs_texture_destroy(tex)
+        end
+        obslua.gs_image_file_free(image)
+
+        obslua.obs_leave_graphics()
+    end
+
+    -- Palette preset
+    data.palette_preset = obslua.obs_data_get_int(settings, "palette_preset")
+    data.palette_use_bit_depths = obslua.obs_data_get_bool(settings, "palette_use_bit_depths")
+    data.palette_red_bit_depth = obslua.obs_data_get_int(settings, "palette_red_bit_depth")
+    data.palette_green_bit_depth = obslua.obs_data_get_int(settings, "palette_green_bit_depth")
+    data.palette_blue_bit_depth = obslua.obs_data_get_int(settings, "palette_blue_bit_depth")
+    data.palette_length = obslua.obs_data_get_int(settings, "palette_length")
+    -- for i=0,63 do
+    --     obslua.obs_data_set_default_int(settings, "palette_color_" .. i, 0xFFFFFFFF)
+    -- end
 
 end
 
@@ -192,8 +236,31 @@ source_info.get_properties = function(data)
 
     props = obslua.obs_properties_create()
 
+    -- Downscaled resolution
     obslua.obs_properties_add_int(props, "width", "Width", 1, 5000, 1)
     obslua.obs_properties_add_int(props, "height", "Height", 1, 5000, 1)
+
+    -- Palette presets
+    local list = obslua.obs_properties_add_list(props, "palette_preset", "Palette preset",
+    obslua.OBS_COMBO_TYPE_LIST, obslua.OBS_COMBO_FORMAT_INT)
+    obslua.obs_property_list_add_int(list, "Custom by colors",     0)
+    obslua.obs_property_list_add_int(list, "Custom by bit depths", 1)
+    obslua.obs_property_list_add_int(list, "Amstrad CPC",          2)
+    obslua.obs_property_list_add_int(list, "Amstrad CPC+",         3)
+    obslua.obs_property_list_add_int(list, "Commodore C64",        4)
+
+    -- Palette by colors
+    if data.palette_preset == 0 then
+        obslua.obs_properties_add_int(props, "palette_length", "Number of colors", 2, 64, 1)
+        for i=1,data.palette_length do
+            obslua.obs_properties_add_color(props, "palette_color_" .. i, "Color " .. i)
+        end
+    end
+
+    -- obslua.obs_properties_add_path(props, "palette_image_path", "Read palette from file",
+    --                                obslua.OBS_PATH_FILE, "Bitmap picture (*.jpg *.png)", nil)
+
+    -- obslua.obs_properties_add_color(props, "color", "my color")
 
     return props
 end
@@ -211,6 +278,9 @@ source_info.create = function(settings, source)
 
     -- The source object instance of the filter itself
     data.source = source
+
+    -- Empty path at the beginning
+    data.palette_image_path = ""
 
     -- Compiles shader
     obslua.obs_enter_graphics()
