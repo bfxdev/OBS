@@ -143,6 +143,8 @@ technique Draw
 
 ------------------------------------------------------ SOURCE INFO -----------------------------------------------------
 
+MAX_PALETTE_LENGTH = 64
+
 -- Starts the definition of the global variable of type obs_source_info_t, used to create source object instances
 -- when the filter is added on a video source or re-created in a scene at OBS start.
 -- See https://obsproject.com/docs/reference-sources.html
@@ -181,7 +183,7 @@ source_info.get_defaults = function(settings)
     obslua.obs_data_set_default_int(settings, "palette_green_bit_depth", 3)
     obslua.obs_data_set_default_int(settings, "palette_blue_bit_depth", 3)
     obslua.obs_data_set_default_int(settings, "palette_length", 16)
-    for i=1,64 do
+    for i=1,MAX_PALETTE_LENGTH do
         obslua.obs_data_set_default_int(settings, "palette_color_" .. i, 0xFFFFFFFF)
     end
 
@@ -216,32 +218,70 @@ source_info.update = function(data, settings)
         obslua.obs_leave_graphics()
     end
 
-    -- Palette preset
+    -- Palette properties
     data.palette_preset = obslua.obs_data_get_int(settings, "palette_preset")
     data.palette_use_bit_depths = obslua.obs_data_get_bool(settings, "palette_use_bit_depths")
     data.palette_red_bit_depth = obslua.obs_data_get_int(settings, "palette_red_bit_depth")
     data.palette_green_bit_depth = obslua.obs_data_get_int(settings, "palette_green_bit_depth")
     data.palette_blue_bit_depth = obslua.obs_data_get_int(settings, "palette_blue_bit_depth")
     data.palette_length = obslua.obs_data_get_int(settings, "palette_length")
-    -- for i=0,63 do
-    --     obslua.obs_data_set_default_int(settings, "palette_color_" .. i, 0xFFFFFFFF)
-    -- end
+    data.palette_color = {}
+    for i=1,MAX_PALETTE_LENGTH do
+        data.palette_color[i] = obslua.obs_data_get_int(settings, "palette_color_" .. i)
+    end
+
+    -- Palette visibility
+    -- Calls to update are normally at re-load time (no properties were display) or follow a manual change
+    -- of some property with the properties window displayed. Hence the ref to data.props in update should be either
+    -- nil in case no properties was displayed until present, or non-nil with dialog window currently displayed.
+    -- set_properties_visibility(data)
 
 end
+
+-- Sets visible flags of the displayed properties to hide unnecessary parameters
+function set_properties_visibility(data)
+
+    print("In set_visibility, props=" .. tostring(data.props))
+
+    -- Only if the set of properties was defined previously (e.g. not defined at scene reload), assuming
+    -- the reference is still valid
+    if data.props ~= nil then
+        local by_colors = (data.palette_preset == 0)
+        local by_bit_depths = (data.palette_preset == 1)
+        print("by_colors=" .. tostring(by_colors))
+
+        obslua.obs_property_set_visible(obslua.obs_properties_get(data.props, "palette_length"), by_colors)
+
+        -- obslua.obs_properties_apply_settings(data.props, settings)
+    end
+end
+
+function property_modified_callback(props, property)
+    -- data.props = props
+    print("In property_modified_callback")
+    -- set_properties_visibility(data)
+    local plen = obslua.obs_properties_get(props, "palette_length")
+    if plen ~= nil then
+        print("Changing visibility of palette.length")
+        obslua.obs_property_set_enabled(plen, not obslua.obs_property_enabled(plen))
+    end
+end
+
 
 -- Gets the property information of this source (Optional)
 source_info.get_properties = function(data)
 
     print("In source_info.get_properties")
 
-    props = obslua.obs_properties_create()
+    -- Always re-create object
+    data.props = obslua.obs_properties_create()
 
     -- Downscaled resolution
-    obslua.obs_properties_add_int(props, "width", "Width", 1, 5000, 1)
-    obslua.obs_properties_add_int(props, "height", "Height", 1, 5000, 1)
+    obslua.obs_properties_add_int(data.props, "width", "Width", 1, 5000, 1)
+    obslua.obs_properties_add_int(data.props, "height", "Height", 1, 5000, 1)
 
     -- Palette presets
-    local list = obslua.obs_properties_add_list(props, "palette_preset", "Palette preset",
+    local list = obslua.obs_properties_add_list(data.props, "palette_preset", "Palette preset",
     obslua.OBS_COMBO_TYPE_LIST, obslua.OBS_COMBO_FORMAT_INT)
     obslua.obs_property_list_add_int(list, "Custom by colors",     0)
     obslua.obs_property_list_add_int(list, "Custom by bit depths", 1)
@@ -250,11 +290,9 @@ source_info.get_properties = function(data)
     obslua.obs_property_list_add_int(list, "Commodore C64",        4)
 
     -- Palette by colors
-    if data.palette_preset == 0 then
-        obslua.obs_properties_add_int(props, "palette_length", "Number of colors", 2, 64, 1)
-        for i=1,data.palette_length do
-            obslua.obs_properties_add_color(props, "palette_color_" .. i, "Color " .. i)
-        end
+    obslua.obs_properties_add_int(data.props, "palette_length", "Number of colors", 2, MAX_PALETTE_LENGTH, 1)
+    for i=1,MAX_PALETTE_LENGTH do
+        obslua.obs_properties_add_color(data.props, "palette_color_" .. i, "Color " .. i)
     end
 
     -- obslua.obs_properties_add_path(props, "palette_image_path", "Read palette from file",
@@ -262,7 +300,12 @@ source_info.get_properties = function(data)
 
     -- obslua.obs_properties_add_color(props, "color", "my color")
 
-    return props
+    set_properties_visibility(data)
+
+    obslua.obs_property_set_modified_callback(list, property_modified_callback)
+
+
+    return data.props
 end
 
 -- Creates the implementation data for the source
@@ -279,8 +322,8 @@ source_info.create = function(settings, source)
     -- The source object instance of the filter itself
     data.source = source
 
-    -- Empty path at the beginning
-    data.palette_image_path = ""
+    -- Keeps a ref to properties to manage visibility
+    data.props = nil
 
     -- Compiles shader
     obslua.obs_enter_graphics()
@@ -403,5 +446,14 @@ end
 -- Called when the filter is removed from a source (Optional)
 source_info.filter_remove = function(data, source)
     print("In source_info.filter_remove")
+
+    -- Destroys the properties object if present
+    if data.props ~= nil then
+        obslua.obs_properties_destroy(data.props)
+        data.props = nil
+    end
 end
 
+for key,value in pairs(obslua) do
+    print("Found member " .. key);
+end
