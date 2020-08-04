@@ -16,32 +16,33 @@
 
 -------------------------------------------------------- PRESETS -------------------------------------------------------
 
--- Indices of customizable palettes
-PALETTE_CUSTOM_LIST       = 1
-PALETTE_CUSTOM_COMPONENTS = 2
+-- Types of palettes, used as well as indices of customizable palettes
+PALETTE_LIST       = 1
+PALETTE_BIT_DEPTHS = 2
+PALETTE_LEVELS =     3
 
 -- Set of palettes definition
 palettes = {{name="Custom by list of colors", colors={0x000000, 0x808080, 0xFFFFFF}},
-            {name="Custom by RGB bit depths", depths={2, 2, 2}},
+            {name="Custom by RGB bit depths", bit_depths={2, 2, 2}},
             {name="Amstrad CPC", colors={0x000201, 0x00026B, 0x0C02F4, 0x6C0201, 0x690268, 0x6C02F2,
              0xF30506, 0xF00268, 0xF302F4, 0x027801, 0x007868, 0x0C7BF4, 0x6E7B01, 0x6E7D6B, 0x6E7BF6,
              0xF37D0D, 0xF37D6B, 0xFA80F9, 0x02F001, 0x00F36B, 0x0FF3F2, 0x71F504, 0x71F36B, 0x71F3F4,
              0xF3F30D, 0xF3F36D, 0xFFF3F9}},
-            {name="Amstrad CPC+", depths={4, 4, 4}},
+            {name="Amstrad CPC+", bit_depths={4, 4, 4}},
             {name="Commodore C64", colors={0x000000, 0xf8fcf8, 0x883830, 0x60b4b8, 0x883c90, 0x50a048,
              0x403088, 0xb8cc70, 0x885428, 0x504000, 0xb86860, 0x505050, 0x787878, 0x90e088, 0x7868c0,
              0x989c98}},
-            {name="Commodore Amiga", depths={4, 4, 4}}}
+            {name="Commodore Amiga", bit_depths={4, 4, 4}}}
 
 -- Index of preset once something is modified
 PRESET_CUSTOM = 1
 
 -- Presets of retro computers
 presets = {{name="Custom"},
-           {name="Amstrad CPC Mode 0", palette = palettes[3]},
-           {name="Amstrad CPC Mode 1", palette = palettes[3]},
-           {name="Amstrad CPC Mode 2", palette = palettes[3]},
-           {name="Commodore C64",      palette = palettes[5]}}
+           {name="Amstrad CPC Mode 0", palette_index = 3},
+           {name="Amstrad CPC Mode 1", palette_index = 3},
+           {name="Amstrad CPC Mode 2", palette_index = 3},
+           {name="Commodore C64",      palette_index = 5}}
 
 -- Default preset to apply if a source is created and added to a video source, modifiable in script properties
 default_preset = 3
@@ -194,6 +195,62 @@ source_info.get_name = function()
     return "Pixel Art"
 end
 
+
+function get_palette_parameters(palette_index)
+
+	local res = {}
+	
+	-- Default values for colors
+	for i=1,MAX_PALETTE_LENGTH do
+		res["palette_color_" .. i] = 0xFF000000
+	end
+
+	-- Retrieves palette info
+	local palette = palettes[palette_index]
+	if palette.colors ~= nil then
+		-- Palette by colors
+        res.palette_type = PALETTE_LIST
+		res.palette_length = #palette.colors
+		for i=1,res.palette_length do
+			res["palette_color_" .. i] = palette.colors[i] + 0xFF000000
+		end
+		-- Default values bit depths
+		res.palette_red_bit_depth = 3
+		res.palette_green_bit_depth = 3
+		res.palette_blue_bit_depth = 3
+	elseif palette.bit_depths ~= nil then
+		-- Palette by bit depths
+		res.palette_type = PALETTE_BIT_DEPTHS
+		res.palette_red_bit_depth = palette.bit_depths[1]
+		res.palette_green_bit_depth = palette.bit_depths[2]
+		res.palette_blue_bit_depth = palette.bit_depths[3]
+		-- Default values by colors (black and white)
+		res.palette_length = 2
+		res.palette_color_1 = 0xFF000000
+		res.palette_color_2 = 0xFFFFFFFF
+	else
+		print("Palette type not supported yet")
+	end
+
+	return res
+end
+
+-- Returns an object with 
+function get_preset_parameters(preset_index)
+
+	-- Retrieves palette index and creates object with palette info
+	local palette_index = presets[preset_index].palette_index
+	local res = get_palette_parameters(palette_index)
+	res.palette_index = palette_index
+
+	-- Additional preset parameters to be added here
+
+	print("Built by get_preset_parameters():")
+	for k,v in pairs(res) do print(k .. " : " .. v) end
+	
+	return res
+end
+
 -- Sets the default settings for this source
 source_info.get_defaults = function(settings)
 
@@ -206,16 +263,11 @@ source_info.get_defaults = function(settings)
     -- obslua.obs_data_set_default_int(settings, "width", 320)
     -- obslua.obs_data_set_default_int(settings, "height", 200)
 
-    -- Palette
-    obslua.obs_data_set_default_int(settings, "palette_preset", 0)
-    obslua.obs_data_set_default_bool(settings, "palette_use_bit_depths", false)
-    obslua.obs_data_set_default_int(settings, "palette_red_bit_depth", 3)
-    obslua.obs_data_set_default_int(settings, "palette_green_bit_depth", 3)
-    obslua.obs_data_set_default_int(settings, "palette_blue_bit_depth", 3)
-    obslua.obs_data_set_default_int(settings, "palette_length", 4)
-    for i=1,MAX_PALETTE_LENGTH do
-        obslua.obs_data_set_default_int(settings, "palette_color_" .. i, 0xFFFFFFFF)
-    end
+	-- Set defaults from preset
+	local parameters = get_preset_parameters(default_preset)
+	for k,v in pairs(parameters) do
+		obslua.obs_data_set_default_int(settings, k, v)
+	end
 
 end
 
@@ -223,6 +275,11 @@ end
 source_info.update = function(data, settings)
 
     print("In source_info.update")
+	
+	local palette_index = obslua.obs_data_get_int(settings, "palette_index")
+	if palette_index == PALETTE_LIST or palette_index == PALETTE_BIT_DEPTHS then
+		obslua.obs_data_set_int(settings, "palette_index", palette_index)
+	end
 
     -- Downscaled resolution
     -- data.width = obslua.obs_data_get_int(settings, "width")
@@ -248,35 +305,28 @@ source_info.update = function(data, settings)
         obslua.obs_leave_graphics()
     end ]]--
 
-    -- Palette
-    data.palette_preset = obslua.obs_data_get_int(settings, "palette_preset")
-    data.palette_use_bit_depths = obslua.obs_data_get_bool(settings, "palette_use_bit_depths")
-    data.palette_red_bit_depth = obslua.obs_data_get_int(settings, "palette_red_bit_depth")
-    data.palette_green_bit_depth = obslua.obs_data_get_int(settings, "palette_green_bit_depth")
-    data.palette_blue_bit_depth = obslua.obs_data_get_int(settings, "palette_blue_bit_depth")
-    data.palette_length = obslua.obs_data_get_int(settings, "palette_length")
-    data.palette_color = {}
-    for i=1,MAX_PALETTE_LENGTH do
-        data.palette_color[i] = obslua.obs_data_get_int(settings, "palette_color_" .. i)
-    end
-
 end
 
 -- Sets visible flags of the displayed properties to hide unnecessary parameters
 -- Callback on several properties (called as well at first properties widget display)
 function set_properties_visibility(props, property, settings)
     print("In set_properties_visibility callback")
-    print("props: " .. tostring(props))
-    print("property: " .. tostring(obslua.obs_property_name(property)))
-    print("settings: " .. obslua.obs_data_get_json(settings))
 
     -- Retrieves values from the settings
-    local palette_preset = obslua.obs_data_get_int(settings, "palette_preset")
-    local palette_length = obslua.obs_data_get_int(settings, "palette_preset")
-    local by_colors = (palette_preset == 0)
-    local by_bit_depths = (palette_preset == 1)
+    local palette_index = obslua.obs_data_get_int(settings, "palette_index")
+    local palette_length = obslua.obs_data_get_int(settings, "palette_length")
+    local by_colors = (palette_index == PALETTE_LIST)
+    local by_bit_depths = (palette_index == PALETTE_BIT_DEPTHS)
+	print("by_colors=" .. tostring(by_colors) .. " palette_index=" .. palette_index)
 
+	-- Palette
     obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_length"), by_colors)
+	for i=1,MAX_PALETTE_LENGTH do
+		obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_color_" .. i), by_colors and i<=palette_length)
+	end
+    obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_red_bit_depth"), by_bit_depths)
+    obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_green_bit_depth"), by_bit_depths)
+    obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_blue_bit_depth"), by_bit_depths)
 
     -- IMPORTANT TO TRIGGER PROPERTIES REFRESH ON GUI
     return true
@@ -291,31 +341,41 @@ source_info.get_properties = function(data)
     -- Always re-create object
     data.props = obslua.obs_properties_create()
 
+	-- Main preset
+    local list = obslua.obs_properties_add_list(data.props, "preset", "Main preset",
+	                                            obslua.OBS_COMBO_TYPE_LIST, obslua.OBS_COMBO_FORMAT_INT)
+	for k,v in ipairs(presets) do
+        obslua.obs_property_list_add_int(list, v.name, k)
+    end
+	
     -- Downscaled resolution
     -- obslua.obs_properties_add_int(data.props, "width", "Width", 1, 5000, 1)
     -- obslua.obs_properties_add_int(data.props, "height", "Height", 1, 5000, 1)
 
     -- Palette presets
-    local list = obslua.obs_properties_add_list(data.props, "palette_preset", "Palette preset",
-    obslua.OBS_COMBO_TYPE_LIST, obslua.OBS_COMBO_FORMAT_INT)
-    obslua.obs_property_list_add_int(list, "Custom by colors",     0)
-    obslua.obs_property_list_add_int(list, "Custom by bit depths", 1)
-    obslua.obs_property_list_add_int(list, "Amstrad CPC",          2)
-    obslua.obs_property_list_add_int(list, "Amstrad CPC+",         3)
-    obslua.obs_property_list_add_int(list, "Commodore C64",        4)
-
-    -- Palette by colors
-    obslua.obs_properties_add_int(data.props, "palette_length", "Number of colors", 2, MAX_PALETTE_LENGTH, 1)
+    list = obslua.obs_properties_add_list(data.props, "palette_index", "Palette",
+	                                      obslua.OBS_COMBO_TYPE_LIST, obslua.OBS_COMBO_FORMAT_INT)
+	for k,v in ipairs(palettes) do
+        obslua.obs_property_list_add_int(list, v.name, k)
+    end
+	
+    -- Palette by colors list
+    local pl = obslua.obs_properties_add_int(data.props, "palette_length", "Number of colors", 2, MAX_PALETTE_LENGTH, 1)
     for i=1,MAX_PALETTE_LENGTH do
         obslua.obs_properties_add_color(data.props, "palette_color_" .. i, "Color " .. i)
     end
+	
+	-- Palette by bit depths
+    obslua.obs_properties_add_int(data.props, "palette_red_bit_depth", "Bit depth Red", 1, 8, 1)
+    obslua.obs_properties_add_int(data.props, "palette_green_bit_depth", "Bit depth Green", 1, 8, 1)
+    obslua.obs_properties_add_int(data.props, "palette_blue_bit_depth", "Bit depth Blue", 1, 8, 1)
+	
 
     -- obslua.obs_properties_add_path(props, "palette_image_path", "Read palette from file",
     --                                obslua.OBS_PATH_FILE, "Bitmap picture (*.jpg *.png)", nil)
 
-    -- obslua.obs_properties_add_color(props, "color", "my color")
-
     obslua.obs_property_set_modified_callback(list, set_properties_visibility)
+    obslua.obs_property_set_modified_callback(pl, set_properties_visibility)
 
     return data.props
 end
