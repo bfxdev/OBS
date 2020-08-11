@@ -14,59 +14,72 @@
 -- FFI library see https://luajit.org/ext_ffi.html
 -- ffi = require("ffi")
 
-
-
 ------------------------------------------------- GLOBAL HELPER FUNCTIONS ----------------------------------------------
 
 -- List of log levels used for display and property selection
 LOG_LEVEL_NAMES = {"Debug", "Info", "Warning", "Error", "Nothing"}
 
 -- Global log level
-log_level = 1
+log_level = 3
 
--- Recursive transformation of any object to string
-function as_string(content)
+-- Recursive transformation of any object to string (with max depth)
+MAX_PARSE_DEPTH = 10
+function as_string(content, depth)
 
-	local res
+    -- Result of the function
+    local res
 
-	-- Lists all elements of a table
+    -- Lists all elements of a table
 	if type(content) == "table" then
         res = "{"
         for k,v in pairs(content) do
-            if string.len(res) > 1 then res = res .. ", " end
-            res = res .. k .. "=" .. as_string(v)
+            if string.len(res) > 1 then res = res .. "," end
+            res = res .. k .. "="
+            if depth < MAX_PARSE_DEPTH then
+                res = res  .. as_string(v, depth+1)
+            else
+                res = res  .. tostring(v)
+            end
         end
         res = res .. "}"
 
 	-- Lists all elements of a function
 	elseif type(content) == "function" then
-        res = "function" .. as_string(debug.getinfo(content))
+        res = "function" -- .. as_string(debug.getinfo(content), MAX_PARSE_DEPTH) -- removed not useful
 
-    -- Stop condition for recursion
+    -- Type string
+    elseif type(content) == "string" then
+        res =  tostring(content)
+        if depth > 0 then
+            res = "\"" .. res .. "\""
+        end
+
+    -- Everything else
     else
         res =  tostring(content)
     end
-	
+
 	return res
 end
 
 -- Main log function, do not use directly
-function log(content, level)
-	if log_level<= level then
-		local str = string.upper(LOG_LEVEL_NAMES[level]) .. ": "
-		str = str .. as_string(content)
-		print(str)
+-- Level to track if we are at level 0 (not quotes on string) and avoid infinite recursions
+-- Multiple arguments displayed with spaces  between (python-like)
+function log(level, ...)
+    if log_level<= level then
+        local str = string.upper(LOG_LEVEL_NAMES[level]) .. ":"
+        for k,v in pairs({...}) do
+            str = str .. " " .. as_string(v, 0)
+        end
+        print(str)
 	end
 end
 
 -- Log functions to be used
-function log_debug(content)   log(content, 1) end
-function log_info(content)    log(content, 2) end
-function log_warning(content) log(content, 3) end
-function log_error(content)   log(content, 4) end
-
--- log_debug(obslua.obs_data_set_default_int)
-
+function log_debug(...)   log(1, ...) end
+function log_info(...)    log(2, ...) end
+function log_warning(...) log(3, ...) end
+function log_error(...)   log(4, ...) end
 
 -------------------------------------------------------- PRESETS -------------------------------------------------------
 
@@ -135,12 +148,20 @@ function script_defaults(settings)
     obslua.obs_data_set_default_int(settings, "default_preset_index", default_preset_index)
     obslua.obs_data_set_default_int(settings, "log_level", log_level)
 
+    -- Reads default or stored values as soon as possible
+    default_preset_index = obslua.obs_data_get_int(settings, "default_preset_index")
+    log_level = obslua.obs_data_get_int(settings, "log_level")
+
     log_debug("Leaving script_defaults\n")
 end
 
 -- Called on script startup with specific settings associated with the script.
 function script_load(settings)
     log_debug("Entering script_load")
+
+    -- Displays some debug info
+    log_debug("Content of palettes:", palettes)
+    log_debug("Content of presets:", presets)
 
     -- Registers the template object source_info, used when adding the filter to a video source
     log_info("Call to obslua.obs_register_source(source_info)")
@@ -269,16 +290,6 @@ end
 function get_palette_parameters(palette_index)
 
 	local res = {}
-	
-	--[[ Default values
-	for i=1,MAX_PALETTE_LENGTH do
-		res["palette_color_" .. i] = 0xFF000000
-    end
-    res.palette_length = 2
-    res.palette_color_2 = 0xFFFFFFFF
-    res.palette_red_bit_depth = 3
-    res.palette_green_bit_depth = 3
-    res.palette_blue_bit_depth = 3 ]]
 
     -- Retrieves palette info
 	local palette = palettes[palette_index]
@@ -296,8 +307,10 @@ function get_palette_parameters(palette_index)
 		res.palette_green_bit_depth = palette.bit_depths[2]
 		res.palette_blue_bit_depth = palette.bit_depths[3]
 	else
-		print("Palette type not supported yet")
-	end
+		log_error("Palette type not supported yet")
+    end
+    
+    log_debug("Result of get_palette_parameters(" .. tostring(palette_index) .. ")", res)
 
 	return res
 end
@@ -314,7 +327,9 @@ function get_preset_parameters(preset_index)
 
 	--print("Built by get_preset_parameters():")
 	--for k,v in pairs(res) do print(k .. " : " .. v) end
-	
+    
+    log_debug("Result of get_preset_parameters(" .. tostring(preset_index) .. ")", res)
+
 	return res
 end
 
@@ -541,14 +556,14 @@ source_info.create = function(settings, source)
     obslua.obs_enter_graphics()
     data.effect = obslua.gs_effect_create_from_file(script_path() .. 'filter-pixel-art.hlsl', nil)
     if data.effect == nil then
-        print("Effect file not compiled - Reverting to luminance effect")
+        log_warning("Effect file not compiled - Reverting to luminance effect")
         data.effect = obslua.gs_effect_create(EFFECT_LUMINANCE, "luminance", nil)
     end
     obslua.obs_leave_graphics()
 
     -- Destroys everything if shader was not compiled properly
     if data.effect == nil then
-        print("ERROR: HLSL code not compiled")
+        log_error("HLSL code not compiled")
         source_info.destroy(data)
         return nil
     end
@@ -650,19 +665,22 @@ end
 -- This is a separate function because sometimes a source needs to know when it is being saved so it doesn’t always have
 -- to update the current settings until a certain point (Optional)
 source_info.save = function(data, settings)
-    print("In source_info.save")
+    log_debug("Entering source_info.save")
+    log_debug("Leaving source_info.save\n")
 end
 
 -- Called when loading custom data from saved source data.
 -- This is called after all the loading sources have actually been created, allowing the ability to reference other
 -- sources if desired (Optional)
 source_info.load = function(data, settings)
-    print("In source_info.load")
+    log_debug("Entering source_info.load")
+    log_debug("Leaving source_info.load")
 end
 
 -- Called when the filter is removed from a source (Optional)
 source_info.filter_remove = function(data, source)
-    print("In source_info.filter_remove")
+    log_debug("Entering source_info.filter_remove")
+    log_debug("Leaving source_info.filter_remove")
 end
 
 --[[ Prints all members of the "obslua" module
@@ -684,6 +702,3 @@ for key,value in ipairs(presets) do
 end
 print("") ]]
 
-log_debug("Definition of the palettes:")
-log_debug(palettes)
--- log_debug(obslua)    to be debugged
