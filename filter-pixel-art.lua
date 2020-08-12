@@ -340,9 +340,6 @@ source_info.get_defaults = function(settings)
     -- Main preset (possibly set to PRESET_CUSTOM)
     obslua.obs_data_set_default_int(settings, "preset_index", default_preset_index)
 	
-	-- Avoids cascaded changes performed by the callback 
-    obslua.obs_data_set_default_bool(settings, "forced_change", true)
-
     -- Downscaled resolution
     -- obslua.obs_data_set_default_int(settings, "width", 320)
     -- obslua.obs_data_set_default_int(settings, "height", 200)
@@ -367,7 +364,7 @@ source_info.update = function(data, settings)
     end
 	
 	-- Keeps a ref on the settings for later use
-	data.settings = settings
+	-- data.settings = settings
 
     -- Downscaled resolution
     -- data.width = obslua.obs_data_get_int(settings, "width")
@@ -396,17 +393,10 @@ source_info.update = function(data, settings)
     log_debug("Leaving source_info.update\n")
 end
 
-
-function property_modified(props, property, settings)
-    log_debug("Entering property_modified for " .. obslua.obs_property_name(property) ..
-              " forced_change=" .. tostring(obslua.obs_data_get_bool(settings, "forced_change")))
-	
-    -- Checks and sets flag to prevent cascaded changes
-    if obslua.obs_data_get_bool(settings, "forced_change") then
-        log_debug("Leaving property_modified without action for " .. obslua.obs_property_name(property))
-        return false
-    end
-    obslua.obs_data_set_bool(settings, "forced_change", true)
+-- Callback function set on any change of a property
+-- WARNING: this function is called very often for refresh by OBS, even if the property did not actually change
+function property_modified_callback(props, property, settings)
+    log_debug("Entering property_modified_callback for " .. obslua.obs_property_name(property))
 
     -- Gets name of property that was just modified
     local name = obslua.obs_property_name(property)
@@ -425,7 +415,7 @@ function property_modified(props, property, settings)
         end
 		
 		-- Refreshes visibility of properties
-        set_properties_visibility(props, property, settings)
+        set_properties_visibility(props, settings)
 		refresh = true
 		
     -- Palette preset
@@ -445,24 +435,28 @@ function property_modified(props, property, settings)
         end
 
 		-- Set main preset to "Custom" to indicate the main preset was changed 
-		obslua.obs_data_set_int(settings, "preset_index", PRESET_CUSTOM)
+		-- obslua.obs_data_set_int(settings, "preset_index", PRESET_CUSTOM)
 
 		-- Refreshes visibility of properties
-        set_properties_visibility(props, property, settings)
+        set_properties_visibility(props, settings)
 		refresh = true
+		
+    -- Palette length to refresh properties
+    elseif name == "palette_length" then
+        -- Refreshes visibility of properties
+        set_properties_visibility(props, settings)
+        refresh = true
     end
 
-    -- Resets flag and returns true if a refersh is necessary
-    obslua.obs_data_set_bool(settings, "forced_change", false)
-
-    log_debug("Leaving property_modified for " .. obslua.obs_property_name(property))
+    log_debug("Leaving property_modified_callback for " .. obslua.obs_property_name(property) .. 
+              " with refresh=" .. tostring(refresh) .. "\n")
+    -- IMPORTANT TO TRIGGER PROPERTIES REFRESH ON GUI (ReloadProperties or RefreshProperties)
     return refresh
 end
 
 -- Sets visible flags of the displayed properties to hide unnecessary parameters
--- Callback on several properties (called as well at first properties widget display)
-function set_properties_visibility(props, property, settings)
-    -- print("In set_properties_visibility callback")
+function set_properties_visibility(props, settings)
+    log_debug("Entering set_properties_visibility")
 
     -- Retrieves values from the settings
     local palette_index = obslua.obs_data_get_int(settings, "palette_index")
@@ -481,58 +475,57 @@ function set_properties_visibility(props, property, settings)
     obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_green_bit_depth"), by_bit_depths)
     obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_blue_bit_depth"), by_bit_depths)
 
-    -- IMPORTANT TO TRIGGER PROPERTIES REFRESH ON GUI
-    return true
+    log_debug("Leaving set_properties_visibility")
 end
 
 -- Gets the property information of this source (Optional)
 source_info.get_properties = function(data)
     log_debug("Entering source_info.get_properties")
 
-    -- Always re-create object, and keeps a ref on it
-    data.props = obslua.obs_properties_create()
+    -- Always re-create properties object
+    local props = obslua.obs_properties_create()
 
 	-- Main preset
-    local list = obslua.obs_properties_add_list(data.props, "preset_index", "Main preset",
-	                                            obslua.OBS_COMBO_TYPE_LIST, obslua.OBS_COMBO_FORMAT_INT)
+    local p = obslua.obs_properties_add_list(props, "preset_index", "Main preset",
+	                                         obslua.OBS_COMBO_TYPE_LIST, obslua.OBS_COMBO_FORMAT_INT)
 	for k,v in ipairs(presets) do
-        obslua.obs_property_list_add_int(list, v.name, k)
+        obslua.obs_property_list_add_int(p, v.name, k)
     end
-    obslua.obs_property_set_modified_callback(list, property_modified)
+    obslua.obs_property_set_modified_callback(p, property_modified_callback)
 	
     -- Downscaled resolution
-    -- obslua.obs_properties_add_int(data.props, "width", "Width", 1, 5000, 1)
-    -- obslua.obs_properties_add_int(data.props, "height", "Height", 1, 5000, 1)
+    -- obslua.obs_properties_add_int(props, "width", "Width", 1, 5000, 1)
+    -- obslua.obs_properties_add_int(props, "height", "Height", 1, 5000, 1)
 
     -- Palette presets
-    list = obslua.obs_properties_add_list(data.props, "palette_index", "Palette",
-	                                      obslua.OBS_COMBO_TYPE_LIST, obslua.OBS_COMBO_FORMAT_INT)
+    p = obslua.obs_properties_add_list(props, "palette_index", "Palette",
+	                                   obslua.OBS_COMBO_TYPE_LIST, obslua.OBS_COMBO_FORMAT_INT)
 	for k,v in ipairs(palettes) do
-        obslua.obs_property_list_add_int(list, v.name, k)
+        obslua.obs_property_list_add_int(p, v.name, k)
     end
-    obslua.obs_property_set_modified_callback(list, property_modified)
+    obslua.obs_property_set_modified_callback(p, property_modified_callback)
 	
     -- Palette by colors list
-    local pl = obslua.obs_properties_add_int(data.props, "palette_length", "Number of colors", 2, MAX_PALETTE_LENGTH, 1)
+    p = obslua.obs_properties_add_int(props, "palette_length", "Number of colors", 2, MAX_PALETTE_LENGTH, 1)
+    obslua.obs_property_set_modified_callback(p, property_modified_callback)
     for i=1,MAX_PALETTE_LENGTH do
-        obslua.obs_properties_add_color(data.props, "palette_color_" .. i, "Color " .. i)
+        p = obslua.obs_properties_add_color(props, "palette_color_" .. i, "Color " .. i)
+        obslua.obs_property_set_modified_callback(p, property_modified_callback)
     end
 
 	-- Palette by bit depths
-    obslua.obs_properties_add_int(data.props, "palette_red_bit_depth", "Bit depth Red", 1, 8, 1)
-    obslua.obs_properties_add_int(data.props, "palette_green_bit_depth", "Bit depth Green", 1, 8, 1)
-    obslua.obs_properties_add_int(data.props, "palette_blue_bit_depth", "Bit depth Blue", 1, 8, 1)
+    p = obslua.obs_properties_add_int(props, "palette_red_bit_depth", "Bit depth Red", 1, 8, 1)
+    obslua.obs_property_set_modified_callback(p, property_modified_callback)
+    p = obslua.obs_properties_add_int(props, "palette_green_bit_depth", "Bit depth Green", 1, 8, 1)
+    obslua.obs_property_set_modified_callback(p, property_modified_callback)
+    p = obslua.obs_properties_add_int(props, "palette_blue_bit_depth", "Bit depth Blue", 1, 8, 1)
+    obslua.obs_property_set_modified_callback(p, property_modified_callback)
 
     -- obslua.obs_properties_add_path(props, "palette_image_path", "Read palette from file",
     --                                obslua.OBS_PATH_FILE, "Bitmap picture (*.jpg *.png)", nil)
 
-    obslua.obs_property_set_modified_callback(pl, set_properties_visibility)
-	
-	-- Activates changes based on property callback
-    obslua.obs_data_set_bool(data.settings, "forced_change", false)
-
     log_debug("Leaving source_info.get_properties\n")
-    return data.props
+    return props
 end
 
 -- Creates the implementation data for the source
