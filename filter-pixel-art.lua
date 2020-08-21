@@ -87,28 +87,33 @@ function log_error(...)   log(4, ...) end
 PALETTE_LIST  = 1
 PALETTE_MODEL = 2
 
--- Set of palettes definition
-palettes = {{name="Custom list of colors", colors={0x000000, 0x808080, 0xFFFFFF}},
-            {name="Custom RGBL model", bit_depths={8, 8, 8}},
-            {name="Amstrad CPC", colors={0x000201, 0x00026B, 0x0C02F4, 0x6C0201, 0x690268, 0x6C02F2,
+-- Set of palette presets
+-- Defined as list of colors by a table of RGB 24-bits integers
+-- Defined as model by { range of values R, G, B, I, minimums R, G, B, maximums R, G, B}  
+PALETTES = {{name="Custom list of colors", list={0x000000, 0x808080, 0xFFFFFF}},
+            {name="Custom RGBI model", model={5,5,5,2, 30,30,30, 280,280,280}},
+            {name="Amstrad CPC", list={0x000201, 0x00026B, 0x0C02F4, 0x6C0201, 0x690268, 0x6C02F2,
              0xF30506, 0xF00268, 0xF302F4, 0x027801, 0x007868, 0x0C7BF4, 0x6E7B01, 0x6E7D6B, 0x6E7BF6,
              0xF37D0D, 0xF37D6B, 0xFA80F9, 0x02F001, 0x00F36B, 0x0FF3F2, 0x71F504, 0x71F36B, 0x71F3F4,
              0xF3F30D, 0xF3F36D, 0xFFF3F9}},
-            {name="Amstrad CPC+", bit_depths={4, 4, 4}},
-            {name="Commodore C64", colors={0x000000, 0xf8fcf8, 0x883830, 0x60b4b8, 0x883c90, 0x50a048,
+            {name="Amstrad CPC+", model={16,16,16,1, 0,0,0, 255,255,255}},
+            {name="Commodore C64", list={0x000000, 0xf8fcf8, 0x883830, 0x60b4b8, 0x883c90, 0x50a048,
              0x403088, 0xb8cc70, 0x885428, 0x504000, 0xb86860, 0x505050, 0x787878, 0x90e088, 0x7868c0,
              0x989c98}},
-            {name="Commodore Amiga", bit_depths={4, 4, 4}}}
+            {name="Commodore Amiga", model={16,16,16,1, 0,0,0, 255,255,255}}}
 
 -- Index of preset once something is modified
 PRESET_CUSTOM = 1
 
 -- Presets of retro computers
-presets = {{name="Custom"},
-           {name="Amstrad CPC Mode 0", palette_index = 3},
-           {name="Amstrad CPC Mode 1", palette_index = 3},
-           {name="Amstrad CPC Mode 2", palette_index = 3},
-           {name="Commodore C64",      palette_index = 5}}
+-- Main parameters: palette for palette_index, coloration for coloration_index, colors for inks count
+-- Resolution defined as {visible area base width, height, pixel width, height, border width, height}
+-- Note: for PAL CPC resolution 768x544 --> (64+640+64)x(72+400+72) 
+PRESETS = {{name="Custom", palette=1, coloration=1, colors=4, display={320,200, 2,2, 0,0}},
+           {name="Amstrad CPC Mode 0", palette=3, coloration=1, colors=16, resolution={640,400, 4,2, 64,72}},
+           {name="Amstrad CPC Mode 1", palette=3, coloration=1, colors=4,  resolution={640,400, 2,2, 64,72}},
+           {name="Amstrad CPC Mode 2", palette=3, coloration=1, colors=2,  resolution={640,400, 1,2, 64,72}},
+           {name="Commodore C64",      palette=5, coloration=1, colors=16, resolution={640,400, 1,1, 64,72}}}
 
 -- Default preset to apply if a source is created and added to a video source, modifiable in script properties
 default_preset_index = 3
@@ -159,8 +164,8 @@ function script_load(settings)
     log_debug("Entering script_load")
 
     -- Displays some debug info
-    log_debug("Content of palettes:", palettes)
-    log_debug("Content of presets:", presets)
+    log_debug("Content of PALETTES:", PALETTES)
+    log_debug("Content of PRESETS:", PRESETS)
 
     -- Registers the template object source_info, used when adding the filter to a video source
     log_info("Call to obslua.obs_register_source(source_info)")
@@ -199,7 +204,7 @@ function script_properties()
                                                 obslua.OBS_COMBO_TYPE_LIST, obslua.OBS_COMBO_FORMAT_INT)
     -- Fills list with values from presets except PRESET_CUSTOM (special value only displayed once some
     -- other setting part of the preset was changed)
-    for k,v in ipairs(presets) do
+    for k,v in ipairs(PRESETS) do
         if k ~= PRESET_CUSTOM then obslua.obs_property_list_add_int(list, v.name, k) end
     end
 
@@ -285,48 +290,61 @@ source_info.get_name = function()
     return "Pixel Art"
 end
 
-
+-- Returns an object with members set to key / integer values from the pre-defined palettes, with the same variable
+-- names as the settings and properties used in the plugin
 function get_palette_parameters(palette_index)
 
-	local res = {}
+    local res = {}
 
     -- Retrieves palette info
-	local palette = palettes[palette_index]
-	if palette.colors ~= nil then
-		-- Palette by colors
+	local palette = PALETTES[palette_index]
+	if palette.list ~= nil then
+		-- Palette by list of colors
         res.palette_type = PALETTE_LIST
-		res.palette_length = #palette.colors
+		res.palette_length = #palette.list
 		for i=1,res.palette_length do
-			res["palette_color_" .. i] = palette.colors[i] + 0xFF000000
+			res["palette_color_" .. i] = palette.list[i] + 0xFF000000
 		end
-	elseif palette.bit_depths ~= nil then
-		-- Palette by bit depths
-        res.palette_type = PALETTE_MODEL
-		res.palette_red_bit_depth = palette.bit_depths[1]
-		res.palette_green_bit_depth = palette.bit_depths[2]
-		res.palette_blue_bit_depth = palette.bit_depths[3]
 	else
-		log_error("Palette type not supported yet")
+		-- Palette by model
+        res.palette_type = PALETTE_MODEL
+		res.palette_range_red = palette.model[1]
+		res.palette_range_green = palette.model[2]
+		res.palette_range_blue = palette.model[3]
+		res.palette_range_intensity = palette.model[4]
+		res.palette_min_red = palette.model[5]
+		res.palette_min_green = palette.model[6]
+		res.palette_min_blue = palette.model[7]
+		res.palette_max_red = palette.model[8]
+		res.palette_max_green = palette.model[9]
+		res.palette_max_blue = palette.model[10]
     end
-    
+
     log_debug("Result of get_palette_parameters(" .. tostring(palette_index) .. ")", res)
 
 	return res
 end
 
--- Returns an object with members set to key/values
+-- Returns an object with members set to key / integer values containing
+-- retro computer preset parameters
 function get_preset_parameters(preset_index)
 
-	-- Retrieves palette index and creates object with palette info
-	local palette_index = presets[preset_index].palette_index
-	local res = get_palette_parameters(palette_index)
-	res.palette_index = palette_index
+    local res = {}
 
-	-- Additional preset parameters to be added here
+    -- Inserts main preset info
+    local preset = PRESETS[preset_index]
+    res.palette_index = preset.palette
+    res.coloration_index = preset.coloration
+    res.display_colors = preset.colors
 
-	--print("Built by get_preset_parameters():")
-	--for k,v in pairs(res) do print(k .. " : " .. v) end
-    
+    -- Inserts resolution parameters
+    res.resolution_visible_width = preset.resolution[1]
+    res.resolution_visible_height = preset.resolution[2]
+    res.resolution_pixel_width = preset.resolution[3]
+    res.resolution_pixel_height = preset.resolution[4]
+    res.resolution_border_width = preset.resolution[5]
+    res.resolution_border_height = preset.resolution[6]
+
     log_debug("Result of get_preset_parameters(" .. tostring(preset_index) .. ")", res)
 
 	return res
@@ -338,23 +356,25 @@ end
 source_info.get_defaults = function(settings)
     log_debug("Entering source_info.get_defaults")
 
-    -- Downscaled resolution
-    obslua.obs_data_set_default_int(settings, "width", 320)
-    obslua.obs_data_set_default_int(settings, "height", 200)
-    
-    -- Set default list of colors
-	local parameters = get_palette_parameters(PALETTE_LIST)
-	for k,v in pairs(parameters) do
-		obslua.obs_data_set_default_int(settings, k, v)
-    end
-
-    -- Set default palette model
+    -- Set default palette model before customization
 	parameters = get_palette_parameters(PALETTE_MODEL)
 	for k,v in pairs(parameters) do
 		obslua.obs_data_set_default_int(settings, k, v)
     end
 
-    -- Main preset
+    -- Set default list of colors before customization
+	local parameters = get_palette_parameters(PALETTE_LIST)
+	for k,v in pairs(parameters) do
+		obslua.obs_data_set_default_int(settings, k, v)
+    end
+
+    -- Set default preset parameters before customization
+	local parameters = get_preset_parameters(PRESET_CUSTOM)
+	for k,v in pairs(parameters) do
+		obslua.obs_data_set_default_int(settings, k, v)
+    end
+
+    -- Set default preset parameter (not custom as chosen in script properties)
     obslua.obs_data_set_default_int(settings, "preset_index", default_preset_index)
 
     log_debug("Leaving source_info.get_defaults\n")
@@ -400,105 +420,63 @@ source_info.update = function(data, settings)
     log_debug("Leaving source_info.update\n")
 end
 
+function customize_preset(data)
+    log_debug("Entering customize_preset for preset_index ",
+              obslua.obs_data_get_int(data.settings, "preset_index"))
 
+    -- Retrieves preset parameters
+    local preset_index = obslua.obs_data_get_int(data.settings, "preset_index")
+    local parameters = get_preset_parameters(preset_index)
+	for k,v in pairs(parameters) do
+		obslua.obs_data_set_int(data.settings, k, v)
+    end
 
+    -- Sets preset index to custom preset
+    obslua.obs_data_set_int(data.settings, "preset_index", PRESET_CUSTOM)
 
-function customize_preset_callback(param)
-    log_debug("Entering customize_preset_callback")
+    -- Calls necessary modification callbacks
+    obslua.obs_properties_apply_settings(data.props, data.settings)
 
-    log_debug("Leaving customize_preset_callback")
+    log_debug("Leaving customize_preset")
 end
 
-function customize_palette_callback()
-    log_debug("Entering customize_palette_callback")
+function customize_palette(data)
+    log_debug("Entering customize_palette for palette_index ",
+              obslua.obs_data_get_int(data.settings, "palette_index"))
 
-    -- Updates all palette parameters if a palette preset was selected
-    local params = get_palette_parameters(palette_index)
-    for k,v in pairs(params) do
-        obslua.obs_data_set_int(settings, k, v)
+    -- Retrieves palette parameters
+    local palette_index = obslua.obs_data_get_int(data.settings, "palette_index")
+	local parameters = get_palette_parameters(palette_index)
+	for k,v in pairs(parameters) do
+		obslua.obs_data_set_int(data.settings, k, v)
     end
 
-    log_debug("Leaving customize_palette_callback")
+    -- Sets palette index to custom palette type
+    obslua.obs_data_set_int(data.settings, "palette_index", parameters.palette_type)
+
+    -- Calls necessary modification callbacks
+    obslua.obs_properties_apply_settings(data.props, data.settings)
+
+    log_debug("Leaving customize_palette")
 end
 
--- Gets the property information of this source (Optional)
-source_info.get_properties = function(data)
-    log_debug("Entering source_info.get_properties")
 
-    -- Always re-create properties object
-    local props = obslua.obs_properties_create()
 
-	-- Main preset
-    local p = obslua.obs_properties_add_list(props, "preset_index", "Main preset",
-	                                         obslua.OBS_COMBO_TYPE_LIST, obslua.OBS_COMBO_FORMAT_INT)
-	for k,v in ipairs(presets) do
-        obslua.obs_property_list_add_int(p, v.name, k)
-    end
-    obslua.obs_property_set_modified_callback(p, set_properties_visibility)
-    obslua.obs_properties_add_button(props, "preset_customize", "Customize preset properties",
-                                     function() customize_preset_callback(props) end)
-
-    -- Downscaled resolution
-    obslua.obs_properties_add_int(props, "width", "Width", 1, 5000, 1)
-    obslua.obs_properties_add_int(props, "height", "Height", 1, 5000, 1)
-
-    -- Palette presets
-    p = obslua.obs_properties_add_list(props, "palette_index", "Palette",
-	                                   obslua.OBS_COMBO_TYPE_LIST, obslua.OBS_COMBO_FORMAT_INT)
-	for k,v in ipairs(palettes) do
-        obslua.obs_property_list_add_int(p, v.name, k)
-    end
-    obslua.obs_property_set_modified_callback(p, set_properties_visibility)
-    obslua.obs_properties_add_button(props, "palette_customize", "Customize palette properties", customize_palette_callback)
-
-    -- Palette by colors list
-    p = obslua.obs_properties_add_int(props, "palette_length", "Number of colors", 2, MAX_PALETTE_LENGTH, 1)
-    obslua.obs_property_set_modified_callback(p, set_properties_visibility)
-    for i=1,MAX_PALETTE_LENGTH do
-        obslua.obs_properties_add_color(props, "palette_color_" .. i, "Color " .. i)
-    end
-
-	-- Palette by bit depths
-    obslua.obs_properties_add_int(props, "palette_red_bit_depth", "Bit depth Red", 1, 8, 1)
-    obslua.obs_properties_add_int(props, "palette_green_bit_depth", "Bit depth Green", 1, 8, 1)
-    obslua.obs_properties_add_int(props, "palette_blue_bit_depth", "Bit depth Blue", 1, 8, 1)
-
-    -- obslua.obs_properties_add_path(props, "palette_image_path", "Read palette from file",
-    --                                obslua.OBS_PATH_FILE, "Bitmap picture (*.jpg *.png)", nil)
-
-    log_debug("Leaving source_info.get_properties\n")
-    return props
-end
-
--- Sets visible flags of the displayed properties to hide unnecessary parameters
--- Callback set on each property that may hide/show properties
-function set_properties_visibility(props, property, settings)
-    log_debug("Entering set_properties_visibility")
+-- Callback to set visible flags of the displayed preset properties to hide unnecessary parameters
+function set_preset_properties_visibility(props, property, settings)
+    log_debug("Entering set_preset_properties_visibility")
 
     -- Retrieves main values and determines general visibility
     local preset_index = obslua.obs_data_get_int(settings, "preset_index")
-    local palette_index = obslua.obs_data_get_int(settings, "palette_index")
-    local palette_length = obslua.obs_data_get_int(settings, "palette_length")
-    local display_palette = (preset_index == PRESET_CUSTOM)
-    local by_list = display_palette and (palette_index == PALETTE_LIST)
-    local by_model = display_palette and (palette_index == PALETTE_MODEL)
+    local show_groups = (preset_index == PRESET_CUSTOM)
 
-    -- Main palette parameters
-    obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_index"), display_palette)
-    obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_customize"), display_palette)
+    -- Preset parameters
+    obslua.obs_property_set_visible(obslua.obs_properties_get(props, "preset_customize"), not show_groups)
+    obslua.obs_property_set_visible(obslua.obs_properties_get(props, "resolution_group"), show_groups)
+    obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_group"), show_groups)
+    -- obslua.obs_property_set_visible(obslua.obs_properties_get(props, "coloration_group"), show_groups)
 
-    -- Palette by list of colors
-    obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_length"), by_list)
-    for i=1,MAX_PALETTE_LENGTH do
-        obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_color_" .. i), by_list and i<=palette_length)
-    end
-
-    -- Palette by model
-    obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_red_bit_depth"), by_model)
-    obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_green_bit_depth"), by_model)
-    obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_blue_bit_depth"), by_model)
-
-    log_debug("Leaving set_properties_visibility")
+    log_debug("Leaving set_preset_properties_visibility")
     return true
 end
 
@@ -507,9 +485,109 @@ end
 
 
 
+-- Callback to set visible flags of the displayed palette properties to hide unnecessary parameters
+function set_palette_properties_visibility(props, property, settings)
+    log_debug("Entering set_palette_properties_visibility")
+
+    -- Retrieves main values and determines general visibility
+    local palette_index = obslua.obs_data_get_int(settings, "palette_index")
+    local palette_length = obslua.obs_data_get_int(settings, "palette_length")
+    local by_list = palette_index == PALETTE_LIST
+    local by_model = palette_index == PALETTE_MODEL
+
+    -- Main palette parameters
+    obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_customize"),
+                                                              not by_list and not by_model)
+
+    -- Palette by list of colors
+    obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_length"), by_list)
+    for i=1,MAX_PALETTE_LENGTH do
+        obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_color_" .. i),
+                                                                  by_list and i<=palette_length)
+    end
+
+    -- Palette by model
+    obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_range_red"), by_model)
+    obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_range_green"), by_model)
+    obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_range_blue"), by_model)
+    obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_range_intensity"), by_model)
+    obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_min_red"), by_model)
+    obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_min_green"), by_model)
+    obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_min_blue"), by_model)
+    obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_max_red"), by_model)
+    obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_max_green"), by_model)
+    obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_max_blue"), by_model)
+
+    log_debug("Leaving set_palette_properties_visibility")
+    return true
+end
 
 
+-- Gets the property information of this source (Optional)
+source_info.get_properties = function(data)
+    log_debug("Entering source_info.get_properties")
 
+    -- Always re-create properties object and keeps a reference for use in callbacks
+    local props = obslua.obs_properties_create()
+    data.props = props
+
+	-- Main preset
+    local p = obslua.obs_properties_add_list(props, "preset_index", "Main preset",
+	                                         obslua.OBS_COMBO_TYPE_LIST, obslua.OBS_COMBO_FORMAT_INT)
+	for k,v in ipairs(PRESETS) do
+        obslua.obs_property_list_add_int(p, v.name, k)
+    end
+    obslua.obs_property_set_modified_callback(p, set_preset_properties_visibility)
+    obslua.obs_properties_add_button(props, "preset_customize", "Copy preset parameters and customize",
+                                     function() customize_preset(data) return true end)
+
+    -- Display parameters
+    local gprops = obslua.obs_properties_create()
+    obslua.obs_properties_add_group(props, "resolution_group", "Resolution", obslua.OBS_GROUP_NORMAL, gprops)
+    obslua.obs_properties_add_int(gprops, "resolution_visible_width", "Visible area width", 1, 2000, 1)
+    obslua.obs_properties_add_int(gprops, "resolution_visible_height", "Visible area height", 1, 2000, 1)
+    obslua.obs_properties_add_int(gprops, "resolution_pixel_width", "Pixel width", 1, 10, 1)
+    obslua.obs_properties_add_int(gprops, "resolution_pixel_height", "Pixel height", 1, 10, 1)
+    obslua.obs_properties_add_int(gprops, "resolution_border_width", "Border width", 1, 500, 1)
+    obslua.obs_properties_add_int(gprops, "resolution_border_height", "Border height", 1, 500, 1)
+
+    -- Palette parameters
+    gprops = obslua.obs_properties_create()
+    obslua.obs_properties_add_group(props, "palette_group", "Palette", obslua.OBS_GROUP_NORMAL, gprops)
+    p = obslua.obs_properties_add_list(gprops, "palette_index", "Palette preset",
+	                                   obslua.OBS_COMBO_TYPE_LIST, obslua.OBS_COMBO_FORMAT_INT)
+	for k,v in ipairs(PALETTES) do
+        obslua.obs_property_list_add_int(p, v.name, k)
+    end
+    obslua.obs_property_set_modified_callback(p, set_palette_properties_visibility)
+    obslua.obs_properties_add_button(gprops, "palette_customize", "Copy palette parameters and customize",
+                                     function() customize_palette(data) return true end)
+
+    -- Palette by colors list
+    p = obslua.obs_properties_add_int(gprops, "palette_length", "Palette length", 2, MAX_PALETTE_LENGTH, 1)
+    obslua.obs_property_set_modified_callback(p, set_palette_properties_visibility)
+    for i=1,MAX_PALETTE_LENGTH do
+        obslua.obs_properties_add_color(gprops, "palette_color_" .. i, "Palette color " .. i)
+    end
+
+	-- Palette by model
+    obslua.obs_properties_add_int(gprops, "palette_range_red", "Palette levels range Red", 1, 256, 1)
+    obslua.obs_properties_add_int(gprops, "palette_range_green", "Palette levels range Green", 1, 256, 1)
+    obslua.obs_properties_add_int(gprops, "palette_range_blue", "Palette levels range Blue", 1, 256, 1)
+    obslua.obs_properties_add_int(gprops, "palette_range_intensity", "Palette levels range Intensity", 1, 256, 1)
+    obslua.obs_properties_add_int(gprops, "palette_min_red", "Palette minimum Red", 0, 255, 1)
+    obslua.obs_properties_add_int(gprops, "palette_min_green", "Palette minimum Green", 0, 255, 1)
+    obslua.obs_properties_add_int(gprops, "palette_min_blue", "Palette minimum Blue", 0, 255, 1)
+    obslua.obs_properties_add_int(gprops, "palette_max_red", "Palette maximum Red", 0, 255, 1)
+    obslua.obs_properties_add_int(gprops, "palette_max_green", "Palette maximum Green", 0, 255, 1)
+    obslua.obs_properties_add_int(gprops, "palette_max_blue", "Palette maximum Blue", 0, 255, 1)
+
+    -- obslua.obs_properties_add_path(props, "palette_image_path", "Read palette from file",
+    --                                obslua.OBS_PATH_FILE, "Bitmap picture (*.jpg *.png)", nil)
+
+    log_debug("Leaving source_info.get_properties\n")
+    return props
+end
 
 -- Creates the implementation data for the source
 -- Parameters:	settings – Settings to initialize the source with
@@ -527,6 +605,9 @@ source_info.create = function(settings, source)
 
     -- The source object instance of the filter itself
     data.source = source
+
+    -- Saves the settings for later use
+    data.settings = settings
 
     -- Compiles shader
     obslua.obs_enter_graphics()
@@ -663,18 +744,3 @@ end
 for key,value in pairs(obslua) do
     print(key .. " : " .. tostring(value));
 end ]]
-
---[[ Prints all members of the palettes array
-print("Defined palettes:")
-for key,value in ipairs(palettes) do
-    print(key .. " : " .. tostring(value.name));
-end
-print("") ]]
-
---[[ Prints all members of the presets array
-print("Defined presets:")
-for key,value in ipairs(presets) do
-    print(key .. " : " .. tostring(value.name));
-end
-print("") ]]
-
