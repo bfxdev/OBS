@@ -4,6 +4,40 @@
 --                                                                                                                    --
 --                                    By bfxdev - https://github.com/bfxdev - 2020                                    --
 --                                                                                                                    --
+-- Motivation: The main purpose of this video filter plugin is to produce a picture with various constraints on the   --
+--             resolution, the number of colors and color space in order to mimic the display of computers of the     --
+--             8-bits / 16-bits era or Pixel Art pictures. Another aim of this plugin is to showcase what can be      --
+--             done using the Lua framework of OBS, with an explicit intent to hide the underlying complexity and     --
+--             make the settings easily understandable for the user.                                                  --
+--                                                                                                                    --
+--             Needs and requirements can be summarized as:                                                           --
+--              - Multi-stage, highly-parameterized processing through activable steps including:                     --
+--                 1. Downscale: resolution adaptation (pixelization and border), no color adaptation                 --
+--                 2. Palette: definition of overall set of colors allowed in the ouput pictures                      --
+--                 3. Coloration: reduction to a fixed number of colors in the output picture                         --
+--                 4. Dithering: use of mix of dots of several colors to render different shades                      --
+--                 5. Outline: line drawn drawn on top of the final picture, following detected edges                 --
+--              - Some parameters are not part of the main preset: downscale method, dithering, outline               --
+--              - Palette given either by a list of RGB colors or by a reduced number of levels on RGB components     --
+--                and Intensity (RGBI model for e.g. https://en.wikipedia.org/wiki/Color_Graphics_Adapter), with      --
+--                pre-defined palettes that can e selected and customized if necessary                                --
+--              - Emulation of hardware constraints such as reduced resolution with non-square pixels, border,        --
+--                limited number of displayed colors, to mimic e.g. Mode 2 on Amstrad CPC with 640x200 pixels in 2    --
+--                displayed colors out of 27 in the palette and 1x2 pixel blocks on monitor resolution of 768x544     --
+--              - Support of pre-defined, customizable and automatic Coloration for the assignment of palette         --
+--                colors to displayed colors (automatic Coloration based on source picture analysis)                  --
+--              - GUI allowing the user to select and customize in a similar way the different presets (main preset   --
+--                to select in one click all properties of e.g. a particular computer to emulate, including the       --
+--                selection of sub-presets such as the Palette or Coloration), with a large collection of well-known  --
+--                retro computers and common Pixel Art palettes                                                       --
+--              - GUI allowing the user to activate/de-activate the different processing stages, to understand easily --
+--                which parameters are related to which stage, and to see directly the result of any change           --
+--              - Single-pixel outline based on Sobel filters or pixel-level rules, then optimzed according to        --
+--                https://sites.google.com/site/tiffanycinglis/research/pixelating-vector-line-art                    --
+--              - Downscale based on several methods like sub-smapling, bilinear interpolation or methods like        --
+--                http://people.inf.ethz.ch/~cengizo/Files/Sig15PerceptualDownscaling.pdf or                          --
+--                https://johanneskopf.de/publications/downscaling/paper/downscaling.pdf                              --
+--                                                                                                                    --
 ------------------------------------------------------------------------------------------------------------------------
 
 -------------------------------------------------------- IMPORTS -------------------------------------------------------
@@ -14,7 +48,7 @@
 -- FFI library see https://luajit.org/ext_ffi.html
 -- ffi = require("ffi")
 
-------------------------------------------------- GLOBAL HELPER FUNCTIONS ----------------------------------------------
+-------------------------------------------------- GLOBAL LOG FUNCTIONS ------------------------------------------------
 
 -- List of log levels used for display and property selection
 LOG_LEVEL_NAMES = {"Debug", "Info", "Warning", "Error", "Nothing"}
@@ -81,6 +115,33 @@ function log_info(...)    log(2, ...) end
 function log_warning(...) log(3, ...) end
 function log_error(...)   log(4, ...) end
 
+------------------------------------------------ GLOBAL HELPER FUNCTIONS -----------------------------------------------
+
+-- Sets variables and values in the obs_data object `settings` according to the typed data given in `parameters`
+-- Uses the obs_data_set_default_* if `default` is true
+function set_obs_data_settings(settings, parameters, default)
+
+    for k,v in pairs(parameters) do
+        if type(v) == 'number' then
+            if default then
+                log_debug("set_default_int:", k, v)
+                obslua.obs_data_set_default_int(settings, k, v)
+            else
+                obslua.obs_data_set_int(settings, k, v)
+            end
+        elseif type(v) == 'boolean' then
+            if default then
+                log_debug("set_default_bool:", k, v)
+                obslua.obs_data_set_default_bool(settings, k, v)
+            else
+                obslua.obs_data_set_bool(settings, k, v)
+            end
+        end
+    end
+end
+
+
+
 -------------------------------------------------------- PRESETS -------------------------------------------------------
 
 -- Types of palettes, used as well as indices of customizable palettes
@@ -102,6 +163,7 @@ PALETTES = {{name="Custom list of colors", list={0x000000, 0x808080, 0xFFFFFF}},
              0x989c98}},
             {name="Commodore Amiga", model={16,16,16,1, 0,0,0, 255,255,255}}}
 
+
 -- Index of preset once something is modified
 PRESET_CUSTOM = 1
 
@@ -109,7 +171,7 @@ PRESET_CUSTOM = 1
 -- Main parameters: palette for palette_index, coloration for coloration_index, colors for inks count
 -- Resolution defined as {visible area base width, height, pixel width, height, border width, height}
 -- Note: for PAL CPC resolution 768x544 --> (64+640+64)x(72+400+72) 
-PRESETS = {{name="Custom", palette=1, coloration=1, colors=4, display={320,200, 2,2, 0,0}},
+PRESETS = {{name="Custom", palette=1, coloration=1, colors=4, resolution={320,200, 2,2, 0,0}},
            {name="Amstrad CPC Mode 0", palette=3, coloration=1, colors=16, resolution={640,400, 4,2, 64,72}},
            {name="Amstrad CPC Mode 1", palette=3, coloration=1, colors=4,  resolution={640,400, 2,2, 64,72}},
            {name="Amstrad CPC Mode 2", palette=3, coloration=1, colors=2,  resolution={640,400, 1,2, 64,72}},
@@ -163,9 +225,15 @@ end
 function script_load(settings)
     log_debug("Entering script_load")
 
-    -- Displays some debug info
+    -- Logs presets content
     log_debug("Content of PALETTES:", PALETTES)
     log_debug("Content of PRESETS:", PRESETS)
+    
+    --[[ Logs all members of the "obslua" module
+    log_debug("Content of the obslua module:")
+    for k,v in pairs(obslua) do
+        log_debug(k, ":", as_string(v,1))
+    end ]]
 
     -- Registers the template object source_info, used when adding the filter to a video source
     log_info("Call to obslua.obs_register_source(source_info)")
@@ -320,6 +388,8 @@ function get_palette_parameters(palette_index)
 		res.palette_max_blue = palette.model[10]
     end
 
+    res.test_boolean = true
+
     log_debug("Result of get_palette_parameters(" .. tostring(palette_index) .. ")", res)
 
 	return res
@@ -356,23 +426,28 @@ end
 source_info.get_defaults = function(settings)
     log_debug("Entering source_info.get_defaults")
 
+    -- Fills default settings just in case the user selects manually one of the Custom drop-down
+    set_obs_data_settings(data.settings, get_palette_parameters(PALETTE_MODEL), true)
+    set_obs_data_settings(data.settings, get_palette_parameters(PALETTE_LIST), true)
+    set_obs_data_settings(data.settings, get_preset_parameters(PRESET_CUSTOM), true)
+
     -- Set default palette model before customization
-	parameters = get_palette_parameters(PALETTE_MODEL)
+	--[[parameters = get_palette_parameters(PALETTE_MODEL)
 	for k,v in pairs(parameters) do
 		obslua.obs_data_set_default_int(settings, k, v)
-    end
+    end]]
 
     -- Set default list of colors before customization
-	local parameters = get_palette_parameters(PALETTE_LIST)
+	--[[local parameters = get_palette_parameters(PALETTE_LIST)
 	for k,v in pairs(parameters) do
 		obslua.obs_data_set_default_int(settings, k, v)
-    end
+    end]]
 
     -- Set default preset parameters before customization
-	local parameters = get_preset_parameters(PRESET_CUSTOM)
+	--[[local parameters = get_preset_parameters(PRESET_CUSTOM)
 	for k,v in pairs(parameters) do
 		obslua.obs_data_set_default_int(settings, k, v)
-    end
+    end]]
 
     -- Set default preset parameter (not custom as chosen in script properties)
     obslua.obs_data_set_default_int(settings, "preset_index", default_preset_index)
@@ -417,6 +492,9 @@ source_info.update = function(data, settings)
         obslua.obs_leave_graphics()
     end ]]--
 
+    log_debug("Value of resolution_activated", obslua.obs_data_get_bool(settings, "resolution_activated"))
+    log_debug("Value of palette_activated", obslua.obs_data_get_bool(settings, "palette_activated"))
+
     log_debug("Leaving source_info.update\n")
 end
 
@@ -444,15 +522,16 @@ function customize_palette(data)
     log_debug("Entering customize_palette for palette_index ",
               obslua.obs_data_get_int(data.settings, "palette_index"))
 
-    -- Retrieves palette parameters
+    -- Retrieves palette parameters and fills settings with values
     local palette_index = obslua.obs_data_get_int(data.settings, "palette_index")
-	local parameters = get_palette_parameters(palette_index)
+    set_obs_data_settings(data.settings, get_palette_parameters(palette_index), false)
+	--[[local parameters = get_palette_parameters(palette_index)
 	for k,v in pairs(parameters) do
 		obslua.obs_data_set_int(data.settings, k, v)
-    end
+    end]]
 
     -- Sets palette index to custom palette type
-    obslua.obs_data_set_int(data.settings, "palette_index", parameters.palette_type)
+    obslua.obs_data_set_int(data.settings, "palette_index", obslua.obs_data_get_int(data.settings, "palette_type"))
 
     -- Calls necessary modification callbacks
     obslua.obs_properties_apply_settings(data.props, data.settings)
@@ -472,9 +551,9 @@ function set_preset_properties_visibility(props, property, settings)
 
     -- Preset parameters
     obslua.obs_property_set_visible(obslua.obs_properties_get(props, "preset_customize"), not show_groups)
-    obslua.obs_property_set_visible(obslua.obs_properties_get(props, "resolution_group"), show_groups)
-    obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_group"), show_groups)
-    -- obslua.obs_property_set_visible(obslua.obs_properties_get(props, "coloration_group"), show_groups)
+    obslua.obs_property_set_visible(obslua.obs_properties_get(props, "resolution_activated"), show_groups)
+    obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_activated"), show_groups)
+    -- obslua.obs_property_set_visible(obslua.obs_properties_get(props, "coloration_activated"), show_groups)
 
     log_debug("Leaving set_preset_properties_visibility")
     return true
@@ -490,14 +569,15 @@ function set_palette_properties_visibility(props, property, settings)
     log_debug("Entering set_palette_properties_visibility")
 
     -- Retrieves main values and determines general visibility
+    local palette_activated = obslua.obs_data_get_bool(settings, "palette_activated")
     local palette_index = obslua.obs_data_get_int(settings, "palette_index")
     local palette_length = obslua.obs_data_get_int(settings, "palette_length")
-    local by_list = palette_index == PALETTE_LIST
-    local by_model = palette_index == PALETTE_MODEL
+    local by_list = palette_activated and (palette_index == PALETTE_LIST)
+    local by_model = palette_activated and (palette_index == PALETTE_MODEL)
 
     -- Main palette parameters
-    obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_customize"),
-                                                              not by_list and not by_model)
+    obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_index"), palette_activated)
+    obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_customize"), palette_activated)
 
     -- Palette by list of colors
     obslua.obs_property_set_visible(obslua.obs_properties_get(props, "palette_length"), by_list)
@@ -543,7 +623,7 @@ source_info.get_properties = function(data)
 
     -- Display parameters
     local gprops = obslua.obs_properties_create()
-    obslua.obs_properties_add_group(props, "resolution_group", "Resolution", obslua.OBS_GROUP_NORMAL, gprops)
+    obslua.obs_properties_add_group(props, "resolution_activated", "Resolution", obslua.OBS_GROUP_CHECKABLE, gprops)
     obslua.obs_properties_add_int(gprops, "resolution_visible_width", "Visible area width", 1, 2000, 1)
     obslua.obs_properties_add_int(gprops, "resolution_visible_height", "Visible area height", 1, 2000, 1)
     obslua.obs_properties_add_int(gprops, "resolution_pixel_width", "Pixel width", 1, 10, 1)
@@ -553,7 +633,8 @@ source_info.get_properties = function(data)
 
     -- Palette parameters
     gprops = obslua.obs_properties_create()
-    obslua.obs_properties_add_group(props, "palette_group", "Palette", obslua.OBS_GROUP_NORMAL, gprops)
+    p = obslua.obs_properties_add_group(props, "palette_activated", "Palette", obslua.OBS_GROUP_CHECKABLE, gprops)
+    obslua.obs_property_set_modified_callback(p, set_palette_properties_visibility)
     p = obslua.obs_properties_add_list(gprops, "palette_index", "Palette preset",
 	                                   obslua.OBS_COMBO_TYPE_LIST, obslua.OBS_COMBO_FORMAT_INT)
 	for k,v in ipairs(PALETTES) do
@@ -740,7 +821,3 @@ source_info.filter_remove = function(data, source)
     log_debug("Leaving source_info.filter_remove")
 end
 
---[[ Prints all members of the "obslua" module
-for key,value in pairs(obslua) do
-    print(key .. " : " .. tostring(value));
-end ]]
