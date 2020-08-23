@@ -427,9 +427,9 @@ source_info.get_defaults = function(settings)
     log_debug("Entering source_info.get_defaults")
 
     -- Fills default settings just in case the user selects manually one of the Custom drop-down
-    set_obs_data_settings(data.settings, get_palette_parameters(PALETTE_MODEL), true)
-    set_obs_data_settings(data.settings, get_palette_parameters(PALETTE_LIST), true)
-    set_obs_data_settings(data.settings, get_preset_parameters(PRESET_CUSTOM), true)
+    set_obs_data_settings(settings, get_palette_parameters(PALETTE_MODEL), true)
+    set_obs_data_settings(settings, get_palette_parameters(PALETTE_LIST), true)
+    set_obs_data_settings(settings, get_preset_parameters(PRESET_CUSTOM), true)
 
     -- Set default palette model before customization
 	--[[parameters = get_palette_parameters(PALETTE_MODEL)
