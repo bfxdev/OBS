@@ -46,7 +46,7 @@
 -- bit = require("bit") 
 
 -- FFI library see https://luajit.org/ext_ffi.html
--- ffi = require("ffi")
+ffi = require("ffi")
 
 -------------------------------------------------- GLOBAL LOG FUNCTIONS ------------------------------------------------
 
@@ -122,24 +122,41 @@ function log_error(...)   log(4, ...) end
 function set_obs_data_settings(settings, parameters, default)
 
     for k,v in pairs(parameters) do
-        if type(v) == 'number' then
+        -- Float/double
+        if type(v) == 'number' and (string.find(k, "_ratio")~=nil or string.find(k, "_float")~=nil) then
             if default then
-                log_debug("set_default_int:", k, v)
+                -- log_debug("set_default_int:", k, v)
+                obslua.obs_data_set_default_double(settings, k, v)
+            else
+                obslua.obs_data_set_double(settings, k, v)
+            end
+        -- Integer
+        elseif type(v) == 'number' then
+            if default then
+                -- log_debug("set_default_int:", k, v)
                 obslua.obs_data_set_default_int(settings, k, v)
             else
                 obslua.obs_data_set_int(settings, k, v)
             end
+        -- Boolean
         elseif type(v) == 'boolean' then
             if default then
-                log_debug("set_default_bool:", k, v)
+                -- log_debug("set_default_bool:", k, v)
                 obslua.obs_data_set_default_bool(settings, k, v)
             else
                 obslua.obs_data_set_bool(settings, k, v)
             end
+        -- String
+        elseif type(v) == 'string' then
+            if default then
+                -- log_debug("set_default_bool:", k, v)
+                obslua.obs_data_set_default_string(settings, k, v)
+            else
+                obslua.obs_data_set_string(settings, k, v)
+            end
         end
     end
 end
-
 
 
 -------------------------------------------------------- PRESETS -------------------------------------------------------
@@ -459,6 +476,10 @@ end
 source_info.update = function(data, settings)
     log_debug("Entering source_info.update")
 
+    --local buf = ffi.new("uint8_t[?]", 64*4)
+    --local tex = obslua.gs_texture_create(64, 1, obslua.GS_RGBA, 1, buf, 0)
+
+        
 	--[[ Makes sure that palette_type reflects the palette selected by the user
 	local palette_index = obslua.obs_data_get_int(settings, "palette_index")
 	if palette_index == PALETTE_LIST or palette_index == PALETTE_MODEL then
@@ -692,7 +713,9 @@ source_info.create = function(settings, source)
 
     -- Compiles shader
     obslua.obs_enter_graphics()
-    data.effect = obslua.gs_effect_create_from_file(script_path() .. 'filter-pixel-art.hlsl', nil)
+    local effect_file_path = script_path() .. 'filter-pixel-art.effect.hlsl'
+    log_debug("effect_file_path:", effect_file_path)
+    data.effect = obslua.gs_effect_create_from_file(effect_file_path, nil)
     if data.effect == nil then
         log_warning("Effect file not compiled - Reverting to luminance effect")
         data.effect = obslua.gs_effect_create(EFFECT_LUMINANCE, "luminance", nil)
