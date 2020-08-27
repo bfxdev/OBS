@@ -4,8 +4,10 @@
 
 ///////////////////////////////////////////////////////  GLOBALS  //////////////////////////////////////////////////////
 
-// Maximum number of color in a palette by list of colors, same value used in the Lua code
+// Global definitions from Lua code
 #define MAX_PALETTE_LENGTH 64
+
+
 
 // View-projection matrix, set by OBS
 uniform float4x4 ViewProj;
@@ -14,10 +16,10 @@ uniform float4x4 ViewProj;
 uniform texture2d image;
 
 uniform int palette_type;
+
+
+// Palette defined as list of colors
 uniform int palette_length;
-
-
-// Definition of the palette variables
 uniform float4 palette_color_1;  uniform float4 palette_color_2;  uniform float4 palette_color_3;
 uniform float4 palette_color_4;  uniform float4 palette_color_5;  uniform float4 palette_color_6;
 uniform float4 palette_color_7;  uniform float4 palette_color_8;  uniform float4 palette_color_9;
