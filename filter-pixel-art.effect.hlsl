@@ -6,8 +6,8 @@
 
 // Global definitions from Lua code
 #define MAX_PALETTE_LENGTH 64
-
-
+#define PALETTE_LIST 1
+#define PALETTE_MODEL 2
 
 // View-projection matrix, set by OBS
 uniform float4x4 ViewProj;
@@ -15,8 +15,8 @@ uniform float4x4 ViewProj;
 // Texture containing the source picture, set by OBS
 uniform texture2d image;
 
-uniform int palette_type;
-
+// General palette parameter
+uniform int palette_type = PALETTE_LIST;
 
 // Palette defined as list of colors
 uniform int palette_length;
@@ -43,16 +43,46 @@ uniform float4 palette_color_58; uniform float4 palette_color_59; uniform float4
 uniform float4 palette_color_61; uniform float4 palette_color_62; uniform float4 palette_color_63;
 uniform float4 palette_color_64;
 
+float4 get_color(int index)
+{
+    if (index<32)
+        if (index<16)
+            if (index<8)
+                if (index<4)
+                    if (index<2)
+                        if (index<1)
+                            return palette_color_1;
+                        else
+                            return palette_color_1;
+                    else
+                        if (index<3)
+                            return palette_color_2;
+                        else
+                            return palette_color_3;
+                else
+                    if (index<6)
+                        if (index<5)
+                            return palette_color_4;
+                        else
+                            return palette_color_5;
+                    else
+                        if (index<7)
+                            return palette_color_6;
+                        else
+                            return palette_color_7;
+
+
+
+
+
+
+    return palette_color_1;
+}
+
+// Palette defined as model
 uniform int4 palette_range;
 uniform float3 palette_min;
 uniform float3 palette_max;
-
-uniform texture2d palette;
-
-
-
-
-
 
 // Helper structure used as input/output of the vertex shader and as input of the pixel shader
 struct shader_data
@@ -99,6 +129,7 @@ float fit(float v, int factor)
     return round(v * factor) / factor;
 }
 
+
 ///////////////////////////////////////////////////  VERTEX SHADERS  ///////////////////////////////////////////////////
 
 // Default vertex shader used to adapt virtual triangle coordinates to location
@@ -114,12 +145,22 @@ shader_data vertex_shader_default(shader_data cur)
 
 ///////////////////////////////////////////////////  PIXEL SHADERS  ////////////////////////////////////////////////////
 
+// Outputs luminance of the input pixel
 float4 pixel_shader_luminance(shader_data cur) : TARGET
 {
     float4 smp = image.Sample(linear_clamp, cur.uv);
     float luminance = 0.299*smp.r + 0.587*smp.g + 0.114*smp.b;
-    return float4(luminance, luminance, smp.r, smp.a);
+    return float4(luminance, luminance, luminance, smp.a);
 }
+
+float4 pixel_shader_color_reduction(shader_data cur) : TARGET
+{
+    float4 smp = image.Sample(linear_clamp, cur.uv);
+    float luminance = 0.299*smp.r + 0.587*smp.g + 0.114*smp.b;
+    return float4(smp.g, smp.r, smp.b, smp.a);
+}
+
+
 
 
 ////////////////////////////////////////////////////  TECHNIQUES  ////////////////////////////////////////////////////
@@ -129,6 +170,6 @@ technique Draw
     pass
     {
         vertex_shader = vertex_shader_default(cur);
-        pixel_shader  = pixel_shader_luminance(cur);
+        pixel_shader  = pixel_shader_color_reduction(cur);
     }
 }
