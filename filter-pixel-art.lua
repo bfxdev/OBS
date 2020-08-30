@@ -165,7 +165,7 @@ end
 PALETTE_LIST  = 1
 PALETTE_MODEL = 2
 
--- Set of palette presets
+--- Set of palette presets
 -- Defined as list of colors by a table of RGB 24-bits integers
 -- Defined as model by { range of values R, G, B, I, minimums R, G, B, maximums R, G, B}  
 PALETTES = {{name="Custom list of colors", list={0x000000, 0x808080, 0xFFFFFF}},
@@ -181,10 +181,10 @@ PALETTES = {{name="Custom list of colors", list={0x000000, 0x808080, 0xFFFFFF}},
             {name="Commodore Amiga", model={16,16,16,1, 0,0,0, 255,255,255}}}
 
 
--- Index of preset once something is modified
+--- Index of preset once something is modified
 PRESET_CUSTOM = 1
 
--- Presets of retro computers
+--- Presets of retro computers
 -- Main parameters: palette for palette_index, coloration for coloration_index, colors for inks count
 -- Resolution defined as {visible area base width, height, pixel width, height, border width, height}
 -- Note: for PAL CPC resolution 768x544 --> (64+640+64)x(72+400+72) 
@@ -219,10 +219,11 @@ function script_description()
 
 end
 
--- Called to set default settings (if any) associated with the script.
--- You would typically call Default Value Functions on the settings in order to set its default values.
--- A default value will create the related setting if not already existing, then passed to the first script_load
--- The parameter settings is of type obs_data_t, see https://obsproject.com/docs/reference-settings.html
+--- Called to set default settings (if any) associated with the script.
+--- You would typically call Default Value Functions on the settings in order to set its default values.
+--- A default value will create the related setting if not already existing, then passed to the first `script_load`
+--- The parameter `settings` is of type `obs_data_t`, see https://obsproject.com/docs/reference-settings.html
+--- @param settings obs_data_t
 function script_defaults(settings)
     log_debug("Entering script_defaults")
 
