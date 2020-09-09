@@ -376,8 +376,9 @@ source_info.get_name = function()
     return "Pixel Art"
 end
 
--- Returns an object with members set to key / integer values from the pre-defined palettes, with the same variable
--- names as the settings and properties used in the plugin
+--- Returns an object with members set to key / integer values from the pre-defined palettes, with the same variable
+--- names as the settings and properties used in the plugin
+--- @param palette_index integer
 function get_palette_parameters(palette_index)
 
     local res = {}
@@ -405,8 +406,6 @@ function get_palette_parameters(palette_index)
 		res.palette_max_green = palette.model[9]
 		res.palette_max_blue = palette.model[10]
     end
-
-    res.test_boolean = true
 
     log_debug("Result of get_palette_parameters(" .. tostring(palette_index) .. ")", res)
 
