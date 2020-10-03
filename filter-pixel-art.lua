@@ -845,3 +845,95 @@ source_info.filter_remove = function(data, source)
     log_debug("Leaving source_info.filter_remove")
 end
 
+
+
+--- Returns data URL of BMP RGBA picture, see https://docs.microsoft.com/en-us/windows/win32/gdi/bitmap-storage
+-- See also https://en.wikipedia.org/wiki/BMP_file_format#Example_2
+function encode_bitmap(width, height, data)
+
+    -- Packs 32-bits unsigned int into a string with little-endian encoding
+    function pu32(v) return string.char(v%256, (v/256)%256, (v/65536)%256, (v/0x1000000)%256) end
+
+    -- Prepared as table and then concatenated for performance 
+    local bmp = {}
+
+    -- BITMAPFILEHEADER see https://docs.microsoft.com/en-us/windows/win32/api/wingdi/ns-wingdi-bitmapfileheader
+    table.insert(bmp, "BM" .. pu32(width*height*4 + 122) .. pu32(0) .. pu32(122))
+
+    -- BITMAPV4HEADER see https://docs.microsoft.com/en-us/windows/win32/api/wingdi/ns-wingdi-bitmapv4header
+    table.insert(bmp, pu32(108) .. pu32(width) .. pu32(height) .. pu32(0x200001) .. pu32(3))
+    table.insert(bmp, pu32(width*height*4) .. pu32(2835) .. pu32(2835) .. pu32(0) .. pu32(0))
+    table.insert(bmp, pu32(0xFF0000) .. pu32(0xFF00) .. pu32(0xFF) .. pu32(0xFF000000) .. "Win ")
+    for i = 1,12 do table.insert(bmp, pu32(0)) end
+
+    -- Bitmap data (it starts with the lower left hand corner of the image)
+    local offset
+    for y = (height-1),0,-1 do
+        offset = 1 + y*width
+        for x = 0,(width-1) do
+            table.insert(bmp, pu32(data[offset + x]))
+        end
+    end
+
+    -- Finishes string
+    bmp = table.concat(bmp, "")
+    local f = assert(io.open(script_path() .. 'test-generated-bitmap.bmp', "wb"))
+    f:write(bmp)
+    f:close()
+
+    -- Function to convert to base64 from http://lua-users.org/wiki/BaseSixtyFour
+    function encode_base64(data)
+        local b='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+        return ((data:gsub('.', function(x) 
+            local r,b='',x:byte()
+            for i=8,1,-1 do r=r..(b%2^i-b%2^(i-1)>0 and '1' or '0') end
+            return r;
+        end)..'0000'):gsub('%d%d%d?%d?%d?%d?', function(x)
+            if (#x < 6) then return '' end
+            local c=0
+            for i=1,6 do c=c+(x:sub(i,i)=='1' and 2^(6-i) or 0) end
+            return b:sub(c+1,c+1)
+        end)..({ '', '==', '=' })[#data%3+1])
+    end
+
+    return "data:image/bmp;base64," .. encode_base64(bmp)
+end
+
+function hex_dump(buf)
+    local res = ""
+    for i = 1,string.len(buf) do
+        res = res .. string.format( "%02x ", string.byte(buf, i))
+    end
+    return res
+end
+
+print("Building table")
+local w=1000
+local h=1000
+local t = {}
+for i=0,(w*h-1) do table.insert(t, 0xFF000000 + i) end
+
+print("Building LUT")
+local url = encode_bitmap(w,h,t)
+print("Finished LUT")
+
+--local bmp = encode_bitmap(3,2,{0xFF0000FF, 0xFFFFFFFF, 0xFFFF0000, 0x7F0000FF, 0x7FFFFFFF, 0x7FFF0000})
+print("------------- TEST encode --->" .. url .. "<-------")
+
+obslua.obs_enter_graphics()
+
+local image = obslua.gs_image_file()
+obslua.gs_image_file_init(image, url)
+obslua.gs_image_file_init_texture(image)
+local tex = image.tex
+tex = obslua.gs_texture_create_from_file(url)
+if tex ~= nil then
+    print("Texture created width=" .. tostring(obslua.gs_texture_get_width(tex)) .. " height=" .. tostring(obslua.gs_texture_get_height(tex)))
+    obslua.gs_texture_destroy(tex)
+else
+    print("ERROR: texture not created--------------------")
+end
+obslua.gs_image_file_free(image)
+
+obslua.obs_leave_graphics()
+
