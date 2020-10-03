@@ -917,10 +917,10 @@ local url = encode_bitmap(w,h,t)
 print("Finished LUT")
 
 --local bmp = encode_bitmap(3,2,{0xFF0000FF, 0xFFFFFFFF, 0xFFFF0000, 0x7F0000FF, 0x7FFFFFFF, 0x7FFF0000})
-print("------------- TEST encode --->" .. url .. "<-------")
+--print("------------- TEST encode --->" .. bmp .. "<-------")
 
+-- Proof of concept: creates texture
 obslua.obs_enter_graphics()
-
 local image = obslua.gs_image_file()
 obslua.gs_image_file_init(image, url)
 obslua.gs_image_file_init_texture(image)
@@ -933,6 +933,5 @@ else
     print("ERROR: texture not created--------------------")
 end
 obslua.gs_image_file_free(image)
-
 obslua.obs_leave_graphics()
 
