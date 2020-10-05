@@ -18,66 +18,9 @@ uniform texture2d image;
 // General palette parameter
 uniform int palette_type = PALETTE_LIST;
 
-// Palette defined as list of colors
+// Palette defined as lisz of colors
 uniform int palette_length;
-uniform float4 palette_color_1;  uniform float4 palette_color_2;  uniform float4 palette_color_3;
-uniform float4 palette_color_4;  uniform float4 palette_color_5;  uniform float4 palette_color_6;
-uniform float4 palette_color_7;  uniform float4 palette_color_8;  uniform float4 palette_color_9;
-uniform float4 palette_color_10; uniform float4 palette_color_11; uniform float4 palette_color_12;
-uniform float4 palette_color_13; uniform float4 palette_color_14; uniform float4 palette_color_15;
-uniform float4 palette_color_16; uniform float4 palette_color_17; uniform float4 palette_color_18;
-uniform float4 palette_color_19; uniform float4 palette_color_20; uniform float4 palette_color_21;
-uniform float4 palette_color_22; uniform float4 palette_color_23; uniform float4 palette_color_24;
-uniform float4 palette_color_25; uniform float4 palette_color_26; uniform float4 palette_color_27;
-uniform float4 palette_color_28; uniform float4 palette_color_29; uniform float4 palette_color_30;
-uniform float4 palette_color_31; uniform float4 palette_color_32; uniform float4 palette_color_33;
-uniform float4 palette_color_34; uniform float4 palette_color_35; uniform float4 palette_color_36;
-uniform float4 palette_color_37; uniform float4 palette_color_38; uniform float4 palette_color_39;
-uniform float4 palette_color_40; uniform float4 palette_color_41; uniform float4 palette_color_42;
-uniform float4 palette_color_43; uniform float4 palette_color_44; uniform float4 palette_color_45;
-uniform float4 palette_color_46; uniform float4 palette_color_47; uniform float4 palette_color_48;
-uniform float4 palette_color_49; uniform float4 palette_color_50; uniform float4 palette_color_51;
-uniform float4 palette_color_52; uniform float4 palette_color_53; uniform float4 palette_color_54;
-uniform float4 palette_color_55; uniform float4 palette_color_56; uniform float4 palette_color_57;
-uniform float4 palette_color_58; uniform float4 palette_color_59; uniform float4 palette_color_60;
-uniform float4 palette_color_61; uniform float4 palette_color_62; uniform float4 palette_color_63;
-uniform float4 palette_color_64;
-
-float4 get_color(int index)
-{
-    if (index<32)
-        if (index<16)
-            if (index<8)
-                if (index<4)
-                    if (index<2)
-                        if (index<1)
-                            return palette_color_1;
-                        else
-                            return palette_color_1;
-                    else
-                        if (index<3)
-                            return palette_color_2;
-                        else
-                            return palette_color_3;
-                else
-                    if (index<6)
-                        if (index<5)
-                            return palette_color_4;
-                        else
-                            return palette_color_5;
-                    else
-                        if (index<7)
-                            return palette_color_6;
-                        else
-                            return palette_color_7;
-
-
-
-
-
-
-    return palette_color_1;
-}
+uniform texture2d palette_list;
 
 // Palette defined as model
 uniform int4 palette_range;
@@ -156,6 +99,9 @@ float4 pixel_shader_luminance(shader_data cur) : TARGET
 float4 pixel_shader_color_reduction(shader_data cur) : TARGET
 {
     float4 smp = image.Sample(linear_clamp, cur.uv);
+
+
+
     float luminance = 0.299*smp.r + 0.587*smp.g + 0.114*smp.b;
     return float4(smp.g, smp.r, smp.b, smp.a);
 }
