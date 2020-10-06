@@ -23,10 +23,10 @@ function script_description()
            <p>Parameters:
            <ul>
              <li><strong>Destination folder</strong>: where to store the Lua include file</li>
-             <li><strong>C wrapper</strong>: file created during the compilation, typically at
+             <li><strong>OBS docs folder</strong>: where to find <code>rst</code> files, typically at
+                 <code>obs-studio/docs/sphinx</code></li> where obs-studio is the root of the GitHub cloned repository
+             <li><strong>C wrapper</strong>: file created during the compilation of obs-studio, typically at
                  <code>obs-studio/build/deps/obs-scripting/obslua/CMakeFiles/obslua.dir/obsluaLUA_wrap.c</code></li>
-             <li><strong>OBS docs folder</strong>: where to find `rst`files, typically at
-                 <code>obs-studio/docs/sphinx</code></li>
            </ul></p>]]
 end
 
@@ -46,18 +46,18 @@ end
 --- Displays global properties window
 function script_properties()
 
-  print("script_settings:" .. tostring(script_settings))
+  -- print("script_settings:" .. tostring(script_settings))
 
   local properties = obslua.obs_properties_create()
 
   obslua.obs_properties_add_path(properties, "destination", "Destination folder",
-                                 obslua.OBS_PATH_DIRECTORY, nil, nil)
+                                 obslua.OBS_PATH_DIRECTORY, nil, obslua.obs_data_get_string(script_settings, "destination"))
+
+  obslua.obs_properties_add_path(properties, "obsdoc", "OBS docs folder",
+                                 obslua.OBS_PATH_DIRECTORY, nil, obslua.obs_data_get_string(script_settings, "obsdoc"))
 
   obslua.obs_properties_add_path(properties, "obsluawrap", "C wrapper",
                                  obslua.OBS_PATH_FILE, "C wrapper file (obsluaLUA_wrap.c)", nil)
-
-  obslua.obs_properties_add_path(properties, "obsdoc", "OBS docs folder",
-                                 obslua.OBS_PATH_DIRECTORY, nil, nil)
 
   obslua.obs_properties_add_button(properties, "generate", "Generate " .. DESTINATION_FILENAME, generate)
 
@@ -108,8 +108,40 @@ end
 --- Main function of the script: generate the Lua file
 function generate()
 
-  -- Creates file and empties it
-  local file = io.open(script_path() .. "obslua-globals.lua", "w")
+  print("-------------------")
+  print("Starting generation of " .. DESTINATION_FILENAME)
+
+  -- Gathers data from C wrapper file
+  local functions = {}
+  local file = io.open(obslua.obs_data_get_string(script_settings, "obsluawrap"), "r")
+  if not file then
+    print("WARNING: cannot open C wrapper file " .. obslua.obs_data_get_string(script_settings, "obsluawrap"))
+    print("Skipping detailed functions definition...")
+  else
+
+    -- Reads functions and arguments from the C wrapper file
+    local name ="unknown"
+    for line in file:lines() do
+
+      -- Detects function definition
+      local fi, _, ft, fn = string.find(line, "^static (.*) _wrap_(.*)%(lua_State%* L%) {$")
+      if fi then
+        name = fn
+        functions[name] = {return_type=ft, args={}}
+      end
+
+    end
+
+    print("Functions: " .. as_string(functions, 0))
+
+  end
+
+  -- Creates file
+  file = io.open(obslua.obs_data_get_string(script_settings, "destination") .. DESTINATION_FILENAME, "w")
+  if not file then
+    print("ERROR: cannot open file " .. obslua.obs_data_get_string(script_settings, "destination") .. DESTINATION_FILENAME)
+    return
+  end
 
   -- Header
   file:write("-- Definition of globals to reproduce the Lua scripting environment in OBS - bfxdev 2020\n\n")
