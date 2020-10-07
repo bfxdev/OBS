@@ -65,9 +65,11 @@ function script_properties()
 end
 
 
--- Recursive transformation of any object to string (with max depth)
-local MAX_PARSE_DEPTH = 10
+--- Recursive transformation of any object to string (max depth 10)
 local function as_string(content, depth)
+
+  -- Case if depth not given
+  if depth == nil then depth=0 end
 
   -- Result of the function
   local res
@@ -78,7 +80,7 @@ local function as_string(content, depth)
     for k,v in pairs(content) do
         if string.len(res) > 1 then res = res .. "," end
         res = res .. k .. "="
-        if depth < MAX_PARSE_DEPTH then
+        if depth < 10 then
             res = res  .. as_string(v, depth+1)
         else
             res = res  .. tostring(v)
@@ -86,16 +88,17 @@ local function as_string(content, depth)
     end
     res = res .. "}"
 
-	-- Lists all elements of a function
+	-- Describes minimal function
 	elseif type(content) == "function" then
-    res = "function() end -- " .. as_string(debug.getinfo(content), MAX_PARSE_DEPTH) -- removed not useful
+    res = "function() end"
 
   -- Type string
   elseif type(content) == "string" then
 
-    -- Escapes backslash characters and adds quotes
+    -- Escapes backslash characters, carriage returns and adds quotes
     res = string.gsub(content, "\\", "\\\\")
-    if depth > 0 then res = "\"" .. res .. "\"" end
+    res = string.gsub(res, "\n", "\\n")
+    res = "\"" .. res .. "\""
 
   -- Everything else
   else
@@ -111,29 +114,87 @@ function generate()
   print("-------------------")
   print("Starting generation of " .. DESTINATION_FILENAME)
 
-  -- Gathers data from C wrapper file
-  local functions = {}
-  local file = io.open(obslua.obs_data_get_string(script_settings, "obsluawrap"), "r")
-  if not file then
-    print("WARNING: cannot open C wrapper file " .. obslua.obs_data_get_string(script_settings, "obsluawrap"))
-    print("Skipping detailed functions definition...")
-  else
+  -- Gathers data from OBS docs/sphinx directory
+  -- File names listed here to avoid OS-dependent call to `dir` or `ls`
+  local filenames = {"backend-design.rst", "frontends.rst", "graphics.rst", "index.rst", "plugins.rst",
+                     "reference-core-objects.rst", "reference-core.rst", "reference-encoders.rst",
+                     "reference-frontend-api.rst", "reference-libobs-callback.rst",
+                     "reference-libobs-graphics-axisang.rst", "reference-libobs-graphics-effects.rst",
+                     "reference-libobs-graphics-graphics.rst", "reference-libobs-graphics-image-file.rst",
+                     "reference-libobs-graphics-math.rst", "reference-libobs-graphics-matrix4.rst",
+                     "reference-libobs-graphics-quat.rst", "reference-libobs-graphics-vec2.rst",
+                     "reference-libobs-graphics-vec3.rst", "reference-libobs-graphics-vec4.rst",
+                     "reference-libobs-graphics.rst", "reference-libobs-media-io.rst",
+                     "reference-libobs-util-base.rst", "reference-libobs-util-bmem.rst",
+                     "reference-libobs-util-circlebuf.rst", "reference-libobs-util-config-file.rst",
+                     "reference-libobs-util-darray.rst", "reference-libobs-util-dstr.rst",
+                     "reference-libobs-util-platform.rst", "reference-libobs-util-profiler.rst",
+                     "reference-libobs-util-serializers.rst", "reference-libobs-util-text-lookup.rst",
+                     "reference-libobs-util-threading.rst", "reference-libobs-util.rst", "reference-modules.rst",
+                     "reference-outputs.rst", "reference-properties.rst", "reference-scenes.rst", "reference-services.rst",
+                     "reference-settings.rst", "reference-sources.rst", "scripting.rst"}
 
-    -- Reads functions and arguments from the C wrapper file
-    local name ="unknown"
-    for line in file:lines() do
+  -- Iterates on the file names
+  local doc_functions = {}
+  for _,filename in ipairs(filenames) do
 
-      -- Detects function definition
-      local fi, _, ft, fn = string.find(line, "^static (.*) _wrap_(.*)%(lua_State%* L%) {$")
-      if fi then
-        name = fn
-        functions[name] = {return_type=ft, args={}}
+    -- Opens file if possible
+    local count = 0
+    filename = obslua.obs_data_get_string(script_settings, "obsdoc") .. "/" .. filename
+    local file = io.open(filename, "r")
+    if not file then
+      print("Skipping file " .. filename)
+    else
+
+      -- Reads functions and arguments from the doc file
+      print("Parsing " .. filename)
+      local name ="dummy"
+      for line in file:lines() do
+
+        -- Detects function definition
+        local fi, _, ft, fn, fa = string.find(line, "^.. function:: ([^ ]* %*?)(.*)%((.*)%)")
+        if fi then
+
+          -- Cleans up possible prefixes ans spaces
+          ft = string.gsub(ft, "^%s*const ", "")
+          ft = string.gsub(ft, "^%s*struct ", "")
+          ft = string.gsub(ft, " ", "")
+          fn = string.gsub(fn, " ", "")
+
+          -- Saves function name for later use
+          name = fn
+
+          -- Parses args, i.e. splits with "," separator
+          local arguments = {}
+          for arg in string.gmatch(fa, "([^,]+)") do
+
+              -- Cleans up possible prefixes ans spaces
+            arg = string.gsub(arg, "^%s*const ", "")
+            arg = string.gsub(arg, "^%s*struct ", "")
+
+            -- Detects well-formed argument
+            local ai, _, at, an = string.find(arg, "^([^ ]* %*?)(.*)")
+            if ai then
+              at = string.gsub(at, " ", "")
+              table.insert(arguments, {name=an, data_type=at})
+            end
+
+          end
+
+          -- Saves function data
+          doc_functions[name] = {data_type=ft, arguments=arguments, line=line, description={}}
+          count = count + 1
+        else
+
+          -- Adds line to the description
+          if doc_functions[name] and not string.find(line, "^%s$") then
+            table.insert(doc_functions[name].description, line)
+          end
+        end
       end
 
+      print("New functions found: " .. tostring(count))
     end
-
-    print("Functions: " .. as_string(functions, 0))
-
   end
 
   -- Creates file
@@ -149,7 +210,61 @@ function generate()
   file:write("--    if _G['obslua']==nil then dofile('obslua-globals.lua') end\n\n")
   file:write("-- Main obslua module\nobslua = {}\n\n")
 
-  -- All globals as comment
+  -- Retrieves the table of names of constants/functions and sorts them
+  constants = {}
+  functions = {}
+  for key, value in pairs(obslua) do
+    if type(value) == "function" then
+      table.insert(functions, key)
+    else
+      table.insert(constants, key)
+    end
+  end
+  table.sort(constants)
+  table.sort(functions)
+
+  -- Writes one line per constant
+  file:write("-- Constants\n")
+  for i, key in ipairs(constants) do
+    local value = obslua[key]
+    local res = as_string(value)
+    file:write("obslua." .. key .. " = " .. res .. "\n")
+  end
+
+  -- Writes functions definition
+  file:write("\n")
+  for i, key in ipairs(functions) do
+    local documentation = doc_functions[key]
+
+    -- Non-documented function
+    if not documentation then
+      file:write("--- " .. key .. " not documented\n")
+      file:write("obslua." .. key .. " = " .. "function() end\n\n")
+
+    -- Documented function
+    else
+
+      -- Parsable comments
+      for _,s in ipairs(documentation.description) do
+        file:write("--- " .. s .. "\n")
+      end
+      for _,a in ipairs(documentation.arguments) do
+        file:write("--- @param " .. a.name .. " " .. a.data_type .. "\n")
+      end
+      file:write("--- @return " .. documentation.data_type .. "\n")
+
+      -- Function definition
+      file:write("obslua." .. key .. " = " .. "function() end \n\n")
+
+    end
+  end
+
+  -- Closes file
+  file:close(file)
+
+end
+
+  --[[ All globals as comment
   local keys = {}
   for key in pairs(_G) do table.insert(keys, key) end
   table.sort(keys)
@@ -160,26 +275,10 @@ function generate()
       local res = as_string(value, 1)
       file:write("-- Global: " .. key .. " = " .. res .. "\n")
     end
-  end
+  end ]]
 
-  -- Retrieves the table of names of variables/functions/etc and sorts them
-  keys = {}
-  for key in pairs(obslua) do
-    table.insert(keys, key)
-  end
-  table.sort(keys)
 
-  -- Iterates on all obslua members
-  for i, key in ipairs(keys) do
-    local value = obslua[key]
-    local res = as_string(value, 1)
-    file:write("obslua." .. key .. " = " .. res .. "\n")
-  end
 
-  -- Closes
-  file:close(file)
-
-end
 
 --[[ Pre-imported packages:
 bit (unknown)
