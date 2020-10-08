@@ -3,7 +3,7 @@
 --------------------------------------------------------------------------------
 
 -- Once the file is generated, the following line setups IntelliSense for auto-completion
-if _G['obslua']==nil then dofile('obslua-globals.lua') end
+-- if _G['obslua']==nil then dofile('obslua-globals.lua') end
 
 --- Name of the file to be created
 DESTINATION_FILENAME = "obslua-globals.lua"
@@ -20,20 +20,15 @@ function script_description()
            be used otherwise, i.e. it cannot be included in an OBS script and provides no functionality if 
            included in a Lua script.</p>
            <p>Follow the instructions at the beginning of the generated file to see how to include it</p>
-           <p>Parameters:
-           <ul>
-             <li><strong>Destination folder</strong>: where to store the Lua include file</li>
-             <li><strong>OBS docs folder</strong>: where to find <code>rst</code> files, typically at
-                 <code>obs-studio/docs/sphinx</code></li> where obs-studio is the root of the GitHub cloned repository
-             <li><strong>C wrapper</strong>: file created during the compilation of obs-studio, typically at
-                 <code>obs-studio/build/deps/obs-scripting/obslua/CMakeFiles/obslua.dir/obsluaLUA_wrap.c</code></li>
-           </ul></p>]]
+           <p>Two parameters can be set. The <strong>Destination folder</strong> is the location where the Lua
+           include file will be written. The <strong>OBS docs folder</strong> is the location of <code>rst</code>
+           files, typically at
+           <code>obs-studio/docs/sphinx</code></li> where obs-studio is the root of the GitHub cloned repository.</p>]]
 end
 
---- Sets default global variables `destination`, `obsluawrap` and `obsdoc`
+--- Sets default global variables `destination` and `obsdoc`
 function script_defaults(settings)
   obslua.obs_data_set_default_string(settings, "destination", script_path())
-  obslua.obs_data_set_default_string(settings, "obsluawrap", "")
   obslua.obs_data_set_default_string(settings, "obsdoc", "")
   script_settings = settings
 end
@@ -56,14 +51,10 @@ function script_properties()
   obslua.obs_properties_add_path(properties, "obsdoc", "OBS docs folder",
                                  obslua.OBS_PATH_DIRECTORY, nil, obslua.obs_data_get_string(script_settings, "obsdoc"))
 
-  obslua.obs_properties_add_path(properties, "obsluawrap", "C wrapper",
-                                 obslua.OBS_PATH_FILE, "C wrapper file (obsluaLUA_wrap.c)", nil)
-
   obslua.obs_properties_add_button(properties, "generate", "Generate " .. DESTINATION_FILENAME, generate)
 
   return properties
 end
-
 
 --- Recursive transformation of any object to string (max depth 10)
 local function as_string(content, depth)
@@ -157,6 +148,7 @@ function generate()
 
           -- Cleans up possible prefixes ans spaces
           ft = string.gsub(ft, "^%s*const ", "")
+          ft = string.gsub(ft, "^%s*enum ", "")
           ft = string.gsub(ft, "^%s*struct ", "")
           ft = string.gsub(ft, " ", "")
           fn = string.gsub(fn, " ", "")
@@ -170,10 +162,11 @@ function generate()
 
               -- Cleans up possible prefixes ans spaces
             arg = string.gsub(arg, "^%s*const ", "")
+            arg = string.gsub(arg, "^%s*enum ", "")
             arg = string.gsub(arg, "^%s*struct ", "")
 
             -- Detects well-formed argument
-            local ai, _, at, an = string.find(arg, "^([^ ]* %*?)(.*)")
+            local ai, _, at, an = string.find(arg, "([%s%w_%*]+ %*?%*?)([^%s%*]+)")
             if ai then
               at = string.gsub(at, " ", "")
               table.insert(arguments, {name=an, data_type=at})
@@ -182,12 +175,14 @@ function generate()
           end
 
           -- Saves function data
-          doc_functions[name] = {data_type=ft, arguments=arguments, line=line, description={}}
+          local def = ft .. " " .. fn .. "(" .. fa .. ")"
+          doc_functions[name] = {data_type=ft, arguments=arguments, line=def, description={}}
           count = count + 1
         else
 
-          -- Adds line to the description
-          if doc_functions[name] and not string.find(line, "^%s$") then
+          -- Adds line to the description (at least 2 consecutive alphanumeric characters)
+          if doc_functions[name] and string.find(line, "%w%w") then
+            line = string.gsub(line, "^%s%s%s", "")
             table.insert(doc_functions[name].description, line)
           end
         end
@@ -245,16 +240,25 @@ function generate()
     else
 
       -- Parsable comments
+      file:write("--- " .. documentation.line .. "\n")
       for _,s in ipairs(documentation.description) do
         file:write("--- " .. s .. "\n")
       end
       for _,a in ipairs(documentation.arguments) do
         file:write("--- @param " .. a.name .. " " .. a.data_type .. "\n")
       end
-      file:write("--- @return " .. documentation.data_type .. "\n")
+      if documentation.data_type ~= "void" then
+        file:write("--- @return " .. documentation.data_type .. "\n")
+      end
 
       -- Function definition
-      file:write("obslua." .. key .. " = " .. "function() end \n\n")
+      local args = ""
+      for _,a in ipairs(documentation.arguments) do
+        if #args > 0 then args = args .. ", " end
+        args = args .. a.name
+      end
+      file:write("obslua." .. key .. " = " .. "function(" .. args ..") end\n\n")
+
 
     end
   end
