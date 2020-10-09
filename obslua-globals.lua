@@ -1,9 +1,72 @@
--- Definition of globals to reproduce the Lua scripting environment in OBS - bfxdev 2020
+-- Definition of globals to mimic the Lua scripting environment in OBS - bfxdev 2020
 
--- Use it for IntelliSense with this line at the beginning of your script (without comment):
---    if _G['obslua']==nil then dofile('obslua-globals.lua') end
+-- Use it for IntelliSense e.g. in Visual Studio or Visual Studio Code with sumneko's Lua Language
+-- Server extension, see https://marketplace.visualstudio.com/items?itemName=sumneko.lua
+-- It relies on EmmyLua-style annotations, see https://emmylua.github.io
+-- Just store the file in the same folder as your source file.
 
--- Main obslua module
+--- Version number in OBS
+_VERSION = "Lua 5.1"
+
+--- Returns Kb of dynamic memory in use.
+--- This function is deprecated in Lua 5.1. Use collectgarbage ("count") instead.
+--- @return number
+function gcinfo() end
+
+--- Returns the current environment used by the nominated function f.
+--- f can be a function or a number representing the stack level, where 1 is the currently running function, 2 is its parent and so on.
+--- The environment is where "global" variables are stored.
+function getfenv(f) end
+
+--- Parses the string and returns the compiled chunk as a function. Does not execute it.
+--- If the string cannot be parsed returns nil plus an error message.
+--- The optional debugname is used in debug error messages.
+function loadstring(str, debugname) end
+
+--- Creates a module. This is intended for use with external "package" files, however it can be used internally as shown in the example below. The module effectively has its own global variable space (because module does a setfenv) so that any functions or variables used in the module are local to the module name (for example, foo.add in the example below).
+--- If there is a table in package.loaded[name], this table is the module. Thus, if the module has already been requested (by a require statement) another new table is not created.
+--- Otherwise, if there is a global table t with the given name, this table is the module.
+--- Otherwise creates a new table t and sets it as the value of the global name and the value of package.loaded[name].
+--- This function also initializes t._NAME with the given name, t._M with the module (t itself), and t._PACKAGE with the package name (the full module name minus last component).
+--- Finally, module sets t as the new environment of the current function and the new value of package.loaded[name], so that require returns t.
+--- The example below shows the creation of the module "foo". In practice you would probably put the contents of the "test" function into a separate file, and then: require "test"
+--- The nice thing about this approach is that nothing inside the module will "pollute" the global namespace, excepting the module name itself (foo in this case). Internally inside the module functions can call each other without having to use the package name (eg. add could call subtract without using foo.subtract).
+--- You can make a "private" function inside the "foo" package by simply putting "local" in front of the function name.
+function module(name, ···) end
+
+
+--- Unsupported and undocumented function in the Lua base library.
+--- From Lua code, the setmetatable function may only be used on objects of table type.
+--- The newproxy function circumvents that limitation by creating a zero-size userdata and setting
+--- either a new, empty metatable on it or using the metatable of another newproxy instance. We are
+--- then free to modify the metatable from Lua. This is the only way to create a proxy object from
+--- Lua which honors certain metamethods, such as __len.
+--- @param param bool
+function newproxy(param) end
+
+--- OBS function that returns the path of the folder of the current script
+--- @return string
+function script_path()
+
+--- Sets the current environment to be used by f, which can be a function, userdata, thread or stack level. Level 1 is the current function. Level 0 is the global environment of the current thread. The "env" argument is a table, which effectively becomes the "root" for the environment.
+--- The return value is the function whose environment was changed, unless the argument was 0.
+function setfenv(f, env) end
+
+--- SWIG function - Not documented
+function swig_equals() end
+
+--- SWIG function that returns as a string the type of object pointed to by the argument (assuming it was a SWIG wrapped object)
+function swig_type(obj) end
+
+--- Returns the elements from the given table. This function is equivalent to
+---
+--- return list[i], list[i+1], ···, list[j]
+---
+--- except that the above code can be written only for a fixed number of elements.
+--- By default, i is 1 and j is the length of the list, as defined by the length operator.
+function unpack (list, i, j) end
+
+--- Main obslua module
 obslua = {}
 
 -- Constants
@@ -404,96 +467,122 @@ obslua.vec4 = {}
 --- base_get_alignment not documented
 obslua.base_get_alignment = function() end
 
---- base_get_log_handler not documented
-obslua.base_get_log_handler = function() end
+--- Sets/gets the current log handler.
+--- 
+--- C definition: void base_get_log_handler(log_handler_t *handler, void **param)
+--- @param handler log_handler_t*
+--- @param param void**
+function obslua.base_get_log_handler(handler, param) end
 
 --- base_set_allocator not documented
 obslua.base_set_allocator = function() end
 
---- base_set_crash_handler not documented
-obslua.base_set_crash_handler = function() end
+--- Sets the current crash handler.
+--- 
+--- C definition: void base_set_crash_handler(void (*handler)(const char *, va_list, void *), void *param)
+--- @param ( void
+--- @param ) void*
+--- @param param void*
+function obslua.base_set_crash_handler((, ), param) end
 
---- void base_set_log_handler(log_handler_t handler, void *param)
----            void base_get_log_handler(log_handler_t *handler, void **param)
 --- Sets/gets the current log handler.
+--- 
+--- C definition: void base_set_log_handler(log_handler_t handler, void *param)
 --- @param handler log_handler_t
 --- @param param void*
-obslua.base_set_log_handler = function(handler, param) end
+function obslua.base_set_log_handler(handler, param) end
 
---- void bfree(void *ptr)
 --- Frees memory allocated with :c:func:`bmalloc()` or :c:func:`bfree()`.
+--- 
+--- C definition: void bfree(void *ptr)
 --- @param ptr void*
-obslua.bfree = function(ptr) end
+function obslua.bfree(ptr) end
 
---- void blog(int log_level, const char *format, ...)
 --- Logging function.
+--- 
+--- C definition: void blog(int log_level, const char *format, ...)
 --- @param log_level int
 --- @param format char*
-obslua.blog = function(log_level, format) end
+function obslua.blog(log_level, format) end
 
---- void* bmalloc(size_t size)
 --- Allocates memory and increases the memory leak counter.
+--- 
+--- C definition: void *bmalloc(size_t size)
 --- @param size size_t
 --- @return void*
-obslua.bmalloc = function(size) end
+function obslua.bmalloc(size) end
 
---- void* bmemdup(const void *ptr, size_t size)
 --- Duplicates memory.
+--- 
+--- C definition: void *bmemdup(const void *ptr, size_t size)
 --- @param ptr void*
 --- @param size size_t
 --- @return void*
-obslua.bmemdup = function(ptr, size) end
+function obslua.bmemdup(ptr, size) end
 
---- long bnum_allocs(void)
 --- Returns current number of active allocations.
+--- 
+--- C definition: long bnum_allocs(void)
 --- @return long
-obslua.bnum_allocs = function() end
+function obslua.bnum_allocs() end
 
---- void* brealloc(void *ptr, size_t size)
 --- Reallocates memory.  Use only with memory that's been allocated by
 --- :c:func:`bmalloc()`.
+--- 
+--- C definition: void *brealloc(void *ptr, size_t size)
 --- @param ptr void*
 --- @param size size_t
 --- @return void*
-obslua.brealloc = function(ptr, size) end
+function obslua.brealloc(ptr, size) end
 
---- char* bstrdup(const char *str)
----            wchar_t *bwstrdup(const wchar_t *str)
 --- Duplicates a string.
+--- C definition: char *bstrdup(const char *str)
 --- @param str char*
 --- @return char*
-obslua.bstrdup = function(str) end
+function obslua.bstrdup(str) end
 
---- char* bstrdup_n(const char *str, size_t n)
----            wchar_t *bwstrdup_n(const wchar_t *str, size_t n)
 --- Duplicates a string of *n* bytes and automatically zero-terminates
 --- it.
+--- 
+--- C definition: char *bstrdup_n(const char *str, size_t n)
 --- @param str char*
 --- @param n size_t
 --- @return char*
-obslua.bstrdup_n = function(str, n) end
+function obslua.bstrdup_n(str, n) end
 
---- bwstrdup not documented
-obslua.bwstrdup = function() end
+--- Duplicates a string.
+--- C definition: wchar_t *bwstrdup(const wchar_t *str)
+--- @param str wchar_t*
+--- @return wchar_t*
+function obslua.bwstrdup(str) end
 
---- bwstrdup_n not documented
-obslua.bwstrdup_n = function() end
+--- Duplicates a string of *n* bytes and automatically zero-terminates
+--- it.
+--- 
+--- C definition: wchar_t *bwstrdup_n(const wchar_t *str, size_t n)
+--- @param str wchar_t*
+--- @param n size_t
+--- @return wchar_t*
+function obslua.bwstrdup_n(str, n) end
 
---- void* bzalloc(size_t size)
 --- Inline function that allocates zeroed memory.
+--- 
+--- C definition: void *bzalloc(size_t size)
 --- @param size size_t
 --- @return void*
-obslua.bzalloc = function(size) end
+function obslua.bzalloc(size) end
 
---- bool calldata_bool(const calldata_t *data, const char *name)
 --- Gets a boolean parameter.
+--- 
 --- :param data: Calldata structure
 --- :param name: Parameter name
 --- :return:     Boolean value
+--- 
+--- C definition: bool calldata_bool(const calldata_t *data, const char *name)
 --- @param data calldata_t*
 --- @param name char*
 --- @return bool
-obslua.calldata_bool = function(data, name) end
+function obslua.calldata_bool(data, name) end
 
 --- calldata_clear not documented
 obslua.calldata_clear = function() end
@@ -504,21 +593,25 @@ obslua.calldata_create = function() end
 --- calldata_destroy not documented
 obslua.calldata_destroy = function() end
 
---- double calldata_float(const calldata_t *data, const char *name)
 --- Gets a floating point parameter.
+--- 
 --- :param data: Calldata structure
 --- :param name: Parameter name
 --- :return:     Floating point value
+--- 
+--- C definition: double calldata_float(const calldata_t *data, const char *name)
 --- @param data calldata_t*
 --- @param name char*
 --- @return double
-obslua.calldata_float = function(data, name) end
+function obslua.calldata_float(data, name) end
 
---- void calldata_free(calldata_t *data)
 --- Frees a calldata structure.
+--- 
 --- :param data: Calldata structure
+--- 
+--- C definition: void calldata_free(calldata_t *data)
 --- @param data calldata_t*
-obslua.calldata_free = function(data) end
+function obslua.calldata_free(data) end
 
 --- calldata_get_bool not documented
 obslua.calldata_get_bool = function() end
@@ -538,234 +631,297 @@ obslua.calldata_get_ptr = function() end
 --- calldata_get_string not documented
 obslua.calldata_get_string = function() end
 
---- void calldata_init(calldata_t *data)
 --- Initializes a calldata structure (zeroes it).
+--- 
 --- :param data: Calldata structure
+--- 
+--- C definition: void calldata_init(calldata_t *data)
 --- @param data calldata_t*
-obslua.calldata_init = function(data) end
+function obslua.calldata_init(data) end
 
 --- calldata_init_fixed not documented
 obslua.calldata_init_fixed = function() end
 
---- calldata_int not documented
-obslua.calldata_int = function() end
+--- Gets an integer parameter.
+--- 
+--- :param data: Calldata structure
+--- :param name: Parameter name
+--- :return:     Integer value
+--- 
+--- C definition: long long calldata_int(const calldata_t *data, const char *name)
+--- @param data calldata_t*
+--- @param name char*
+--- @return long
+function obslua.calldata_int(data, name) end
 
---- void* calldata_ptr(const calldata_t *data, const char *name)
 --- Gets a pointer parameter.
+--- 
 --- :param data: Calldata structure
 --- :param name: Parameter name
 --- :return:     Pointer value
+--- 
+--- C definition: void *calldata_ptr(const calldata_t *data, const char *name)
 --- @param data calldata_t*
 --- @param name char*
 --- @return void*
-obslua.calldata_ptr = function(data, name) end
+function obslua.calldata_ptr(data, name) end
 
 --- calldata_sceneitem not documented
 obslua.calldata_sceneitem = function() end
 
---- void calldata_set_bool(calldata_t *data, const char *name, bool val)
 --- Sets a boolean parameter.
+--- 
 --- :param data: Calldata structure
 --- :param name: Parameter name
 --- :param val:  Boolean value
+--- 
+--- C definition: void calldata_set_bool(calldata_t *data, const char *name, bool val)
 --- @param data calldata_t*
 --- @param name char*
 --- @param val bool
-obslua.calldata_set_bool = function(data, name, val) end
+function obslua.calldata_set_bool(data, name, val) end
 
 --- calldata_set_data not documented
 obslua.calldata_set_data = function() end
 
---- void calldata_set_float(calldata_t *data, const char *name, double val)
 --- Sets a floating point parameter.
+--- 
 --- :param data: Calldata structure
 --- :param name: Parameter name
 --- :param val:  Floating point value
+--- 
+--- C definition: void calldata_set_float(calldata_t *data, const char *name, double val)
 --- @param data calldata_t*
 --- @param name char*
 --- @param val double
-obslua.calldata_set_float = function(data, name, val) end
+function obslua.calldata_set_float(data, name, val) end
 
---- void calldata_set_int(calldata_t *data, const char *name, long long val)
 --- Sets an integer parameter.
+--- 
 --- :param data: Calldata structure
 --- :param name: Parameter name
 --- :param val:  Integer value
+--- 
+--- C definition: void calldata_set_int(calldata_t *data, const char *name, long long val)
 --- @param data calldata_t*
 --- @param name char*
 --- @param val longlong
-obslua.calldata_set_int = function(data, name, val) end
+function obslua.calldata_set_int(data, name, val) end
 
---- void calldata_set_ptr(calldata_t *data, const char *name, void *ptr)
 --- Sets a pointer parameter.
+--- 
 --- :param data: Calldata structure
 --- :param name: Parameter name
 --- :param val:  Pointer value
+--- 
+--- C definition: void calldata_set_ptr(calldata_t *data, const char *name, void *ptr)
 --- @param data calldata_t*
 --- @param name char*
 --- @param ptr void*
-obslua.calldata_set_ptr = function(data, name, ptr) end
+function obslua.calldata_set_ptr(data, name, ptr) end
 
---- void calldata_set_string(calldata_t *data, const char *name, const char *str)
 --- Sets a string parameter.
+--- 
 --- :param data: Calldata structure
 --- :param name: Parameter name
 --- :param val:  String
+--- 
+--- C definition: void calldata_set_string(calldata_t *data, const char *name, const char *str)
 --- @param data calldata_t*
 --- @param name char*
 --- @param str char*
-obslua.calldata_set_string = function(data, name, str) end
+function obslua.calldata_set_string(data, name, str) end
 
 --- calldata_source not documented
 obslua.calldata_source = function() end
 
---- calldata_string not documented
-obslua.calldata_string = function() end
+--- Gets a string parameter.
+--- 
+--- :param data: Calldata structure
+--- :param name: Parameter name
+--- :return:     String value
+--- 
+--- C definition: const char *calldata_string(const calldata_t *data, const char *name)
+--- @param data calldata_t*
+--- @param name char*
+--- @return char*
+function obslua.calldata_string(data, name) end
 
 --- gs_begin_frame not documented
 obslua.gs_begin_frame = function() end
 
---- void gs_begin_scene(void)
----            void gs_end_scene(void)
 --- Begins/ends a scene (this is automatically called by libobs, there's
 --- no need to call this manually).
-obslua.gs_begin_scene = function() end
+--- 
+--- C definition: void gs_begin_scene(void)
+function obslua.gs_begin_scene() end
 
---- void gs_blend_function(enum gs_blend_type src, enum gs_blend_type dest)
 --- Sets the blend function
+--- 
 --- :param src:  Blend type for the source
 --- :param dest: Blend type for the destination
+--- 
+--- C definition: void gs_blend_function(enum gs_blend_type src, enum gs_blend_type dest)
 --- @param src gs_blend_type
 --- @param dest gs_blend_type
-obslua.gs_blend_function = function(src, dest) end
+function obslua.gs_blend_function(src, dest) end
 
---- void gs_blend_function_separate(enum gs_blend_type src_c, enum gs_blend_type dest_c, enum gs_blend_type src_a, enum gs_blend_type dest_a)
 --- Sets the blend function for RGB and alpha separately
+--- 
 --- :param src_c:  Blend type for the source RGB
 --- :param dest_c: Blend type for the destination RGB
 --- :param src_a:  Blend type for the source alpha
 --- :param dest_a: Blend type for the destination alpha
+--- 
+--- C definition: void gs_blend_function_separate(enum gs_blend_type src_c, enum gs_blend_type dest_c, enum gs_blend_type src_a, enum gs_blend_type dest_a)
 --- @param src_c gs_blend_type
 --- @param dest_c gs_blend_type
 --- @param src_a gs_blend_type
 --- @param dest_a gs_blend_type
-obslua.gs_blend_function_separate = function(src_c, dest_c, src_a, dest_a) end
+function obslua.gs_blend_function_separate(src_c, dest_c, src_a, dest_a) end
 
---- void gs_blend_state_pop(void)
 --- Pops/restores the last blend state
-obslua.gs_blend_state_pop = function() end
+--- 
+--- C definition: void gs_blend_state_pop(void)
+function obslua.gs_blend_state_pop() end
 
---- void gs_blend_state_push(void)
 --- Pushes/stores the current blend state
-obslua.gs_blend_state_push = function() end
+--- 
+--- C definition: void gs_blend_state_push(void)
+function obslua.gs_blend_state_push() end
 
---- void gs_clear(uint32_t clear_flags, const struct vec4 *color, float depth, uint8_t stencil)
 --- Clears color/depth/stencil buffers.
+--- 
 --- :param clear_flags: Flags to clear with.  Can be one of the following
 ---                     values:
+--- 
 ---                     - GS_CLEAR_COLOR   - Clears color buffer
 ---                     - GS_CLEAR_DEPTH   - Clears depth buffer
 ---                     - GS_CLEAR_STENCIL - Clears stencil buffer
+--- 
 --- :param color:       Color value to clear the color buffer with
 --- :param depth:       Depth value to clear the depth buffer with
 --- :param stencil:     Stencil value to clear the stencil buffer with
+--- 
+--- C definition: void gs_clear(uint32_t clear_flags, const struct vec4 *color, float depth, uint8_t stencil)
 --- @param clear_flags uint32_t
 --- @param color vec4*
 --- @param depth float
 --- @param stencil uint8_t
-obslua.gs_clear = function(clear_flags, color, depth, stencil) end
+function obslua.gs_clear(clear_flags, color, depth, stencil) end
 
---- void gs_color(uint32_t color)
+--- C definition: void gs_color(uint32_t color)
 --- @param color uint32_t
-obslua.gs_color = function(color) end
+function obslua.gs_color(color) end
 
---- void gs_color4v(const struct vec4 *v)
+--- C definition: void gs_color4v(const struct vec4 *v)
 --- @param v vec4*
-obslua.gs_color4v = function(v) end
+function obslua.gs_color4v(v) end
 
---- void gs_copy_texture(gs_texture_t *dst, gs_texture_t *src)
 --- Copies a texture
+--- 
 --- :param dst: Destination texture
 --- :param src: Source texture
+--- 
+--- C definition: void gs_copy_texture(gs_texture_t *dst, gs_texture_t *src)
 --- @param dst gs_texture_t*
 --- @param src gs_texture_t*
-obslua.gs_copy_texture = function(dst, src) end
+function obslua.gs_copy_texture(dst, src) end
 
 --- gs_copy_texture_region not documented
 obslua.gs_copy_texture_region = function() end
 
---- int gs_create(graphics_t **graphics, const char *module, uint32_t adapter)
 --- Creates a graphics context
+--- 
 --- :param graphics: Pointer to receive the graphics context
 --- :param module:   Module name
 --- :param adapter:  Adapter index
 --- :return:         Can return one of the following values:
+--- 
 ---                  - GS_SUCCESS
 ---                  - GS_ERROR_FAIL
 ---                  - GS_ERROR_MODULE_NOT_FOUND
 ---                  - GS_ERROR_NOT_SUPPORTED
+--- 
+--- C definition: int gs_create(graphics_t **graphics, const char *module, uint32_t adapter)
 --- @param graphics graphics_t**
 --- @param module char*
 --- @param adapter uint32_t
 --- @return int
-obslua.gs_create = function(graphics, module, adapter) end
+function obslua.gs_create(graphics, module, adapter) end
 
 --- gs_create_texture_file_data not documented
 obslua.gs_create_texture_file_data = function() end
 
---- gs_texture_t* gs_cubetexture_create(uint32_t size, enum gs_color_format color_format, uint32_t levels, const uint8_t **data, uint32_t flags)
 --- Creates a cubemap texture.
+--- 
 --- :param size:         Width/height/depth value
 --- :param color_format: Color format
 --- :param levels:       Number of texture levels
 --- :param data:         Pointer to array of texture data pointers
 --- :param flags:        Can be 0 or a bitwise-OR combination of one or
 ---                      more of the following value:
+--- 
 ---                      - GS_BUILD_MIPMAPS - Automatically builds
 ---                        mipmaps (Note: not fully tested)
 ---                      - GS_DYNAMIC - Dynamic
 ---                      - GS_RENDER_TARGET - Render target
+--- 
 --- :return:             A new cube texture object
+--- 
+--- C definition: gs_texture_t *gs_cubetexture_create(uint32_t size, enum gs_color_format color_format, uint32_t levels, const uint8_t **data, uint32_t flags)
 --- @param size uint32_t
 --- @param color_format gs_color_format
 --- @param levels uint32_t
 --- @param data uint8_t**
 --- @param flags uint32_t
 --- @return gs_texture_t*
-obslua.gs_cubetexture_create = function(size, color_format, levels, data, flags) end
+function obslua.gs_cubetexture_create(size, color_format, levels, data, flags) end
 
---- void gs_cubetexture_destroy(gs_texture_t *cubetex)
 --- Destroys a cube texture.
+--- 
 --- :param cubetex: Cube texture object
+--- 
+--- C definition: void     gs_cubetexture_destroy(gs_texture_t *cubetex)
 --- @param cubetex gs_texture_t*
-obslua.gs_cubetexture_destroy = function(cubetex) end
+--- @return 
+function obslua.gs_cubetexture_destroy(cubetex) end
 
---- gs_cubetexture_get_color_format not documented
-obslua.gs_cubetexture_get_color_format = function() end
+--- Gets the color format of a cube texture.
+--- 
+--- :param cubetex: Cube texture object
+--- :return:        The color format of the cube texture
+--- 
+--- C definition: enum gs_color_format gs_cubetexture_get_color_format(const gs_texture_t *cubetex)
+--- @param cubetex gs_texture_t*
+--- @return gs_color_format
+function obslua.gs_cubetexture_get_color_format(cubetex) end
 
---- uint32_t gs_cubetexture_get_size(const gs_texture_t *cubetex)
 --- Get the width/height/depth value of a cube texture.
+--- 
 --- :param cubetex: Cube texture object
 --- :return:        The width/height/depth value of the cube texture
+--- 
+--- C definition: uint32_t gs_cubetexture_get_size(const gs_texture_t *cubetex)
 --- @param cubetex gs_texture_t*
 --- @return uint32_t
-obslua.gs_cubetexture_get_size = function(cubetex) end
+function obslua.gs_cubetexture_get_size(cubetex) end
 
---- void gs_cubetexture_set_image(gs_texture_t *cubetex, uint32_t side, const void *data, uint32_t linesize, bool invert)
 --- Sets an image of a cube texture side.
+--- 
 --- :param cubetex:  Cube texture object
 --- :param side:     Side
 --- :param data:     Texture data to set
 --- :param linesize: Line size (pitch) of the texture data
 --- :param invert:   *true* to invert texture data, *false* otherwise
---- Staging Surface Functions
---- Staging surfaces are used to efficiently copy textures from VRAM to RAM.
+--- 
+--- C definition: void gs_cubetexture_set_image(gs_texture_t *cubetex, uint32_t side, const void *data, uint32_t linesize, bool invert)
 --- @param cubetex gs_texture_t*
 --- @param side uint32_t
 --- @param data void*
 --- @param linesize uint32_t
 --- @param invert bool
-obslua.gs_cubetexture_set_image = function(cubetex, side, data, linesize, invert) end
+function obslua.gs_cubetexture_set_image(cubetex, side, data, linesize, invert) end
 
 --- gs_debug_marker_begin not documented
 obslua.gs_debug_marker_begin = function() end
@@ -776,380 +932,482 @@ obslua.gs_debug_marker_begin_format = function() end
 --- gs_debug_marker_end not documented
 obslua.gs_debug_marker_end = function() end
 
---- void gs_depth_function(enum gs_depth_test test)
 --- Sets the depth function
+--- 
 --- :param test: Sets the depth test type
+--- 
+--- C definition: void gs_depth_function(enum gs_depth_test test)
 --- @param test gs_depth_test
-obslua.gs_depth_function = function(test) end
+function obslua.gs_depth_function(test) end
 
---- void gs_destroy(graphics_t *graphics)
 --- Destroys a graphics context
+--- 
 --- :param graphics: Graphics context
+--- 
+--- C definition: void gs_destroy(graphics_t *graphics)
 --- @param graphics graphics_t*
-obslua.gs_destroy = function(graphics) end
+function obslua.gs_destroy(graphics) end
 
---- void gs_draw(enum gs_draw_mode draw_mode, uint32_t start_vert, uint32_t num_verts)
 --- Draws a primitive or set of primitives.
+--- 
 --- :param draw_mode:  The primitive draw mode to use
 --- :param start_vert: Starting vertex index
 --- :param num_verts:  Number of vertices
+--- 
+--- C definition: void gs_draw(enum gs_draw_mode draw_mode, uint32_t start_vert, uint32_t num_verts)
 --- @param draw_mode gs_draw_mode
 --- @param start_vert uint32_t
 --- @param num_verts uint32_t
-obslua.gs_draw = function(draw_mode, start_vert, num_verts) end
+function obslua.gs_draw(draw_mode, start_vert, num_verts) end
 
 --- gs_draw_cube_backdrop not documented
 obslua.gs_draw_cube_backdrop = function() end
 
---- void gs_draw_sprite(gs_texture_t *tex, uint32_t flip, uint32_t width, uint32_t height)
 --- Draws a 2D sprite.  Sets the "image" parameter of the current effect
 --- to the texture and renders a quad.
+--- 
 --- If width or height is 0, the width or height of the texture will be
 --- used.  The flip value specifies whether the texture should be flipped
 --- on the U or V axis with GS_FLIP_U and GS_FLIP_V.
+--- 
 --- :param tex:    Texture to draw
 --- :param flip:   Can be 0 or a bitwise-OR combination of one of the
 ---                following values:
+--- 
 ---                - GS_FLIP_U - Flips the texture horizontally
 ---                - GS_FLIP_V - Flips the texture vertically
+--- 
 --- :param width:  Width
 --- :param height: Height
+--- 
+--- C definition: void gs_draw_sprite(gs_texture_t *tex, uint32_t flip, uint32_t width, uint32_t height)
 --- @param tex gs_texture_t*
 --- @param flip uint32_t
 --- @param width uint32_t
 --- @param height uint32_t
-obslua.gs_draw_sprite = function(tex, flip, width, height) end
+function obslua.gs_draw_sprite(tex, flip, width, height) end
 
---- void gs_draw_sprite_subregion(gs_texture_t *tex, uint32_t flip, uint32_t x, uint32_t y, uint32_t cx, uint32_t cy)
 --- Draws a subregion of a 2D sprite.  Sets the "image" parameter of the
 --- current effect to the texture and renders a quad.
+--- 
 --- :param tex:    Texture to draw
 --- :param flip:   Can be 0 or a bitwise-OR combination of one of the
 ---                following values:
+--- 
 ---                - GS_FLIP_U - Flips the texture horizontally
 ---                - GS_FLIP_V - Flips the texture vertically
+--- 
 --- :param x:      X value within subregion
 --- :param y:      Y value within subregion
 --- :param cx:     CX value of subregion
 --- :param cy:     CY value of subregion
+--- 
+--- C definition: void gs_draw_sprite_subregion(gs_texture_t *tex, uint32_t flip, uint32_t x, uint32_t y, uint32_t cx, uint32_t cy)
 --- @param tex gs_texture_t*
 --- @param flip uint32_t
 --- @param x uint32_t
 --- @param y uint32_t
 --- @param cx uint32_t
 --- @param cy uint32_t
-obslua.gs_draw_sprite_subregion = function(tex, flip, x, y, cx, cy) end
+function obslua.gs_draw_sprite_subregion(tex, flip, x, y, cx, cy) end
 
---- gs_effect_t* gs_effect_create(const char *effect_string, const char *filename, char **error_string)
 --- Creates an effect from a string.
+--- 
 --- :param effect_String: Effect string
 --- :param error_string:  Receives a pointer to the error string, which
 ---                       must be freed with :c:func:`bfree()`.  If
 ---                       *NULL*, this parameter is ignored.
 --- :return:              The effect object, or *NULL* on error
+--- 
+--- C definition: gs_effect_t *gs_effect_create(const char *effect_string, const char *filename, char **error_string)
 --- @param effect_string char*
 --- @param filename char*
 --- @param error_string char**
 --- @return gs_effect_t*
-obslua.gs_effect_create = function(effect_string, filename, error_string) end
+function obslua.gs_effect_create(effect_string, filename, error_string) end
 
---- gs_effect_t* gs_effect_create_from_file(const char *file, char **error_string)
 --- Creates an effect from file.
+--- 
 --- :param file:         Path to the effect file
 --- :param error_string: Receives a pointer to the error string, which
 ---                      must be freed with :c:func:`bfree()`.  If
 ---                      *NULL*, this parameter is ignored.
 --- :return:             The effect object, or *NULL* on error
+--- 
+--- C definition: gs_effect_t *gs_effect_create_from_file(const char *file, char **error_string)
 --- @param file char*
 --- @param error_string char**
 --- @return gs_effect_t*
-obslua.gs_effect_create_from_file = function(file, error_string) end
+function obslua.gs_effect_create_from_file(file, error_string) end
 
---- void gs_effect_destroy(gs_effect_t *effect)
 --- Destroys the effect
+--- 
 --- :param effect: Effect object
+--- 
+--- C definition: void gs_effect_destroy(gs_effect_t *effect)
 --- @param effect gs_effect_t*
-obslua.gs_effect_destroy = function(effect) end
+function obslua.gs_effect_destroy(effect) end
 
---- gs_technique_t* gs_effect_get_current_technique(const gs_effect_t *effect)
 --- Gets the current active technique of the effect.
+--- 
 --- :param effect: Effect object
 --- :return:       Technique object, or *NULL* if none currently active
+--- 
+--- C definition: gs_technique_t *gs_effect_get_current_technique(const gs_effect_t *effect)
 --- @param effect gs_effect_t*
 --- @return gs_technique_t*
-obslua.gs_effect_get_current_technique = function(effect) end
+function obslua.gs_effect_get_current_technique(effect) end
 
---- void gs_effect_get_default_val(gs_eparam_t *param)
 --- Returns a copy of the param's default value.
+--- 
 --- :param param:   Effect parameter
 --- :return:        A pointer to the copied byte value of the param's default value. Freed with :c:func:`bfree()`.
+--- 
+--- C definition: void gs_effect_get_default_val(gs_eparam_t *param)
 --- @param param gs_eparam_t*
-obslua.gs_effect_get_default_val = function(param) end
+function obslua.gs_effect_get_default_val(param) end
 
---- size_t gs_effect_get_default_val_size(gs_eparam_t *param)
 --- Returns the size in bytes of the param's default value.
+--- 
 --- :param param:   Effect parameter
 --- :return:        The size in bytes of the param's default value.
+--- C definition: size_t gs_effect_get_default_val_size(gs_eparam_t *param)
 --- @param param gs_eparam_t*
 --- @return size_t
-obslua.gs_effect_get_default_val_size = function(param) end
+function obslua.gs_effect_get_default_val_size(param) end
 
---- size_t gs_effect_get_num_params(const gs_effect_t *effect)
 --- Gets the number of parameters associated with the effect.
+--- 
 --- :param effect: Effect object
 --- :return:       Number of parameters the effect has
+--- 
+--- C definition: size_t gs_effect_get_num_params(const gs_effect_t *effect)
 --- @param effect gs_effect_t*
 --- @return size_t
-obslua.gs_effect_get_num_params = function(effect) end
+function obslua.gs_effect_get_num_params(effect) end
 
---- gs_eparam_t* gs_effect_get_param_by_idx(const gs_effect_t *effect, size_t param)
 --- Gets a parameter of an effect by its index.
+--- 
 --- :param effect: Effect object
 --- :param param:  Parameter index
 --- :return:       The effect parameter object, or *NULL* if index
 ---                invalid
+--- 
+--- C definition: gs_eparam_t *gs_effect_get_param_by_idx(const gs_effect_t *effect, size_t param)
 --- @param effect gs_effect_t*
 --- @param param size_t
 --- @return gs_eparam_t*
-obslua.gs_effect_get_param_by_idx = function(effect, param) end
+function obslua.gs_effect_get_param_by_idx(effect, param) end
 
---- gs_eparam_t* gs_effect_get_param_by_name(const gs_effect_t *effect, const char *name)
 --- Gets parameter of an effect by its name.
+--- 
 --- :param effect: Effect object
 --- :param name:   Name of the parameter
 --- :return:       The effect parameter object, or *NULL* if not found
+--- 
+--- C definition: gs_eparam_t *gs_effect_get_param_by_name(const gs_effect_t *effect, const char *name)
 --- @param effect gs_effect_t*
 --- @param name char*
 --- @return gs_eparam_t*
-obslua.gs_effect_get_param_by_name = function(effect, name) end
+function obslua.gs_effect_get_param_by_name(effect, name) end
 
---- gs_technique_t* gs_effect_get_technique(const gs_effect_t *effect, const char *name)
 --- Gets a technique of the effect.
+--- 
 --- :param effect: Effect object
 --- :param name:   Name of the technique
 --- :return:       Technique object, or *NULL* if not found
+--- 
+--- C definition: gs_technique_t *gs_effect_get_technique(const gs_effect_t *effect, const char *name)
 --- @param effect gs_effect_t*
 --- @param name char*
 --- @return gs_technique_t*
-obslua.gs_effect_get_technique = function(effect, name) end
+function obslua.gs_effect_get_technique(effect, name) end
 
---- void* gs_effect_get_val(gs_eparam_t *param)
 --- Returns a copy of the param's current value.
+--- 
 --- :param param:   Effect parameter
 --- :return:        A pointer to the copied byte value of the param's current value. Freed with :c:func:`bfree()`.
+--- 
+--- C definition: void *gs_effect_get_val(gs_eparam_t *param)
 --- @param param gs_eparam_t*
 --- @return void*
-obslua.gs_effect_get_val = function(param) end
+function obslua.gs_effect_get_val(param) end
 
---- size_t gs_effect_get_val_size(gs_eparam_t *param)
 --- Returns the size in bytes of the param's current value.
+--- 
 --- :param param:   Effect parameter
 --- :return:        The size in bytes of the param's current value.
+--- 
+--- C definition: size_t gs_effect_get_val_size(gs_eparam_t *param)
 --- @param param gs_eparam_t*
 --- @return size_t
-obslua.gs_effect_get_val_size = function(param) end
+function obslua.gs_effect_get_val_size(param) end
 
---- gs_eparam_t* gs_effect_get_viewproj_matrix(const gs_effect_t *effect)
 --- Gets the view/projection matrix parameter ("viewproj") of the effect.
+--- 
 --- :param effect: Effect object
 --- :return:       The view/projection matrix parameter of the effect
+--- 
+--- C definition: gs_eparam_t *gs_effect_get_viewproj_matrix(const gs_effect_t *effect)
 --- @param effect gs_effect_t*
 --- @return gs_eparam_t*
-obslua.gs_effect_get_viewproj_matrix = function(effect) end
+function obslua.gs_effect_get_viewproj_matrix(effect) end
 
---- gs_eparam_t* gs_effect_get_world_matrix(const gs_effect_t *effect)
 --- Gets the world matrix parameter ("world") of the effect.
+--- 
 --- :param effect: Effect object
 --- :return:       The world matrix parameter of the effect
+--- 
+--- C definition: gs_eparam_t *gs_effect_get_world_matrix(const gs_effect_t *effect)
 --- @param effect gs_effect_t*
 --- @return gs_eparam_t*
-obslua.gs_effect_get_world_matrix = function(effect) end
+function obslua.gs_effect_get_world_matrix(effect) end
 
---- bool gs_effect_loop(gs_effect_t *effect, const char *name)
 --- Helper function that automatically begins techniques/passes.
+--- 
 --- :param effect: Effect object
 --- :param name:   Name of the technique to execute
 --- :return:       *true* to draw, *false* when complete
+--- 
 --- Here is an example of how this function is typically used:
+--- 
 --- .. code:: cpp
+--- 
 --- for (gs_effect_loop(effect, "my_technique")) {
 ---         /* perform drawing here */
+---         [...]
+--- }
+--- 
+--- C definition: bool gs_effect_loop(gs_effect_t *effect, const char *name)
 --- @param effect gs_effect_t*
 --- @param name char*
 --- @return bool
-obslua.gs_effect_loop = function(effect, name) end
+function obslua.gs_effect_loop(effect, name) end
 
---- void gs_effect_set_bool(gs_eparam_t *param, bool val)
 --- Sets a boolean parameter.
+--- 
 --- :param param: Effect parameter
 --- :param val:   Boolean value
+--- 
+--- C definition: void gs_effect_set_bool(gs_eparam_t *param, bool val)
 --- @param param gs_eparam_t*
 --- @param val bool
-obslua.gs_effect_set_bool = function(param, val) end
+function obslua.gs_effect_set_bool(param, val) end
 
---- void gs_effect_set_color(gs_eparam_t *param, uint32_t argb)
 --- Convenience function for setting a color value via an integer value.
+--- 
 --- :param param: Effect parameter
 --- :param argb:  Integer color value (i.e. hex value would be
 ---               0xAARRGGBB)
+--- 
+--- C definition: void gs_effect_set_color(gs_eparam_t *param, uint32_t argb)
 --- @param param gs_eparam_t*
 --- @param argb uint32_t
-obslua.gs_effect_set_color = function(param, argb) end
+function obslua.gs_effect_set_color(param, argb) end
 
---- void gs_effect_set_default(gs_eparam_t *param)
 --- Sets the parameter to its default value
+--- 
 --- :param: Effect parameter
+--- 
+--- C definition: void gs_effect_set_default(gs_eparam_t *param)
 --- @param param gs_eparam_t*
-obslua.gs_effect_set_default = function(param) end
+function obslua.gs_effect_set_default(param) end
 
---- void gs_effect_set_float(gs_eparam_t *param, float val)
 --- Sets a floating point parameter.
+--- 
 --- :param param: Effect parameter
 --- :param val:   Floating point value
+--- 
+--- C definition: void gs_effect_set_float(gs_eparam_t *param, float val)
 --- @param param gs_eparam_t*
 --- @param val float
-obslua.gs_effect_set_float = function(param, val) end
+function obslua.gs_effect_set_float(param, val) end
 
---- void gs_effect_set_int(gs_eparam_t *param, int val)
 --- Sets a integer parameter.
+--- 
 --- :param param: Effect parameter
 --- :param val:   Integer value
+--- 
+--- C definition: void gs_effect_set_int(gs_eparam_t *param, int val)
 --- @param param gs_eparam_t*
 --- @param val int
-obslua.gs_effect_set_int = function(param, val) end
+function obslua.gs_effect_set_int(param, val) end
 
---- void gs_effect_set_matrix4(gs_eparam_t *param, const struct matrix4 *val)
 --- Sets a matrix parameter.
+--- 
 --- :param param: Effect parameter
 --- :param val:   Matrix
+--- 
+--- C definition: void gs_effect_set_matrix4(gs_eparam_t *param, const struct matrix4 *val)
 --- @param param gs_eparam_t*
 --- @param val matrix4*
-obslua.gs_effect_set_matrix4 = function(param, val) end
+function obslua.gs_effect_set_matrix4(param, val) end
 
---- void gs_effect_set_next_sampler(gs_eparam_t *param, gs_samplerstate_t *sampler)
 --- Manually changes the sampler for an effect parameter the next time
 --- it's used.
+--- 
 --- :param param:   Effect parameter
 --- :param sampler: Sampler state object
+--- 
+--- C definition: void gs_effect_set_next_sampler(gs_eparam_t *param, gs_samplerstate_t *sampler)
 --- @param param gs_eparam_t*
 --- @param sampler gs_samplerstate_t*
-obslua.gs_effect_set_next_sampler = function(param, sampler) end
+function obslua.gs_effect_set_next_sampler(param, sampler) end
 
---- void gs_effect_set_texture(gs_eparam_t *param, gs_texture_t *val)
 --- Sets a texture parameter.
+--- 
 --- :param param: Effect parameter
 --- :param val:   Texture
+--- 
+--- C definition: void gs_effect_set_texture(gs_eparam_t *param, gs_texture_t *val)
 --- @param param gs_eparam_t*
 --- @param val gs_texture_t*
-obslua.gs_effect_set_texture = function(param, val) end
+function obslua.gs_effect_set_texture(param, val) end
 
---- void gs_effect_set_val(gs_eparam_t *param, const void *val, size_t size)
 --- Sets a parameter with data manually.
+--- 
 --- :param param: Effect parameter
 --- :param val:   Pointer to data
 --- :param size:  Size of data
+--- 
+--- C definition: void gs_effect_set_val(gs_eparam_t *param, const void *val, size_t size)
 --- @param param gs_eparam_t*
 --- @param val void*
 --- @param size size_t
-obslua.gs_effect_set_val = function(param, val, size) end
+function obslua.gs_effect_set_val(param, val, size) end
 
---- void gs_effect_set_vec2(gs_eparam_t *param, const struct vec2 *val)
 --- Sets a 2-component vector parameter.
+--- 
 --- :param param: Effect parameter
 --- :param val:   Vector
+--- 
+--- C definition: void gs_effect_set_vec2(gs_eparam_t *param, const struct vec2 *val)
 --- @param param gs_eparam_t*
 --- @param val vec2*
-obslua.gs_effect_set_vec2 = function(param, val) end
+function obslua.gs_effect_set_vec2(param, val) end
 
---- void gs_effect_set_vec3(gs_eparam_t *param, const struct vec3 *val)
 --- Sets a 3-component vector parameter.
+--- 
 --- :param param: Effect parameter
 --- :param val:   Vector
+--- 
+--- C definition: void gs_effect_set_vec3(gs_eparam_t *param, const struct vec3 *val)
 --- @param param gs_eparam_t*
 --- @param val vec3*
-obslua.gs_effect_set_vec3 = function(param, val) end
+function obslua.gs_effect_set_vec3(param, val) end
 
---- void gs_effect_set_vec4(gs_eparam_t *param, const struct vec4 *val)
 --- Sets a 4-component vector parameter.
+--- 
 --- :param param: Effect parameter
 --- :param val:   Vector
+--- 
+--- C definition: void gs_effect_set_vec4(gs_eparam_t *param, const struct vec4 *val)
 --- @param param gs_eparam_t*
 --- @param val vec4*
-obslua.gs_effect_set_vec4 = function(param, val) end
+function obslua.gs_effect_set_vec4(param, val) end
 
 --- gs_effect_update_params not documented
 obslua.gs_effect_update_params = function() end
 
---- void gs_enable_blending(bool enable)
 --- Enables/disables blending
+--- 
 --- :param enable: *true* to enable, *false* to disable
+--- 
+--- C definition: void gs_enable_blending(bool enable)
 --- @param enable bool
-obslua.gs_enable_blending = function(enable) end
+function obslua.gs_enable_blending(enable) end
 
---- void gs_enable_color(bool red, bool green, bool blue, bool alpha)
 --- Enables/disables specific color channels
+--- 
 --- :param red:   *true* to enable red channel, *false* to disable
 --- :param green: *true* to enable green channel, *false* to disable
 --- :param blue:  *true* to enable blue channel, *false* to disable
 --- :param alpha: *true* to enable alpha channel, *false* to disable
+--- 
+--- C definition: void gs_enable_color(bool red, bool green, bool blue, bool alpha)
 --- @param red bool
 --- @param green bool
 --- @param blue bool
 --- @param alpha bool
-obslua.gs_enable_color = function(red, green, blue, alpha) end
+function obslua.gs_enable_color(red, green, blue, alpha) end
 
---- void gs_enable_depth_test(bool enable)
 --- Enables/disables depth testing
+--- 
 --- :param enable: *true* to enable, *false* to disable
+--- 
+--- C definition: void gs_enable_depth_test(bool enable)
 --- @param enable bool
-obslua.gs_enable_depth_test = function(enable) end
+function obslua.gs_enable_depth_test(enable) end
 
---- void gs_enable_stencil_test(bool enable)
 --- Enables/disables stencil testing
+--- 
 --- :param enable: *true* to enable, *false* to disable
+--- 
+--- C definition: void gs_enable_stencil_test(bool enable)
 --- @param enable bool
-obslua.gs_enable_stencil_test = function(enable) end
+function obslua.gs_enable_stencil_test(enable) end
 
---- void gs_enable_stencil_write(bool enable)
 --- Enables/disables stencil writing
+--- 
 --- :param enable: *true* to enable, *false* to disable
+--- 
+--- C definition: void gs_enable_stencil_write(bool enable)
 --- @param enable bool
-obslua.gs_enable_stencil_write = function(enable) end
+function obslua.gs_enable_stencil_write(enable) end
 
---- gs_end_scene not documented
-obslua.gs_end_scene = function() end
+--- Begins/ends a scene (this is automatically called by libobs, there's
+--- no need to call this manually).
+--- 
+--- C definition: void gs_end_scene(void)
+function obslua.gs_end_scene() end
 
---- void gs_enter_context(graphics_t *graphics)
 --- Enters and locks the graphics context
+--- 
 --- :param graphics: Graphics context
+--- 
+--- C definition: void gs_enter_context(graphics_t *graphics)
 --- @param graphics graphics_t*
-obslua.gs_enter_context = function(graphics) end
+function obslua.gs_enter_context(graphics) end
 
---- gs_enum_adapters not documented
-obslua.gs_enum_adapters = function() end
+--- Enumerates adapters (this really only applies on windows).
+--- 
+--- :param callback: Enumeration callback
+--- :param param:    Private data passed to the callback
+--- 
+--- C definition: void gs_enum_adapters(bool (*callback)(void *param, const char *name, uint32_t id), void *param)
+--- @param ( bool
+--- @param name char*
+--- @param id) uint32_t
+--- @param param void*
+function obslua.gs_enum_adapters((, name, id), param) end
 
---- void gs_flush(void)
 --- Flushes GPU calls
-obslua.gs_flush = function() end
+--- 
+--- C definition: void gs_flush(void)
+function obslua.gs_flush() end
 
---- void gs_frustum(float left, float right, float top, float bottom, float znear, float zfar)
 --- Sets the projection matrix to a frustum matrix
+--- 
+--- C definition: void gs_frustum(float left, float right, float top, float bottom, float znear, float zfar)
 --- @param left float
 --- @param right float
 --- @param top float
 --- @param bottom float
 --- @param znear float
 --- @param zfar float
-obslua.gs_frustum = function(left, right, top, bottom, znear, zfar) end
+function obslua.gs_frustum(left, right, top, bottom, znear, zfar) end
 
---- graphics_t* gs_get_context(void)
 --- :return: The currently locked graphics context for this thread
---- Matrix Stack Functions
+--- 
+--- C definition: graphics_t *gs_get_context(void)
 --- @return graphics_t*
-obslua.gs_get_context = function() end
+function obslua.gs_get_context() end
 
---- gs_get_cull_mode not documented
-obslua.gs_get_cull_mode = function() end
+--- :return: The current cull mode
+--- 
+--- C definition: enum gs_cull_mode gs_get_cull_mode(void)
+--- @return gs_cull_mode
+function obslua.gs_get_cull_mode() end
 
 --- gs_get_device_name not documented
 obslua.gs_get_device_name = function() end
@@ -1160,19 +1418,20 @@ obslua.gs_get_device_obj = function() end
 --- gs_get_device_type not documented
 obslua.gs_get_device_type = function() end
 
---- gs_effect_t* gs_get_effect(void)
 --- :return: The currently active effect, or *NULL* if none active
+--- 
+--- C definition: gs_effect_t *gs_get_effect(void)
 --- @return gs_effect_t*
-obslua.gs_get_effect = function() end
+function obslua.gs_get_effect() end
 
 --- gs_get_format_bpp not documented
 obslua.gs_get_format_bpp = function() end
 
---- uint32_t gs_get_height(void)
 --- Gets the height of the currently active swap chain
---- Resource Loading
+--- 
+--- C definition: uint32_t gs_get_height(void)
 --- @return uint32_t
-obslua.gs_get_height = function() end
+function obslua.gs_get_height() end
 
 --- gs_get_input not documented
 obslua.gs_get_input = function() end
@@ -1180,16 +1439,21 @@ obslua.gs_get_input = function() end
 --- gs_get_pixel_shader not documented
 obslua.gs_get_pixel_shader = function() end
 
---- gs_get_render_target not documented
-obslua.gs_get_render_target = function() end
+--- :return: The currently active render target
+--- 
+--- C definition: gs_texture_t  *gs_get_render_target(void)
+--- @return *
+function obslua.gs_get_render_target() end
 
---- void gs_get_size(uint32_t *cx, uint32_t *cy)
 --- Gets the size of the currently active swap chain
+--- 
 --- :param cx: Pointer to receive width
 --- :param cy: Pointer to receive height
+--- 
+--- C definition: void gs_get_size(uint32_t *cx, uint32_t *cy)
 --- @param cx uint32_t*
 --- @param cy uint32_t*
-obslua.gs_get_size = function(cx, cy) end
+function obslua.gs_get_size(cx, cy) end
 
 --- gs_get_texture_type not documented
 obslua.gs_get_texture_type = function() end
@@ -1200,21 +1464,25 @@ obslua.gs_get_total_levels = function() end
 --- gs_get_vertex_shader not documented
 obslua.gs_get_vertex_shader = function() end
 
---- void gs_get_viewport(struct gs_rect *rect)
 --- Gets the current viewport
+--- 
 --- :param rect: Pointer to receive viewport rectangle
+--- 
+--- C definition: void gs_get_viewport(struct gs_rect *rect)
 --- @param rect gs_rect*
-obslua.gs_get_viewport = function(rect) end
+function obslua.gs_get_viewport(rect) end
 
---- uint32_t gs_get_width(void)
 --- Gets the width of the currently active swap chain
+--- 
+--- C definition: uint32_t gs_get_width(void)
 --- @return uint32_t
-obslua.gs_get_width = function() end
+function obslua.gs_get_width() end
 
---- gs_zstencil_t* gs_get_zstencil_target(void)
 --- :return: The currently active Z-stencil target
+--- 
+--- C definition: gs_zstencil_t *gs_get_zstencil_target(void)
 --- @return gs_zstencil_t*
-obslua.gs_get_zstencil_target = function() end
+function obslua.gs_get_zstencil_target() end
 
 --- gs_image_file2_free not documented
 obslua.gs_image_file2_free = function() end
@@ -1231,290 +1499,391 @@ obslua.gs_image_file2_tick = function() end
 --- gs_image_file2_update_texture not documented
 obslua.gs_image_file2_update_texture = function() end
 
---- void gs_image_file_free(gs_image_file_t *image)
 --- Frees an image file helper
+--- 
 --- :param image: Image file helper
+--- 
+--- C definition: void gs_image_file_free(gs_image_file_t *image)
 --- @param image gs_image_file_t*
-obslua.gs_image_file_free = function(image) end
+function obslua.gs_image_file_free(image) end
 
---- void gs_image_file_init(gs_image_file_t *image, const char *file)
 --- Loads an initializes an image file helper.  Does not initialize the
 --- texture; call :c:func:`gs_image_file_init_texture()` to initialize
 --- the texture.
+--- 
 --- :param image: Image file helper to initialize
 --- :param file:  Path to the image file to load
+--- 
+--- C definition: void gs_image_file_init(gs_image_file_t *image, const char *file)
 --- @param image gs_image_file_t*
 --- @param file char*
-obslua.gs_image_file_init = function(image, file) end
+function obslua.gs_image_file_init(image, file) end
 
---- void gs_image_file_init_texture(gs_image_file_t *image)
 --- Initializes the texture of an image file helper.  This is separate
 --- from :c:func:`gs_image_file_init()` because it allows deferring the
 --- graphics initialization if needed.
+--- 
 --- :param image: Image file helper
+--- 
+--- C definition: void gs_image_file_init_texture(gs_image_file_t *image)
 --- @param image gs_image_file_t*
-obslua.gs_image_file_init_texture = function(image) end
+function obslua.gs_image_file_init_texture(image) end
 
---- bool gs_image_file_tick(gs_image_file_t *image, uint64_t elapsed_time_ns)
 --- Performs a tick operation on the image file helper (used primarily
 --- for animated file).  Does not update the texture until
 --- :c:func:`gs_image_file_update_texture()` is called.
+--- 
 --- :param image:           Image file helper
 --- :param elapsed_time_ns: Elapsed time in nanoseconds
+--- 
+--- C definition: bool gs_image_file_tick(gs_image_file_t *image, uint64_t elapsed_time_ns)
 --- @param image gs_image_file_t*
 --- @param elapsed_time_ns uint64_t
 --- @return bool
-obslua.gs_image_file_tick = function(image, elapsed_time_ns) end
+function obslua.gs_image_file_tick(image, elapsed_time_ns) end
 
---- void gs_image_file_update_texture(gs_image_file_t *image)
 --- Updates the texture (used primarily for animated files)
+--- 
 --- :param image: Image file helper
+--- C definition: void gs_image_file_update_texture(gs_image_file_t *image)
 --- @param image gs_image_file_t*
-obslua.gs_image_file_update_texture = function(image) end
+function obslua.gs_image_file_update_texture(image) end
 
---- gs_indexbuffer_t* gs_indexbuffer_create(enum gs_index_type type, void *indices, size_t num, uint32_t flags)
 --- Creates an index buffer.
+--- 
 --- :param type:    Index buffer type
 --- :param indices: Index buffer data.  This buffer must be allocated
 ---                 with :c:func:`bmalloc()`, :c:func:`bzalloc()`, or
 ---                 :c:func:`bralloc()`, and ownership of this buffer is
 ---                 passed to the index buffer object.
 --- :param num:     Number of indices in the buffer
+--- 
 --- :param flags:   Creation flags.  Can be 0 or a bitwise-OR combination
 ---                 of any of the following values:
+--- 
 ---                 - GS_DYNAMIC - Can be dynamically updated in real time.
 ---                 - GS_DUP_BUFFER - Do not pass buffer ownership
+--- 
 --- :return:        A new index buffer object, or *NULL* if failed
+--- 
+--- C definition: gs_indexbuffer_t *gs_indexbuffer_create(enum gs_index_type type, void *indices, size_t num, uint32_t flags)
 --- @param type gs_index_type
 --- @param indices void*
 --- @param num size_t
 --- @param flags uint32_t
 --- @return gs_indexbuffer_t*
-obslua.gs_indexbuffer_create = function(type, indices, num, flags) end
+function obslua.gs_indexbuffer_create(type, indices, num, flags) end
 
---- void gs_indexbuffer_destroy(gs_indexbuffer_t *indexbuffer)
 --- Destroys an index buffer object.
+--- 
 --- :param indexbuffer: Index buffer object
+--- 
+--- C definition: void     gs_indexbuffer_destroy(gs_indexbuffer_t *indexbuffer)
 --- @param indexbuffer gs_indexbuffer_t*
-obslua.gs_indexbuffer_destroy = function(indexbuffer) end
+--- @return 
+function obslua.gs_indexbuffer_destroy(indexbuffer) end
 
---- void gs_indexbuffer_flush(gs_indexbuffer_t *indexbuffer)
 --- Flushes a index buffer to its interval index data object.  To modify
 --- its internal index data, call :c:func:`gs_indexbuffer_get_data()`.
+--- 
 --- Can only be used with dynamic index buffer objects.
+--- 
 --- :param indexbuffer: Index buffer object
+--- 
+--- C definition: void     gs_indexbuffer_flush(gs_indexbuffer_t *indexbuffer)
 --- @param indexbuffer gs_indexbuffer_t*
-obslua.gs_indexbuffer_flush = function(indexbuffer) end
+--- @return 
+function obslua.gs_indexbuffer_flush(indexbuffer) end
 
---- void gs_indexbuffer_flush_direct(gs_indexbuffer_t *indexbuffer, const void *data)
 --- Flushes a index buffer to the specified index buffer data.
+--- 
 --- Can only be used with dynamic index buffer objects.
+--- 
 --- :param indexbuffer: Index buffer object
 --- :param data:        Index buffer data to flush
+--- 
+--- C definition: void     gs_indexbuffer_flush_direct(gs_indexbuffer_t *indexbuffer, const void *data)
 --- @param indexbuffer gs_indexbuffer_t*
 --- @param data void*
-obslua.gs_indexbuffer_flush_direct = function(indexbuffer, data) end
+--- @return 
+function obslua.gs_indexbuffer_flush_direct(indexbuffer, data) end
 
---- gs_indexbuffer_get_data not documented
-obslua.gs_indexbuffer_get_data = function() end
+--- Gets the index buffer data associated with a index buffer object.
+--- This data can be changed and index buffer can be updated with
+--- :c:func:`gs_indexbuffer_flush()`.
+--- 
+--- Can only be used with dynamic index buffer objects.
+--- 
+--- :param vertbuffer: Index buffer object
+--- :return:           Index buffer data pointer
+--- 
+--- C definition: void     *gs_indexbuffer_get_data(const gs_indexbuffer_t *indexbuffer)
+--- @param indexbuffer gs_indexbuffer_t*
+--- @return *
+function obslua.gs_indexbuffer_get_data(indexbuffer) end
 
---- size_t gs_indexbuffer_get_num_indices(const gs_indexbuffer_t *indexbuffer)
 --- Gets the number of indices associated with this index buffer.
+--- 
 --- :param indexbuffer: Index buffer object
 --- :return:            Number of indices the vertex buffer object has
+--- 
+--- C definition: size_t   gs_indexbuffer_get_num_indices(const gs_indexbuffer_t *indexbuffer)
 --- @param indexbuffer gs_indexbuffer_t*
---- @return size_t
-obslua.gs_indexbuffer_get_num_indices = function(indexbuffer) end
+--- @return 
+function obslua.gs_indexbuffer_get_num_indices(indexbuffer) end
 
---- gs_indexbuffer_get_type not documented
-obslua.gs_indexbuffer_get_type = function() end
+--- Gets the type of index buffer.
+--- 
+--- :param indexbuffer: Index buffer object
+--- :return:            Index buffer type
+--- 
+--- C definition: enum gs_index_type gs_indexbuffer_get_type(const gs_indexbuffer_t *indexbuffer)
+--- @param indexbuffer gs_indexbuffer_t*
+--- @return gs_index_type
+function obslua.gs_indexbuffer_get_type(indexbuffer) end
 
 --- gs_is_compressed_format not documented
 obslua.gs_is_compressed_format = function() end
 
---- void gs_leave_context(void)
 --- Leaves and unlocks the graphics context
+--- 
 --- :param graphics: Graphics context
-obslua.gs_leave_context = function() end
+--- 
+--- C definition: void gs_leave_context(void)
+function obslua.gs_leave_context() end
 
 --- gs_load_default_samplerstate not documented
 obslua.gs_load_default_samplerstate = function() end
 
---- void gs_load_indexbuffer(gs_indexbuffer_t *indexbuffer)
 --- Loads a index buffer
+--- 
 --- :param indexbuffer: Index buffer to load, or NULL to unload
+--- 
+--- C definition: void gs_load_indexbuffer(gs_indexbuffer_t *indexbuffer)
 --- @param indexbuffer gs_indexbuffer_t*
-obslua.gs_load_indexbuffer = function(indexbuffer) end
+function obslua.gs_load_indexbuffer(indexbuffer) end
 
 --- gs_load_pixelshader not documented
 obslua.gs_load_pixelshader = function() end
 
---- void gs_load_samplerstate(gs_samplerstate_t *samplerstate, int unit)
 --- Loads a sampler state (this is usually not called manually)
+--- 
 --- :param samplerstate: Sampler state to load, or NULL to unload
 --- :param unit:         Texture unit to load sampler state for
+--- 
+--- C definition: void gs_load_samplerstate(gs_samplerstate_t *samplerstate, int unit)
 --- @param samplerstate gs_samplerstate_t*
 --- @param unit int
-obslua.gs_load_samplerstate = function(samplerstate, unit) end
+function obslua.gs_load_samplerstate(samplerstate, unit) end
 
---- void gs_load_swapchain(gs_swapchain_t *swapchain)
 --- Loads a swapchain
+--- 
 --- :param swapchain: Swap chain to load, or NULL to unload
---- Draw Functions
+--- 
+--- C definition: void gs_load_swapchain(gs_swapchain_t *swapchain)
 --- @param swapchain gs_swapchain_t*
-obslua.gs_load_swapchain = function(swapchain) end
+function obslua.gs_load_swapchain(swapchain) end
 
---- void gs_load_texture(gs_texture_t *tex, int unit)
 --- Loads a texture (this is usually not called manually)
+--- 
 --- :param tex:  Texture to load, or NULL to unload
 --- :param unit: Texture unit to load texture for
+--- 
+--- C definition: void gs_load_texture(gs_texture_t *tex, int unit)
 --- @param tex gs_texture_t*
 --- @param unit int
-obslua.gs_load_texture = function(tex, unit) end
+function obslua.gs_load_texture(tex, unit) end
 
---- void gs_load_vertexbuffer(gs_vertbuffer_t *vertbuffer)
 --- Loads a vertex buffer
+--- 
 --- :param vertbuffer: Vertex buffer to load, or NULL to unload
+--- 
+--- C definition: void gs_load_vertexbuffer(gs_vertbuffer_t *vertbuffer)
 --- @param vertbuffer gs_vertbuffer_t*
-obslua.gs_load_vertexbuffer = function(vertbuffer) end
+function obslua.gs_load_vertexbuffer(vertbuffer) end
 
 --- gs_load_vertexshader not documented
 obslua.gs_load_vertexshader = function() end
 
---- void gs_matrix_get(struct matrix4 *dst)
 --- Gets the current matrix
+--- 
 --- :param dst: Destination matrix
+--- 
+--- C definition: void gs_matrix_get(struct matrix4 *dst)
 --- @param dst matrix4*
-obslua.gs_matrix_get = function(dst) end
+function obslua.gs_matrix_get(dst) end
 
---- void gs_matrix_identity(void)
 --- Sets the current matrix to an identity matrix.
-obslua.gs_matrix_identity = function() end
+--- 
+--- C definition: void gs_matrix_identity(void)
+function obslua.gs_matrix_identity() end
 
---- void gs_matrix_mul(const struct matrix4 *matrix)
 --- Multiplies the current matrix
+--- 
 --- :param matrix: Matrix to multiply the current stack matrix with
+--- 
+--- C definition: void gs_matrix_mul(const struct matrix4 *matrix)
 --- @param matrix matrix4*
-obslua.gs_matrix_mul = function(matrix) end
+function obslua.gs_matrix_mul(matrix) end
 
---- void gs_matrix_pop(void)
 --- Pops the current matrix from the matrix stack.
-obslua.gs_matrix_pop = function() end
+--- 
+--- C definition: void gs_matrix_pop(void)
+function obslua.gs_matrix_pop() end
 
---- void gs_matrix_push(void)
 --- Pushes the matrix stack and duplicates the current matrix.
-obslua.gs_matrix_push = function() end
+--- 
+--- C definition: void gs_matrix_push(void)
+function obslua.gs_matrix_push() end
 
---- void gs_matrix_rotaa(const struct axisang *rot)
----            void gs_matrix_rotaa4f(float x, float y, float z, float angle)
 --- Multiplies the current matrix with an axis angle
+--- 
 --- :param rot: Axis angle to multiple the current matrix stack with
+--- 
+--- C definition: void gs_matrix_rotaa(const struct axisang *rot)
 --- @param rot axisang*
-obslua.gs_matrix_rotaa = function(rot) end
+function obslua.gs_matrix_rotaa(rot) end
 
---- gs_matrix_rotaa4f not documented
-obslua.gs_matrix_rotaa4f = function() end
-
---- void gs_matrix_rotquat(const struct quat *rot)
---- Multiplies the current matrix with a quaternion
---- :param rot: Quaternion to multiple the current matrix stack with
---- @param rot quat*
-obslua.gs_matrix_rotquat = function(rot) end
-
---- void gs_matrix_scale(const struct vec3 *scale)
----            void gs_matrix_scale3f(float x, float y, float z)
---- Scales the current matrix
---- :param scale: Scale value to scale the current matrix stack with
---- Draw Functions
---- @param scale vec3*
-obslua.gs_matrix_scale = function(scale) end
-
---- gs_matrix_scale3f not documented
-obslua.gs_matrix_scale3f = function() end
-
---- void gs_matrix_set(const struct matrix4 *matrix)
---- Sets the current matrix.
---- :param matrix: The matrix to set
---- @param matrix matrix4*
-obslua.gs_matrix_set = function(matrix) end
-
---- void gs_matrix_translate(const struct vec3 *pos)
----            void gs_matrix_translate3f(float x, float y, float z)
---- Translates the current matrix
---- :param pos: Vector to translate the current matrix stack with
---- @param pos vec3*
-obslua.gs_matrix_translate = function(pos) end
-
---- gs_matrix_translate3f not documented
-obslua.gs_matrix_translate3f = function() end
-
---- void gs_matrix_transpose(void)
---- Transposes the current matrix.
-obslua.gs_matrix_transpose = function() end
-
---- void gs_normal3f(float x, float y, float z)
+--- Multiplies the current matrix with an axis angle
+--- 
+--- :param rot: Axis angle to multiple the current matrix stack with
+--- 
+--- C definition: void gs_matrix_rotaa4f(float x, float y, float z, float angle)
 --- @param x float
 --- @param y float
 --- @param z float
-obslua.gs_normal3f = function(x, y, z) end
+--- @param angle float
+function obslua.gs_matrix_rotaa4f(x, y, z, angle) end
 
---- void gs_normal3v(const struct vec3 *v)
+--- Multiplies the current matrix with a quaternion
+--- 
+--- :param rot: Quaternion to multiple the current matrix stack with
+--- 
+--- C definition: void gs_matrix_rotquat(const struct quat *rot)
+--- @param rot quat*
+function obslua.gs_matrix_rotquat(rot) end
+
+--- Scales the current matrix
+--- 
+--- :param scale: Scale value to scale the current matrix stack with
+--- 
+--- C definition: void gs_matrix_scale(const struct vec3 *scale)
+--- @param scale vec3*
+function obslua.gs_matrix_scale(scale) end
+
+--- Scales the current matrix
+--- 
+--- :param scale: Scale value to scale the current matrix stack with
+--- 
+--- C definition: void gs_matrix_scale3f(float x, float y, float z)
+--- @param x float
+--- @param y float
+--- @param z float
+function obslua.gs_matrix_scale3f(x, y, z) end
+
+--- Sets the current matrix.
+--- 
+--- :param matrix: The matrix to set
+--- 
+--- C definition: void gs_matrix_set(const struct matrix4 *matrix)
+--- @param matrix matrix4*
+function obslua.gs_matrix_set(matrix) end
+
+--- Translates the current matrix
+--- 
+--- :param pos: Vector to translate the current matrix stack with
+--- 
+--- C definition: void gs_matrix_translate(const struct vec3 *pos)
+--- @param pos vec3*
+function obslua.gs_matrix_translate(pos) end
+
+--- Translates the current matrix
+--- 
+--- :param pos: Vector to translate the current matrix stack with
+--- 
+--- C definition: void gs_matrix_translate3f(float x, float y, float z)
+--- @param x float
+--- @param y float
+--- @param z float
+function obslua.gs_matrix_translate3f(x, y, z) end
+
+--- Transposes the current matrix.
+--- 
+--- C definition: void gs_matrix_transpose(void)
+function obslua.gs_matrix_transpose() end
+
+--- C definition: void gs_normal3f(float x, float y, float z)
+--- @param x float
+--- @param y float
+--- @param z float
+function obslua.gs_normal3f(x, y, z) end
+
+--- C definition: void gs_normal3v(const struct vec3 *v)
 --- @param v vec3*
-obslua.gs_normal3v = function(v) end
+function obslua.gs_normal3v(v) end
 
 --- gs_nv12_available not documented
 obslua.gs_nv12_available = function() end
 
---- void gs_ortho(float left, float right, float top, float bottom, float znear, float zfar)
 --- Sets the projection matrix to an orthographic matrix
+--- 
+--- C definition: void gs_ortho(float left, float right, float top, float bottom, float znear, float zfar)
 --- @param left float
 --- @param right float
 --- @param top float
 --- @param bottom float
 --- @param znear float
 --- @param zfar float
-obslua.gs_ortho = function(left, right, top, bottom, znear, zfar) end
+function obslua.gs_ortho(left, right, top, bottom, znear, zfar) end
 
---- gs_eparam_t* gs_param_get_annotation_by_idx(const gs_eparam_t *param, size_t annotation)
 --- Gets an annotation of a param by its index.
+--- 
 --- :param param:  Param object
 --- :param param:  Annotation index
 --- :return:       The effect parameter object (annotation), or *NULL* if index
 ---                invalid
+--- 
+--- C definition: gs_eparam_t *gs_param_get_annotation_by_idx(const gs_eparam_t *param, size_t annotation)
 --- @param param gs_eparam_t*
 --- @param annotation size_t
 --- @return gs_eparam_t*
-obslua.gs_param_get_annotation_by_idx = function(param, annotation) end
+function obslua.gs_param_get_annotation_by_idx(param, annotation) end
 
---- gs_eparam_t* gs_param_get_annotation_by_name(const gs_eparam_t *pardam, const char *annotation)
 --- Gets parameter of an effect by its name.
+--- 
 --- :param param:  Param object
 --- :param name:   Name of the annotation
 --- :return:       The effect parameter object (annotation), or *NULL* if not found
+--- 
+--- C definition: gs_eparam_t *gs_param_get_annotation_by_name(const gs_eparam_t *pardam, const char *annotation)
 --- @param pardam gs_eparam_t*
 --- @param annotation char*
 --- @return gs_eparam_t*
-obslua.gs_param_get_annotation_by_name = function(pardam, annotation) end
+function obslua.gs_param_get_annotation_by_name(pardam, annotation) end
 
---- size_t gs_param_get_num_annotations(const gs_eparam_t *param)
 --- Gets the number of annotations associated with the parameter.
+--- 
 --- :param param:  Param object
 --- :return:       Number of annotations the param has
+--- 
+--- C definition: size_t gs_param_get_num_annotations(const gs_eparam_t *param)
 --- @param param gs_eparam_t*
 --- @return size_t
-obslua.gs_param_get_num_annotations = function(param) end
+function obslua.gs_param_get_num_annotations(param) end
 
---- void gs_perspective(float fovy, float aspect, float znear, float zfar)
 --- Sets the projection matrix to a perspective mode
+--- 
 --- :param fovy:   Field of view (in degrees)
 --- :param aspect: Aspect ratio
 --- :param znear:  Near plane
 --- :param zfar:   Far plane
+--- 
+--- C definition: void gs_perspective(float fovy, float aspect, float znear, float zfar)
 --- @param fovy float
 --- @param aspect float
 --- @param znear float
 --- @param zfar float
-obslua.gs_perspective = function(fovy, aspect, znear, zfar) end
+function obslua.gs_perspective(fovy, aspect, znear, zfar) end
 
 --- gs_pixelshader_create not documented
 obslua.gs_pixelshader_create = function() end
@@ -1522,261 +1891,327 @@ obslua.gs_pixelshader_create = function() end
 --- gs_pixelshader_create_from_file not documented
 obslua.gs_pixelshader_create_from_file = function() end
 
---- void gs_present(void)
 --- Displays what was rendered on to the current render target
-obslua.gs_present = function() end
+--- 
+--- C definition: void gs_present(void)
+function obslua.gs_present() end
 
---- void gs_projection_pop(void)
 --- Pops/restores the last projection matrix pushed
---- Texture Functions
-obslua.gs_projection_pop = function() end
+--- 
+--- C definition: void gs_projection_pop(void)
+function obslua.gs_projection_pop() end
 
---- void gs_projection_push(void)
 --- Pushes/stores the current projection matrix
-obslua.gs_projection_push = function() end
+--- 
+--- C definition: void gs_projection_push(void)
+function obslua.gs_projection_push() end
 
---- gs_vertbuffer_t* gs_render_save(void)
+--- C definition: gs_vertbuffer_t *gs_render_save(void)
 --- @return gs_vertbuffer_t*
-obslua.gs_render_save = function() end
+function obslua.gs_render_save() end
 
---- void gs_render_start(bool b_new)
+--- C definition: void gs_render_start(bool b_new)
 --- @param b_new bool
-obslua.gs_render_start = function(b_new) end
+function obslua.gs_render_start(b_new) end
 
---- void gs_render_stop(enum gs_draw_mode mode)
+--- C definition: void gs_render_stop(enum gs_draw_mode mode)
 --- @param mode gs_draw_mode
-obslua.gs_render_stop = function(mode) end
+function obslua.gs_render_stop(mode) end
 
---- void gs_reset_blend_state(void)
 --- Sets the blend state to the default value: source alpha and invert
 --- source alpha.
---- Swap Chains
-obslua.gs_reset_blend_state = function() end
+--- 
+--- C definition: void gs_reset_blend_state(void)
+function obslua.gs_reset_blend_state() end
 
---- void gs_reset_viewport(void)
 ---  Sets the viewport to current swap chain size
-obslua.gs_reset_viewport = function() end
+--- 
+--- C definition: void gs_reset_viewport(void)
+function obslua.gs_reset_viewport() end
 
---- void gs_resize(uint32_t cx, uint32_t cy)
 --- Resizes the currently active swap chain
+--- 
 --- :param cx: New width
 --- :param cy: New height
+--- 
+--- C definition: void gs_resize(uint32_t cx, uint32_t cy)
 --- @param cx uint32_t
 --- @param cy uint32_t
-obslua.gs_resize = function(cx, cy) end
+function obslua.gs_resize(cx, cy) end
 
---- gs_samplerstate_t* gs_samplerstate_create(const struct gs_sampler_info *info)
 --- Creates a sampler state object.
+--- 
 --- :param info: Sampler state information
 --- :return:     New sampler state object
+--- 
+--- C definition: gs_samplerstate_t *gs_samplerstate_create(const struct gs_sampler_info *info)
 --- @param info gs_sampler_info*
 --- @return gs_samplerstate_t*
-obslua.gs_samplerstate_create = function(info) end
+function obslua.gs_samplerstate_create(info) end
 
---- void gs_samplerstate_destroy(gs_samplerstate_t *samplerstate)
 --- Destroys a sampler state object.
+--- 
 --- :param samplerstate: Sampler state object
---- Vertex Buffer Functions
+--- 
+--- C definition: void     gs_samplerstate_destroy(gs_samplerstate_t *samplerstate)
 --- @param samplerstate gs_samplerstate_t*
-obslua.gs_samplerstate_destroy = function(samplerstate) end
+--- @return 
+function obslua.gs_samplerstate_destroy(samplerstate) end
 
---- void gs_set_2d_mode(void)
 ---  Sets the projection matrix to a default screen-sized orthographic
 ---  mode
-obslua.gs_set_2d_mode = function() end
+--- 
+--- C definition: void gs_set_2d_mode(void)
+function obslua.gs_set_2d_mode() end
 
---- void gs_set_3d_mode(double fovy, double znear, double zfar)
 ---  Sets the projection matrix to a default screen-sized perspective
 ---  mode
+--- 
 ---  :param fovy:  Field of view (in degrees)
 ---  :param znear: Near plane
 ---  :param zfar:  Far plane
+--- 
+--- C definition: void gs_set_3d_mode(double fovy, double znear, double zfar)
 --- @param fovy double
 --- @param znear double
 --- @param zfar double
-obslua.gs_set_3d_mode = function(fovy, znear, zfar) end
+function obslua.gs_set_3d_mode(fovy, znear, zfar) end
 
---- void gs_set_cube_render_target(gs_texture_t *cubetex, int side, gs_zstencil_t *zstencil)
 --- Sets a cubemap side as the active render target
+--- 
 --- :param cubetex:  Cubemap
 --- :param side:     Cubemap side
 --- :param zstencil: Z-stencil buffer, or *NULL* if none
+--- 
+--- C definition: void gs_set_cube_render_target(gs_texture_t *cubetex, int side, gs_zstencil_t *zstencil)
 --- @param cubetex gs_texture_t*
 --- @param side int
 --- @param zstencil gs_zstencil_t*
-obslua.gs_set_cube_render_target = function(cubetex, side, zstencil) end
+function obslua.gs_set_cube_render_target(cubetex, side, zstencil) end
 
---- void gs_set_cull_mode(enum gs_cull_mode mode)
 --- Sets the current cull mode.
+--- 
 --- :param mode: Cull mode
+--- 
+--- C definition: void gs_set_cull_mode(enum gs_cull_mode mode)
 --- @param mode gs_cull_mode
-obslua.gs_set_cull_mode = function(mode) end
+function obslua.gs_set_cull_mode(mode) end
 
---- void gs_set_render_target(gs_texture_t *tex, gs_zstencil_t *zstencil)
 --- Sets the active render target
+--- 
 --- :param tex:      Texture to set as the active render target
 --- :param zstencil: Z-stencil to use as the active render target
+--- 
+--- C definition: void gs_set_render_target(gs_texture_t *tex, gs_zstencil_t *zstencil)
 --- @param tex gs_texture_t*
 --- @param zstencil gs_zstencil_t*
-obslua.gs_set_render_target = function(tex, zstencil) end
+function obslua.gs_set_render_target(tex, zstencil) end
 
---- void gs_set_scissor_rect(const struct gs_rect *rect)
 --- Sets or clears the current scissor rectangle
+--- 
 --- :rect: Scissor rectangle, or *NULL* to clear
+--- 
+--- C definition: void gs_set_scissor_rect(const struct gs_rect *rect)
 --- @param rect gs_rect*
-obslua.gs_set_scissor_rect = function(rect) end
+function obslua.gs_set_scissor_rect(rect) end
 
---- void gs_set_viewport(int x, int y, int width, int height)
 --- Sets the current viewport
+--- 
 --- :param x:      X position relative to upper left
 --- :param y:      Y position relative to upper left
 --- :param width:  Width of the viewport
 --- :param height: Height of the viewport
+--- 
+--- C definition: void gs_set_viewport(int x, int y, int width, int height)
 --- @param x int
 --- @param y int
 --- @param width int
 --- @param height int
-obslua.gs_set_viewport = function(x, y, width, height) end
+function obslua.gs_set_viewport(x, y, width, height) end
 
---- void gs_stage_texture(gs_stagesurf_t *dst, gs_texture_t *src)
 --- Copies a texture to a staging surface and copies it to RAM.  Ideally
 --- best to give this a frame to process to prevent stalling.
+--- 
 --- :param dst: Staging surface
 --- :param src: Texture to stage
+--- 
+--- C definition: void gs_stage_texture(gs_stagesurf_t *dst, gs_texture_t *src)
 --- @param dst gs_stagesurf_t*
 --- @param src gs_texture_t*
-obslua.gs_stage_texture = function(dst, src) end
+function obslua.gs_stage_texture(dst, src) end
 
---- gs_stagesurf_t* gs_stagesurface_create(uint32_t width, uint32_t height, enum gs_color_format color_format)
 --- Creates a staging surface.
+--- 
 --- :param width:        Width
 --- :param height:       Height
 --- :param color_format: Color format
 --- :return:             The staging surface object
+--- 
+--- C definition: gs_stagesurf_t *gs_stagesurface_create(uint32_t width, uint32_t height, enum gs_color_format color_format)
 --- @param width uint32_t
 --- @param height uint32_t
 --- @param color_format gs_color_format
 --- @return gs_stagesurf_t*
-obslua.gs_stagesurface_create = function(width, height, color_format) end
+function obslua.gs_stagesurface_create(width, height, color_format) end
 
---- void gs_stagesurface_destroy(gs_stagesurf_t *stagesurf)
 --- Destroys a staging surface.
+--- 
 --- :param stagesurf: Staging surface object
+--- 
+--- C definition: void     gs_stagesurface_destroy(gs_stagesurf_t *stagesurf)
 --- @param stagesurf gs_stagesurf_t*
-obslua.gs_stagesurface_destroy = function(stagesurf) end
+--- @return 
+function obslua.gs_stagesurface_destroy(stagesurf) end
 
---- gs_stagesurface_get_color_format not documented
-obslua.gs_stagesurface_get_color_format = function() end
+--- Gets the color format of a staging surface object.
+--- 
+--- :param stagesurf: Staging surface object
+--- :return:          Color format of the staging surface
+--- 
+--- C definition: enum gs_color_format gs_stagesurface_get_color_format(const gs_stagesurf_t *stagesurf)
+--- @param stagesurf gs_stagesurf_t*
+--- @return gs_color_format
+function obslua.gs_stagesurface_get_color_format(stagesurf) end
 
---- gs_stagesurface_get_height not documented
-obslua.gs_stagesurface_get_height = function() end
-
---- uint32_t gs_stagesurface_get_width(const gs_stagesurf_t *stagesurf)
----            uint32_t gs_stagesurface_get_height(const gs_stagesurf_t *stagesurf)
 --- Gets the width/height of a staging surface object.
+--- 
 --- :param stagesurf: Staging surface object
 --- :return:          Width/height of the staging surface
+--- 
+--- C definition: uint32_t gs_stagesurface_get_height(const gs_stagesurf_t *stagesurf)
 --- @param stagesurf gs_stagesurf_t*
 --- @return uint32_t
-obslua.gs_stagesurface_get_width = function(stagesurf) end
+function obslua.gs_stagesurface_get_height(stagesurf) end
 
---- bool gs_stagesurface_map(gs_stagesurf_t *stagesurf, uint8_t **data, uint32_t *linesize)
+--- Gets the width/height of a staging surface object.
+--- 
+--- :param stagesurf: Staging surface object
+--- :return:          Width/height of the staging surface
+--- 
+--- C definition: uint32_t gs_stagesurface_get_width(const gs_stagesurf_t *stagesurf)
+--- @param stagesurf gs_stagesurf_t*
+--- @return uint32_t
+function obslua.gs_stagesurface_get_width(stagesurf) end
+
 --- Maps the staging surface texture (for reading).  Call
 --- :c:func:`gs_stagesurface_unmap()` to unmap when complete.
+--- 
 --- :param stagesurf: Staging surface object
 --- :param data:      Pointer to receive texture data pointer
 --- :param linesize:  Pointer to receive line size (pitch) of the texture
 ---                   data
 --- :return:          *true* if map successful, *false* otherwise
+--- 
+--- C definition: bool     gs_stagesurface_map(gs_stagesurf_t *stagesurf, uint8_t **data, uint32_t *linesize)
 --- @param stagesurf gs_stagesurf_t*
 --- @param data uint8_t**
 --- @param linesize uint32_t*
---- @return bool
-obslua.gs_stagesurface_map = function(stagesurf, data, linesize) end
+--- @return 
+function obslua.gs_stagesurface_map(stagesurf, data, linesize) end
 
---- void gs_stagesurface_unmap(gs_stagesurf_t *stagesurf)
 --- Unmaps a staging surface.
+--- 
 --- :param stagesurf: Staging surface object
---- Z-Stencil Functions
+--- 
+--- C definition: void     gs_stagesurface_unmap(gs_stagesurf_t *stagesurf)
 --- @param stagesurf gs_stagesurf_t*
-obslua.gs_stagesurface_unmap = function(stagesurf) end
+--- @return 
+function obslua.gs_stagesurface_unmap(stagesurf) end
 
---- void gs_stencil_function(enum gs_stencil_side side, enum gs_depth_test test)
 --- Sets the stencil function
+--- 
 --- :param side: Stencil side
 --- :param test: Depth test
+--- 
+--- C definition: void gs_stencil_function(enum gs_stencil_side side, enum gs_depth_test test)
 --- @param side gs_stencil_side
 --- @param test gs_depth_test
-obslua.gs_stencil_function = function(side, test) end
+function obslua.gs_stencil_function(side, test) end
 
---- void gs_stencil_op(enum gs_stencil_side side, enum gs_stencil_op_type fail, enum gs_stencil_op_type zfail, enum gs_stencil_op_type zpass)
 --- Sets the stencil operation
+--- 
 --- :param side:  Stencil side
 --- :param fail:  Operation to perform on stencil test failure
 --- :param zfail: Operation to perform on depth test failure
 --- :param zpass: Operation to perform on depth test success
+--- 
+--- C definition: void gs_stencil_op(enum gs_stencil_side side, enum gs_stencil_op_type fail, enum gs_stencil_op_type zfail, enum gs_stencil_op_type zpass)
 --- @param side gs_stencil_side
 --- @param fail gs_stencil_op_type
 --- @param zfail gs_stencil_op_type
 --- @param zpass gs_stencil_op_type
-obslua.gs_stencil_op = function(side, fail, zfail, zpass) end
+function obslua.gs_stencil_op(side, fail, zfail, zpass) end
 
---- gs_swapchain_t* gs_swapchain_create(const struct gs_init_data *data)
 --- Creates a swap chain (display view on a native widget)
+--- 
 --- :param data: Swap chain initialization data
 --- :return:     New swap chain object, or *NULL* if failed
+--- 
+--- C definition: gs_swapchain_t *gs_swapchain_create(const struct gs_init_data *data)
 --- @param data gs_init_data*
 --- @return gs_swapchain_t*
-obslua.gs_swapchain_create = function(data) end
+function obslua.gs_swapchain_create(data) end
 
---- void gs_swapchain_destroy(gs_swapchain_t *swapchain)
 --- Destroys a swap chain
+--- 
+--- C definition: void     gs_swapchain_destroy(gs_swapchain_t *swapchain)
 --- @param swapchain gs_swapchain_t*
-obslua.gs_swapchain_destroy = function(swapchain) end
+--- @return 
+function obslua.gs_swapchain_destroy(swapchain) end
 
---- size_t gs_technique_begin(gs_technique_t *technique)
 --- Begins a technique.
+--- 
 --- :param technique: Technique object
 --- :return:          Number of passes this technique uses
+--- 
+--- C definition: size_t gs_technique_begin(gs_technique_t *technique)
 --- @param technique gs_technique_t*
 --- @return size_t
-obslua.gs_technique_begin = function(technique) end
+function obslua.gs_technique_begin(technique) end
 
---- bool gs_technique_begin_pass(gs_technique_t *technique, size_t pass)
 --- Begins a pass.  Automatically loads the vertex/pixel shaders
 --- associated with this pass.  Draw after calling this function.
+--- 
 --- :param technique: Technique object
 --- :param pass:      Pass index
 --- :return:          *true* if the pass is valid, *false* otherwise
+--- 
+--- C definition: bool gs_technique_begin_pass(gs_technique_t *technique, size_t pass)
 --- @param technique gs_technique_t*
 --- @param pass size_t
 --- @return bool
-obslua.gs_technique_begin_pass = function(technique, pass) end
+function obslua.gs_technique_begin_pass(technique, pass) end
 
---- bool gs_technique_begin_pass_by_name(gs_technique_t *technique, const char *name)
 --- Begins a pass by its name if the pass has a name.  Automatically
 --- loads the vertex/pixel shaders associated with this pass.  Draw after
 --- calling this function.
+--- 
 --- :param technique: Technique object
 --- :param name:      Name of the pass
 --- :return:          *true* if the pass is valid, *false* otherwise
+--- 
+--- C definition: bool gs_technique_begin_pass_by_name(gs_technique_t *technique, const char *name)
 --- @param technique gs_technique_t*
 --- @param name char*
 --- @return bool
-obslua.gs_technique_begin_pass_by_name = function(technique, name) end
+function obslua.gs_technique_begin_pass_by_name(technique, name) end
 
---- void gs_technique_end(gs_technique_t *technique)
 --- Ends a technique.  Make sure all active passes have been ended before
 --- calling.
+--- 
 --- :param technique: Technique object
+--- 
+--- C definition: void gs_technique_end(gs_technique_t *technique)
 --- @param technique gs_technique_t*
-obslua.gs_technique_end = function(technique) end
+function obslua.gs_technique_end(technique) end
 
---- void gs_technique_end_pass(gs_technique_t *technique)
 --- Ends a pass.
+--- 
 --- :param technique: Technique object
+--- 
+--- C definition: void gs_technique_end_pass(gs_technique_t *technique)
 --- @param technique gs_technique_t*
-obslua.gs_technique_end_pass = function(technique) end
+function obslua.gs_technique_end_pass(technique) end
 
 --- gs_technique_get_pass_by_idx not documented
 obslua.gs_technique_get_pass_by_idx = function() end
@@ -1784,30 +2219,16 @@ obslua.gs_technique_get_pass_by_idx = function() end
 --- gs_technique_get_pass_by_name not documented
 obslua.gs_technique_get_pass_by_name = function() end
 
---- void gs_texcoord(float x, float y, int unit)
+--- C definition: void gs_texcoord(float x, float y, int unit)
 --- @param x float
 --- @param y float
 --- @param unit int
-obslua.gs_texcoord = function(x, y, unit) end
+function obslua.gs_texcoord(x, y, unit) end
 
---- void gs_texcoord2v(const struct vec2 *v, int unit)
---- Graphics Types
---- .. type:: typedef struct gs_duplicator       gs_duplicator_t
---- .. type:: typedef struct gs_texture          gs_texture_t
---- .. type:: typedef struct gs_stage_surface    gs_stagesurf_t
---- .. type:: typedef struct gs_zstencil_buffer  gs_zstencil_t
---- .. type:: typedef struct gs_vertex_buffer    gs_vertbuffer_t
---- .. type:: typedef struct gs_index_buffer     gs_indexbuffer_t
---- .. type:: typedef struct gs_sampler_state    gs_samplerstate_t
---- .. type:: typedef struct gs_swap_chain       gs_swapchain_t
---- .. type:: typedef struct gs_texture_render   gs_texrender_t
---- .. type:: typedef struct gs_shader           gs_shader_t
---- .. type:: typedef struct gs_shader_param     gs_sparam_t
---- .. type:: typedef struct gs_device           gs_device_t
---- .. type:: typedef struct graphics_subsystem  graphics_t
+--- C definition: void gs_texcoord2v(const struct vec2 *v, int unit)
 --- @param v vec2*
 --- @param unit int
-obslua.gs_texcoord2v = function(v, unit) end
+function obslua.gs_texcoord2v(v, unit) end
 
 --- gs_texrender_begin not documented
 obslua.gs_texrender_begin = function() end
@@ -1827,8 +2248,8 @@ obslua.gs_texrender_get_texture = function() end
 --- gs_texrender_reset not documented
 obslua.gs_texrender_reset = function() end
 
---- gs_texture_t* gs_texture_create(uint32_t width, uint32_t height, enum gs_color_format color_format, uint32_t levels, const uint8_t **data, uint32_t flags)
 --- Creates a texture.
+--- 
 --- :param width:        Width
 --- :param height:       Height
 --- :param color_format: Color format
@@ -1837,11 +2258,15 @@ obslua.gs_texrender_reset = function() end
 --- :param data:         Pointer to array of texture data pointers
 --- :param flags:        Can be 0 or a bitwise-OR combination of one or
 ---                      more of the following value:
+--- 
 ---                      - GS_BUILD_MIPMAPS - Automatically builds
 ---                        mipmaps (Note: not fully tested)
 ---                      - GS_DYNAMIC - Dynamic
 ---                      - GS_RENDER_TARGET - Render target
+--- 
 --- :return:             A new texture object
+--- 
+--- C definition: gs_texture_t *gs_texture_create(uint32_t width, uint32_t height, enum gs_color_format color_format, uint32_t levels, const uint8_t **data, uint32_t flags)
 --- @param width uint32_t
 --- @param height uint32_t
 --- @param color_format gs_color_format
@@ -1849,77 +2274,100 @@ obslua.gs_texrender_reset = function() end
 --- @param data uint8_t**
 --- @param flags uint32_t
 --- @return gs_texture_t*
-obslua.gs_texture_create = function(width, height, color_format, levels, data, flags) end
+function obslua.gs_texture_create(width, height, color_format, levels, data, flags) end
 
---- gs_texture_t* gs_texture_create_from_file(const char *file)
 --- Creates a texture from a file.  Note that this isn't recommended for
 --- animated gifs -- instead use the :ref:`image_file_helper`.
+--- 
 --- :param file: Image file to open
+--- 
+--- C definition: gs_texture_t *gs_texture_create_from_file(const char *file)
 --- @param file char*
 --- @return gs_texture_t*
-obslua.gs_texture_create_from_file = function(file) end
+function obslua.gs_texture_create_from_file(file) end
 
---- void gs_texture_destroy(gs_texture_t *tex)
 --- Destroys a texture
+--- 
 --- :param tex: Texture object
+--- 
+--- C definition: void     gs_texture_destroy(gs_texture_t *tex)
 --- @param tex gs_texture_t*
-obslua.gs_texture_destroy = function(tex) end
+--- @return 
+function obslua.gs_texture_destroy(tex) end
 
---- gs_texture_get_color_format not documented
-obslua.gs_texture_get_color_format = function() end
+--- Gets the texture's color format
+--- 
+--- :param tex: Texture object
+--- :return:    The texture's color format
+--- 
+--- C definition: enum gs_color_format gs_texture_get_color_format(const gs_texture_t *tex)
+--- @param tex gs_texture_t*
+--- @return gs_color_format
+function obslua.gs_texture_get_color_format(tex) end
 
---- uint32_t gs_texture_get_height(const gs_texture_t *tex)
 --- Gets the texture's height
+--- 
 --- :param tex: Texture object
 --- :return:    The texture's height
+--- 
+--- C definition: uint32_t gs_texture_get_height(const gs_texture_t *tex)
 --- @param tex gs_texture_t*
 --- @return uint32_t
-obslua.gs_texture_get_height = function(tex) end
+function obslua.gs_texture_get_height(tex) end
 
 --- gs_texture_get_obj not documented
 obslua.gs_texture_get_obj = function() end
 
---- uint32_t gs_texture_get_width(const gs_texture_t *tex)
 --- Gets the texture's width
+--- 
 --- :param tex: Texture object
 --- :return:    The texture's width
+--- 
+--- C definition: uint32_t gs_texture_get_width(const gs_texture_t *tex)
 --- @param tex gs_texture_t*
 --- @return uint32_t
-obslua.gs_texture_get_width = function(tex) end
+function obslua.gs_texture_get_width(tex) end
 
 --- gs_texture_is_rect not documented
 obslua.gs_texture_is_rect = function() end
 
---- bool gs_texture_map(gs_texture_t *tex, uint8_t **ptr, uint32_t *linesize)
 --- Maps a texture.
+--- 
 --- :param tex:      Texture object
 --- :param ptr:      Pointer to receive the pointer to the texture data
 ---                  to write to
 --- :param linesize: Pointer to receive the line size (pitch) of the
 ---                  texture
+--- 
+--- C definition: bool     gs_texture_map(gs_texture_t *tex, uint8_t **ptr, uint32_t *linesize)
 --- @param tex gs_texture_t*
 --- @param ptr uint8_t**
 --- @param linesize uint32_t*
---- @return bool
-obslua.gs_texture_map = function(tex, ptr, linesize) end
+--- @return 
+function obslua.gs_texture_map(tex, ptr, linesize) end
 
---- void gs_texture_set_image(gs_texture_t *tex, const uint8_t *data, uint32_t linesize, bool invert)
 --- Sets the image of a dynamic texture
+--- 
 --- :param tex:      Texture object
 --- :param data:     Data to set as the image
 --- :param linesize: Line size (pitch) of the data
 --- :param invert:   *true* to invert vertically, *false* otherwise
+--- 
+--- C definition: void gs_texture_set_image(gs_texture_t *tex, const uint8_t *data, uint32_t linesize, bool invert)
 --- @param tex gs_texture_t*
 --- @param data uint8_t*
 --- @param linesize uint32_t
 --- @param invert bool
-obslua.gs_texture_set_image = function(tex, data, linesize, invert) end
+function obslua.gs_texture_set_image(tex, data, linesize, invert) end
 
---- void gs_texture_unmap(gs_texture_t *tex)
 --- Unmaps a texture.
+--- 
 --- :param tex: Texture object
+--- 
+--- C definition: void     gs_texture_unmap(gs_texture_t *tex)
 --- @param tex gs_texture_t*
-obslua.gs_texture_unmap = function(tex) end
+--- @return 
+function obslua.gs_texture_unmap(tex) end
 
 --- gs_timer_begin not documented
 obslua.gs_timer_begin = function() end
@@ -1957,27 +2405,27 @@ obslua.gs_vbdata_create = function() end
 --- gs_vbdata_destroy not documented
 obslua.gs_vbdata_destroy = function() end
 
---- void gs_vertex2f(float x, float y)
+--- C definition: void gs_vertex2f(float x, float y)
 --- @param x float
 --- @param y float
-obslua.gs_vertex2f = function(x, y) end
+function obslua.gs_vertex2f(x, y) end
 
---- void gs_vertex2v(const struct vec2 *v)
+--- C definition: void gs_vertex2v(const struct vec2 *v)
 --- @param v vec2*
-obslua.gs_vertex2v = function(v) end
+function obslua.gs_vertex2v(v) end
 
---- void gs_vertex3f(float x, float y, float z)
+--- C definition: void gs_vertex3f(float x, float y, float z)
 --- @param x float
 --- @param y float
 --- @param z float
-obslua.gs_vertex3f = function(x, y, z) end
+function obslua.gs_vertex3f(x, y, z) end
 
---- void gs_vertex3v(const struct vec3 *v)
+--- C definition: void gs_vertex3v(const struct vec3 *v)
 --- @param v vec3*
-obslua.gs_vertex3v = function(v) end
+function obslua.gs_vertex3v(v) end
 
---- gs_vertbuffer_t* gs_vertexbuffer_create(struct gs_vb_data *data, uint32_t flags)
 --- Creates a vertex buffer.
+--- 
 --- :param data:  Vertex buffer data to create vertex buffer with.  The
 ---               structure should be created with gs_vbdata_create(),
 ---               and then buffers in this structure should be allocated
@@ -1985,45 +2433,73 @@ obslua.gs_vertex3v = function(v) end
 ---               :c:func:`brealloc()`.  The ownership of the gs_vb_data
 ---               pointer is then passed to the function, and they should
 ---               not be destroyed by the caller once passed
+--- 
 --- :param flags: Creation flags.  Can be 0 or a bitwise-OR combination
 ---               of any of the following values:
+--- 
 ---               - GS_DYNAMIC - Can be dynamically updated in real time.
 ---               - GS_DUP_BUFFER - Do not pass buffer ownership of the
 ---                 structure or the buffer pointers within the
 ---                 structure.
+--- 
 --- :return:      A new vertex buffer object, or *NULL* if failed
+--- 
+--- C definition: gs_vertbuffer_t *gs_vertexbuffer_create(struct gs_vb_data *data, uint32_t flags)
 --- @param data gs_vb_data*
 --- @param flags uint32_t
 --- @return gs_vertbuffer_t*
-obslua.gs_vertexbuffer_create = function(data, flags) end
+function obslua.gs_vertexbuffer_create(data, flags) end
 
---- void gs_vertexbuffer_destroy(gs_vertbuffer_t *vertbuffer)
 --- Destroys a vertex buffer object.
+--- 
 --- :param vertbuffer: Vertex buffer object
+--- 
+--- C definition: void     gs_vertexbuffer_destroy(gs_vertbuffer_t *vertbuffer)
 --- @param vertbuffer gs_vertbuffer_t*
-obslua.gs_vertexbuffer_destroy = function(vertbuffer) end
+--- @return 
+function obslua.gs_vertexbuffer_destroy(vertbuffer) end
 
---- void gs_vertexbuffer_flush(gs_vertbuffer_t *vertbuffer)
 --- Flushes a vertex buffer to its interval vertex data object.  To
 --- modify its internal vertex data, call
 --- :c:func:`gs_vertexbuffer_get_data()`.
+--- 
 --- Can only be used with dynamic vertex buffer objects.
+--- 
 --- :param vertbuffer: Vertex buffer object
+--- 
+--- C definition: void     gs_vertexbuffer_flush(gs_vertbuffer_t *vertbuffer)
 --- @param vertbuffer gs_vertbuffer_t*
-obslua.gs_vertexbuffer_flush = function(vertbuffer) end
+--- @return 
+function obslua.gs_vertexbuffer_flush(vertbuffer) end
 
---- void gs_vertexbuffer_flush_direct(gs_vertbuffer_t *vertbuffer, const struct gs_vb_data *data)
 --- Directly flushes a vertex buffer to the specified vertex buffer data.
+--- .
+--- 
 --- Can only be used with dynamic vertex buffer objects.
+--- 
 --- :param vertbuffer: Vertex buffer object
 --- :param data:       Vertex buffer data to flush.  Components that
 ---                    don't need to be flushed can be left *NULL*
+--- 
+--- C definition: void     gs_vertexbuffer_flush_direct(gs_vertbuffer_t *vertbuffer, const struct gs_vb_data *data)
 --- @param vertbuffer gs_vertbuffer_t*
 --- @param data gs_vb_data*
-obslua.gs_vertexbuffer_flush_direct = function(vertbuffer, data) end
+--- @return 
+function obslua.gs_vertexbuffer_flush_direct(vertbuffer, data) end
 
---- gs_vertexbuffer_get_data not documented
-obslua.gs_vertexbuffer_get_data = function() end
+--- Gets the vertex buffer data associated with a vertex buffer object.
+--- This data can be changed and vertex buffer can be updated with
+--- :c:func:`gs_vertexbuffer_flush()`.
+--- 
+--- Can only be used with dynamic vertex buffer objects.
+--- 
+--- :param vertbuffer: Vertex buffer object
+--- :return:           Vertex buffer data structure
+--- 
+--- C definition: struct gs_vb_data *gs_vertexbuffer_get_data(const gs_vertbuffer_t *vertbuffer)
+--- @param vertbuffer gs_vertbuffer_t*
+--- @return gs_vb_data*
+function obslua.gs_vertexbuffer_get_data(vertbuffer) end
 
 --- gs_vertexshader_create not documented
 obslua.gs_vertexshader_create = function() end
@@ -2031,13 +2507,15 @@ obslua.gs_vertexshader_create = function() end
 --- gs_vertexshader_create_from_file not documented
 obslua.gs_vertexshader_create_from_file = function() end
 
---- void gs_viewport_pop(void)
 --- Pops/recalls the last pushed viewport
-obslua.gs_viewport_pop = function() end
+--- 
+--- C definition: void gs_viewport_pop(void)
+function obslua.gs_viewport_pop() end
 
---- void gs_viewport_push(void)
 --- Pushes/stores the current viewport
-obslua.gs_viewport_push = function() end
+--- 
+--- C definition: void gs_viewport_push(void)
+function obslua.gs_viewport_push() end
 
 --- gs_voltexture_create not documented
 obslua.gs_voltexture_create = function() end
@@ -2057,24 +2535,28 @@ obslua.gs_voltexture_get_height = function() end
 --- gs_voltexture_get_width not documented
 obslua.gs_voltexture_get_width = function() end
 
---- gs_zstencil_t* gs_zstencil_create(uint32_t width, uint32_t height, enum gs_zstencil_format format)
 --- Creates a Z-stencil surface object.
+--- 
 --- :param width:  Width
 --- :param height: Height
 --- :param format: Format
 --- :return:       New Z-stencil surface object, or *NULL* if failed
+--- 
+--- C definition: gs_zstencil_t *gs_zstencil_create(uint32_t width, uint32_t height, enum gs_zstencil_format format)
 --- @param width uint32_t
 --- @param height uint32_t
 --- @param format gs_zstencil_format
 --- @return gs_zstencil_t*
-obslua.gs_zstencil_create = function(width, height, format) end
+function obslua.gs_zstencil_create(width, height, format) end
 
---- void gs_zstencil_destroy(gs_zstencil_t *zstencil)
 --- Destroys a Z-stencil buffer.
+--- 
 --- :param zstencil: Z-stencil surface object
---- Sampler State Functions
+--- 
+--- C definition: void     gs_zstencil_destroy(gs_zstencil_t *zstencil)
 --- @param zstencil gs_zstencil_t*
-obslua.gs_zstencil_destroy = function(zstencil) end
+--- @return 
+function obslua.gs_zstencil_destroy(zstencil) end
 
 --- matrix3_copy not documented
 obslua.matrix3_copy = function() end
@@ -2127,89 +2609,118 @@ obslua.matrix3_translate3f = function() end
 --- matrix3_transpose not documented
 obslua.matrix3_transpose = function() end
 
---- void matrix4_copy(struct matrix4 *dst, const struct matrix4 *m)
 --- Copies a matrix
+--- 
 --- :param dst: Destination matrix
 --- :param m:   Matrix to copy
+--- 
+--- C definition: void matrix4_copy(struct matrix4 *dst, const struct matrix4 *m)
 --- @param dst matrix4*
 --- @param m matrix4*
-obslua.matrix4_copy = function(dst, m) end
+function obslua.matrix4_copy(dst, m) end
 
---- float matrix4_determinant(const struct matrix4 *m)
 --- Gets the determinant value of a matrix
+--- 
 --- :param m: Matrix
 --- :return:  Determinant
+--- 
+--- C definition: float matrix4_determinant(const struct matrix4 *m)
 --- @param m matrix4*
 --- @return float
-obslua.matrix4_determinant = function(m) end
+function obslua.matrix4_determinant(m) end
 
---- void matrix4_from_axisang(struct matrix4 *dst, const struct axisang *aa)
 --- Converts an axis angle to a matrix
+--- 
 --- :param dst: Destination matrix
 --- :param aa:  Axis angle to convert
+--- 
+--- C definition: void matrix4_from_axisang(struct matrix4 *dst, const struct axisang *aa)
 --- @param dst matrix4*
 --- @param aa axisang*
-obslua.matrix4_from_axisang = function(dst, aa) end
+function obslua.matrix4_from_axisang(dst, aa) end
 
 --- matrix4_from_matrix3 not documented
 obslua.matrix4_from_matrix3 = function() end
 
---- void matrix4_from_quat(struct matrix4 *dst, const struct quat *q)
 --- Converts a quaternion to a matrix
+--- 
 --- :param dst: Destination matrix
 --- :param q:   Quaternion to convert
+--- 
+--- C definition: void matrix4_from_quat(struct matrix4 *dst, const struct quat *q)
 --- @param dst matrix4*
 --- @param q quat*
-obslua.matrix4_from_quat = function(dst, q) end
+function obslua.matrix4_from_quat(dst, q) end
 
---- void matrix4_identity(struct matrix4 *dst)
 --- Sets an identity matrix
+--- 
 --- :param dst: Destination matrix
+--- 
+--- C definition: void matrix4_identity(struct matrix4 *dst)
 --- @param dst matrix4*
-obslua.matrix4_identity = function(dst) end
+function obslua.matrix4_identity(dst) end
 
---- bool matrix4_inv(struct matrix4 *dst, const struct matrix4 *m)
 --- Inverts a matrix
+--- 
 --- :param dst: Destination matrix
 --- :param m:   Matrix to invert
+--- 
+--- C definition: bool matrix4_inv(struct matrix4 *dst, const struct matrix4 *m)
 --- @param dst matrix4*
 --- @param m matrix4*
 --- @return bool
-obslua.matrix4_inv = function(dst, m) end
+function obslua.matrix4_inv(dst, m) end
 
---- void matrix4_mul(struct matrix4 *dst, const struct matrix4 *m1, const struct matrix4 *m2)
 --- Multiples two matrices
+--- 
 --- :param dst: Destination matrix
 --- :param m1:  Matrix 1
 --- :param m2:  Matrix 2
+--- 
+--- C definition: void matrix4_mul(struct matrix4 *dst, const struct matrix4 *m1, const struct matrix4 *m2)
 --- @param dst matrix4*
 --- @param m1 matrix4*
 --- @param m2 matrix4*
-obslua.matrix4_mul = function(dst, m1, m2) end
+function obslua.matrix4_mul(dst, m1, m2) end
 
---- void matrix4_rotate(struct matrix4 *dst, const struct matrix4 *m, const struct quat *q)
 --- Rotates a matrix by a quaternion
+--- 
 --- :param dst: Destination matrix
 --- :param m:   Matrix to rotate
 --- :param q:   Rotation quaternion
+--- 
+--- C definition: void matrix4_rotate(struct matrix4 *dst, const struct matrix4 *m, const struct quat *q)
 --- @param dst matrix4*
 --- @param m matrix4*
 --- @param q quat*
-obslua.matrix4_rotate = function(dst, m, q) end
+function obslua.matrix4_rotate(dst, m, q) end
 
---- void matrix4_rotate_aa(struct matrix4 *dst, const struct matrix4 *m, const struct axisang *aa)
----            void matrix4_rotate_aa4f(struct matrix4 *dst, const struct matrix4 *m, float x, float y, float z, float rot)
 --- Rotates a matrix by an axis angle
+--- 
 --- :param dst: Destination matrix
 --- :param m:   Matrix to rotate
 --- :param aa:  Rotation anxis angle
+--- 
+--- C definition: void matrix4_rotate_aa(struct matrix4 *dst, const struct matrix4 *m, const struct axisang *aa)
 --- @param dst matrix4*
 --- @param m matrix4*
 --- @param aa axisang*
-obslua.matrix4_rotate_aa = function(dst, m, aa) end
+function obslua.matrix4_rotate_aa(dst, m, aa) end
 
---- matrix4_rotate_aa4f not documented
-obslua.matrix4_rotate_aa4f = function() end
+--- Rotates a matrix by an axis angle
+--- 
+--- :param dst: Destination matrix
+--- :param m:   Matrix to rotate
+--- :param aa:  Rotation anxis angle
+--- 
+--- C definition: void matrix4_rotate_aa4f(struct matrix4 *dst, const struct matrix4 *m, float x, float y, float z, float rot)
+--- @param dst matrix4*
+--- @param m matrix4*
+--- @param x float
+--- @param y float
+--- @param z float
+--- @param rot float
+function obslua.matrix4_rotate_aa4f(dst, m, x, y, z, rot) end
 
 --- matrix4_rotate_aa_i not documented
 obslua.matrix4_rotate_aa_i = function() end
@@ -2217,79 +2728,127 @@ obslua.matrix4_rotate_aa_i = function() end
 --- matrix4_rotate_i not documented
 obslua.matrix4_rotate_i = function() end
 
---- void matrix4_scale(struct matrix4 *dst, const struct matrix4 *m, const struct vec3 *v)
----            void matrix4_scale3f(struct matrix4 *dst, const struct matrix4 *m, float x, float y, float z)
 --- Scales each matrix component by the components of a 3-component vector
+--- 
 --- :param dst: Destination matrix
 --- :param m:   Matrix to scale
 --- :param v:   Scale vector
+--- 
+--- C definition: void matrix4_scale(struct matrix4 *dst, const struct matrix4 *m, const struct vec3 *v)
 --- @param dst matrix4*
 --- @param m matrix4*
 --- @param v vec3*
-obslua.matrix4_scale = function(dst, m, v) end
+function obslua.matrix4_scale(dst, m, v) end
 
---- matrix4_scale3f not documented
-obslua.matrix4_scale3f = function() end
+--- Scales each matrix component by the components of a 3-component vector
+--- 
+--- :param dst: Destination matrix
+--- :param m:   Matrix to scale
+--- :param v:   Scale vector
+--- 
+--- C definition: void matrix4_scale3f(struct matrix4 *dst, const struct matrix4 *m, float x, float y, float z)
+--- @param dst matrix4*
+--- @param m matrix4*
+--- @param x float
+--- @param y float
+--- @param z float
+function obslua.matrix4_scale3f(dst, m, x, y, z) end
 
 --- matrix4_scale_i not documented
 obslua.matrix4_scale_i = function() end
 
---- matrix4_translate3f not documented
-obslua.matrix4_translate3f = function() end
-
---- void matrix4_translate3v(struct matrix4 *dst, const struct matrix4 *m, const struct vec3 *v)
----            void matrix4_translate3f(struct matrix4 *dst, const struct matrix4 *m, float x, float y, float z)
 --- Translates the matrix by a 3-component vector
+--- 
 --- :param dst: Destination matrix
 --- :param m:   Matrix to translate
 --- :param v:   Translation vector
+--- 
+--- C definition: void matrix4_translate3f(struct matrix4 *dst, const struct matrix4 *m, float x, float y, float z)
+--- @param dst matrix4*
+--- @param m matrix4*
+--- @param x float
+--- @param y float
+--- @param z float
+function obslua.matrix4_translate3f(dst, m, x, y, z) end
+
+--- Translates the matrix by a 3-component vector
+--- 
+--- :param dst: Destination matrix
+--- :param m:   Matrix to translate
+--- :param v:   Translation vector
+--- 
+--- C definition: void matrix4_translate3v(struct matrix4 *dst, const struct matrix4 *m, const struct vec3 *v)
 --- @param dst matrix4*
 --- @param m matrix4*
 --- @param v vec3*
-obslua.matrix4_translate3v = function(dst, m, v) end
+function obslua.matrix4_translate3v(dst, m, v) end
 
 --- matrix4_translate3v_i not documented
 obslua.matrix4_translate3v_i = function() end
 
---- void matrix4_translate4v(struct matrix4 *dst, const struct matrix4 *m, const struct vec4 *v)
 --- Translates the matrix by a 4-component vector
+--- 
 --- :param dst: Destination matrix
 --- :param m:   Matrix to translate
 --- :param v:   Translation vector
+--- 
+--- C definition: void matrix4_translate4v(struct matrix4 *dst, const struct matrix4 *m, const struct vec4 *v)
 --- @param dst matrix4*
 --- @param m matrix4*
 --- @param v vec4*
-obslua.matrix4_translate4v = function(dst, m, v) end
+function obslua.matrix4_translate4v(dst, m, v) end
 
 --- matrix4_translate4v_i not documented
 obslua.matrix4_translate4v_i = function() end
 
---- void matrix4_transpose(struct matrix4 *dst, const struct matrix4 *m)
 --- Transposes a matrix
+--- 
 --- :param dst: Destination matrix
 --- :param m:   Matrix to transpose
+--- C definition: void matrix4_transpose(struct matrix4 *dst, const struct matrix4 *m)
 --- @param dst matrix4*
 --- @param m matrix4*
-obslua.matrix4_transpose = function(dst, m) end
+function obslua.matrix4_transpose(dst, m) end
 
 --- obs_add_data_path not documented
 obslua.obs_add_data_path = function() end
 
---- obs_add_main_render_callback not documented
-obslua.obs_add_main_render_callback = function() end
+--- Adds/removes a main rendering callback.  Allows custom rendering to
+--- the main stream/recording output.
+--- 
+--- C definition: void obs_add_main_render_callback(void (*draw)(void *param, uint32_t cx, uint32_t cy), void *param)
+--- @param ( void
+--- @param cx uint32_t
+--- @param cy) uint32_t
+--- @param param void*
+function obslua.obs_add_main_render_callback((, cx, cy), param) end
 
---- void obs_add_module_path(const char *bin, const char *data)
 --- Adds a module search path to be used with obs_find_modules.  If the search
 --- path strings contain %module%, that text will be replaced with the module
 --- name when used.
+--- 
 --- :param  bin:  Specifies the module's binary directory search path
 --- :param  data: Specifies the module's data directory search path
+--- 
+--- C definition: void obs_add_module_path(const char *bin, const char *data)
 --- @param bin char*
 --- @param data char*
-obslua.obs_add_module_path = function(bin, data) end
+function obslua.obs_add_module_path(bin, data) end
 
---- obs_add_raw_video_callback not documented
-obslua.obs_add_raw_video_callback = function() end
+--- Adds/removes a raw video callback.  Allows the ability to obtain raw
+--- video frames without necessarily using an output.
+--- 
+--- :param conversion: Specifies conversion requirements.  Can be NULL.
+--- :param callback:   The callback that receives raw video frames.
+--- :param param:      The private data associated with the callback.
+--- 
+--- Primary signal/procedure handlers
+--- C definition: void obs_add_raw_video_callback(const struct video_scale_info *conversion, void (*callback)(void *param, struct video_data *frame), void *param)
+--- @param conversion video_scale_info*
+--- @param ( void
+--- @param frame) video_data*
+--- @param param void*
+function obslua.obs_add_raw_video_callback(conversion, (, frame), param) end
 
 --- obs_add_tick_callback not documented
 obslua.obs_add_tick_callback = function() end
@@ -2297,10 +2856,11 @@ obslua.obs_add_tick_callback = function() end
 --- obs_apply_private_data not documented
 obslua.obs_apply_private_data = function() end
 
---- obs_encoder_t* obs_audio_encoder_create(const char *id, const char *name, obs_data_t *settings, size_t mixer_idx, obs_data_t *hotkey_data)
 --- Creates an audio encoder with the specified settings.
+--- 
 --- The "encoder" context is used for encoding video/audio data.  Use
 --- :c:func:`obs_encoder_release()` to release it.
+--- 
 --- :param   id:             The encoder type string identifier
 --- :param   name:           The desired name of the encoder.  If this is
 ---                          not unique, it will be made to be unique
@@ -2312,153 +2872,178 @@ obslua.obs_apply_private_data = function() end
 ---                          if none
 --- :return:                 A reference to the newly created encoder, or
 ---                          *NULL* if failed
+--- 
+--- C definition: obs_encoder_t *obs_audio_encoder_create(const char *id, const char *name, obs_data_t *settings, size_t mixer_idx, obs_data_t *hotkey_data)
 --- @param id char*
 --- @param name char*
 --- @param settings obs_data_t*
 --- @param mixer_idx size_t
 --- @param hotkey_data obs_data_t*
 --- @return obs_encoder_t*
-obslua.obs_audio_encoder_create = function(id, name, settings, mixer_idx, hotkey_data) end
+function obslua.obs_audio_encoder_create(id, name, settings, mixer_idx, hotkey_data) end
 
---- void obs_data_addref(obs_data_t *data)
----            void obs_data_release(obs_data_t *data)
 --- Adds/releases a reference to a data object.
+--- 
+--- C definition: void obs_data_addref(obs_data_t *data)
 --- @param data obs_data_t*
-obslua.obs_data_addref = function(data) end
+function obslua.obs_data_addref(data) end
 
---- void obs_data_apply(obs_data_t *target, obs_data_t *apply_data)
 --- Merges the data of *apply_data* in to *target*.
+--- 
+--- C definition: void obs_data_apply(obs_data_t *target, obs_data_t *apply_data)
 --- @param target obs_data_t*
 --- @param apply_data obs_data_t*
-obslua.obs_data_apply = function(target, apply_data) end
+function obslua.obs_data_apply(target, apply_data) end
 
---- void obs_data_array_addref(obs_data_array_t *array)
+--- C definition: void obs_data_array_addref(obs_data_array_t *array)
 --- @param array obs_data_array_t*
-obslua.obs_data_array_addref = function(array) end
+function obslua.obs_data_array_addref(array) end
 
---- size_t obs_data_array_count(obs_data_array_t *array)
+--- C definition: size_t obs_data_array_count(obs_data_array_t *array)
 --- @param array obs_data_array_t*
 --- @return size_t
-obslua.obs_data_array_count = function(array) end
+function obslua.obs_data_array_count(array) end
 
---- obs_data_array_t* obs_data_array_create()
 --- :return: A new reference to a data array object.
+--- 
+--- C definition: obs_data_array_t *obs_data_array_create()
 --- @return obs_data_array_t*
-obslua.obs_data_array_create = function() end
+function obslua.obs_data_array_create() end
 
---- void obs_data_array_erase(obs_data_array_t *array, size_t idx)
---- @param array obs_data_array_t*
---- @param idx size_t
-obslua.obs_data_array_erase = function(array, idx) end
+--- obs_data_array_erase not documented
+obslua.obs_data_array_erase = function() end
 
---- void obs_data_array_insert(obs_data_array_t *array, size_t idx, obs_data_t *obj)
+--- C definition: void obs_data_array_insert(obs_data_array_t *array, size_t idx, obs_data_t *obj)
 --- @param array obs_data_array_t*
 --- @param idx size_t
 --- @param obj obs_data_t*
-obslua.obs_data_array_insert = function(array, idx, obj) end
+function obslua.obs_data_array_insert(array, idx, obj) end
 
---- obs_data_t* obs_data_array_item(obs_data_array_t *array, size_t idx)
 --- :return: An incremented reference to the data object associated with
 ---          this array entry.
+--- 
+--- C definition: obs_data_t *obs_data_array_item(obs_data_array_t *array, size_t idx)
 --- @param array obs_data_array_t*
 --- @param idx size_t
 --- @return obs_data_t*
-obslua.obs_data_array_item = function(array, idx) end
+function obslua.obs_data_array_item(array, idx) end
 
---- size_t obs_data_array_push_back(obs_data_array_t *array, obs_data_t *obj)
+--- C definition: size_t obs_data_array_push_back(obs_data_array_t *array, obs_data_t *obj)
 --- @param array obs_data_array_t*
 --- @param obj obs_data_t*
 --- @return size_t
-obslua.obs_data_array_push_back = function(array, obj) end
+function obslua.obs_data_array_push_back(array, obj) end
 
 --- obs_data_array_push_back_array not documented
 obslua.obs_data_array_push_back_array = function() end
 
---- void obs_data_array_release(obs_data_array_t *array)
+--- C definition: void obs_data_array_release(obs_data_array_t *array)
 --- @param array obs_data_array_t*
-obslua.obs_data_array_release = function(array) end
+function obslua.obs_data_array_release(array) end
 
---- void obs_data_clear(obs_data_t *data)
 --- Clears all user data in the data object.
---- Set Functions
+--- 
+--- C definition: void obs_data_clear(obs_data_t *data)
 --- @param data obs_data_t*
-obslua.obs_data_clear = function(data) end
+function obslua.obs_data_clear(data) end
 
---- obs_data_t* obs_data_create()
 --- :return: A new reference to a data object.
+--- 
+--- C definition: obs_data_t *obs_data_create()
 --- @return obs_data_t*
-obslua.obs_data_create = function() end
+function obslua.obs_data_create() end
 
---- obs_data_t* obs_data_create_from_json(const char *json_string)
 --- Creates a data object from a Json string.
+--- 
 --- :param json_string: Json string
 --- :return:            A new reference to a data object
+--- 
+--- C definition: obs_data_t *obs_data_create_from_json(const char *json_string)
 --- @param json_string char*
 --- @return obs_data_t*
-obslua.obs_data_create_from_json = function(json_string) end
+function obslua.obs_data_create_from_json(json_string) end
 
---- obs_data_t* obs_data_create_from_json_file(const char *json_file)
 --- Creates a data object from a Json file.
+--- 
 --- :param json_file: Json file path
 --- :return:          A new reference to a data object
+--- 
+--- C definition: obs_data_t *obs_data_create_from_json_file(const char *json_file)
 --- @param json_file char*
 --- @return obs_data_t*
-obslua.obs_data_create_from_json_file = function(json_file) end
+function obslua.obs_data_create_from_json_file(json_file) end
 
---- obs_data_t* obs_data_create_from_json_file_safe(const char *json_file, const char *backup_ext)
 --- Creates a data object from a Json file, with a backup file in case
 --- the original is corrupted or fails to load.
+--- 
 --- :param json_file:  Json file path
 --- :param backup_ext: Backup file extension
 --- :return:           A new reference to a data object
+--- 
+--- C definition: obs_data_t *obs_data_create_from_json_file_safe(const char *json_file, const char *backup_ext)
 --- @param json_file char*
 --- @param backup_ext char*
 --- @return obs_data_t*
-obslua.obs_data_create_from_json_file_safe = function(json_file, backup_ext) end
+function obslua.obs_data_create_from_json_file_safe(json_file, backup_ext) end
 
---- void obs_data_erase(obs_data_t *data, const char *name)
 --- Erases the user data for item *name* within the data object.
+--- 
+--- C definition: void obs_data_erase(obs_data_t *data, const char *name)
 --- @param data obs_data_t*
 --- @param name char*
-obslua.obs_data_erase = function(data, name) end
+function obslua.obs_data_erase(data, name) end
 
 --- obs_data_first not documented
 obslua.obs_data_first = function() end
 
---- obs_data_array_t* obs_data_get_array(obs_data_t *data, const char *name)
 --- :return: An incremented reference to a data array object.
---- .. _obs_data_default_funcs:
---- Default Value Functions
---- Default values are used to determine what value will be given if a value
---- is not set.
+--- 
+--- C definition: obs_data_array_t *obs_data_get_array(obs_data_t *data, const char *name)
 --- @param data obs_data_t*
 --- @param name char*
 --- @return obs_data_array_t*
-obslua.obs_data_get_array = function(data, name) end
+function obslua.obs_data_get_array(data, name) end
 
 --- obs_data_get_autoselect_array not documented
 obslua.obs_data_get_autoselect_array = function() end
 
---- obs_data_get_autoselect_bool not documented
-obslua.obs_data_get_autoselect_bool = function() end
+--- C definition: bool obs_data_get_autoselect_bool(obs_data_t *data, const char *name)
+--- @param data obs_data_t*
+--- @param name char*
+--- @return bool
+function obslua.obs_data_get_autoselect_bool(data, name) end
 
---- obs_data_get_autoselect_double not documented
-obslua.obs_data_get_autoselect_double = function() end
+--- C definition: double obs_data_get_autoselect_double(obs_data_t *data, const char *name)
+--- @param data obs_data_t*
+--- @param name char*
+--- @return double
+function obslua.obs_data_get_autoselect_double(data, name) end
 
 --- obs_data_get_autoselect_frames_per_second not documented
 obslua.obs_data_get_autoselect_frames_per_second = function() end
 
---- obs_data_get_autoselect_int not documented
-obslua.obs_data_get_autoselect_int = function() end
+--- C definition: long long obs_data_get_autoselect_int(obs_data_t *data, const char *name)
+--- @param data obs_data_t*
+--- @param name char*
+--- @return long
+function obslua.obs_data_get_autoselect_int(data, name) end
 
---- obs_data_get_autoselect_obj not documented
-obslua.obs_data_get_autoselect_obj = function() end
+--- :return: An incremented reference to a data object.
+--- 
+--- C definition: obs_data_t *obs_data_get_autoselect_obj(obs_data_t *data, const char *name)
+--- @param data obs_data_t*
+--- @param name char*
+--- @return obs_data_t*
+function obslua.obs_data_get_autoselect_obj(data, name) end
 
 --- obs_data_get_autoselect_quat not documented
 obslua.obs_data_get_autoselect_quat = function() end
 
---- obs_data_get_autoselect_string not documented
-obslua.obs_data_get_autoselect_string = function() end
+--- C definition: const char *obs_data_get_autoselect_string(obs_data_t *data, const char *name)
+--- @param data obs_data_t*
+--- @param name char*
+--- @return char*
+function obslua.obs_data_get_autoselect_string(data, name) end
 
 --- obs_data_get_autoselect_vec2 not documented
 obslua.obs_data_get_autoselect_vec2 = function() end
@@ -2469,35 +3054,52 @@ obslua.obs_data_get_autoselect_vec3 = function() end
 --- obs_data_get_autoselect_vec4 not documented
 obslua.obs_data_get_autoselect_vec4 = function() end
 
---- bool obs_data_get_bool(obs_data_t *data, const char *name)
+--- C definition: bool obs_data_get_bool(obs_data_t *data, const char *name)
 --- @param data obs_data_t*
 --- @param name char*
 --- @return bool
-obslua.obs_data_get_bool = function(data, name) end
+function obslua.obs_data_get_bool(data, name) end
 
 --- obs_data_get_default_array not documented
 obslua.obs_data_get_default_array = function() end
 
---- obs_data_get_default_bool not documented
-obslua.obs_data_get_default_bool = function() end
+--- C definition: bool obs_data_get_default_bool(obs_data_t *data, const char *name)
+--- @param data obs_data_t*
+--- @param name char*
+--- @return bool
+function obslua.obs_data_get_default_bool(data, name) end
 
---- obs_data_get_default_double not documented
-obslua.obs_data_get_default_double = function() end
+--- C definition: double obs_data_get_default_double(obs_data_t *data, const char *name)
+--- @param data obs_data_t*
+--- @param name char*
+--- @return double
+function obslua.obs_data_get_default_double(data, name) end
 
 --- obs_data_get_default_frames_per_second not documented
 obslua.obs_data_get_default_frames_per_second = function() end
 
---- obs_data_get_default_int not documented
-obslua.obs_data_get_default_int = function() end
+--- C definition: long long obs_data_get_default_int(obs_data_t *data, const char *name)
+--- @param data obs_data_t*
+--- @param name char*
+--- @return long
+function obslua.obs_data_get_default_int(data, name) end
 
---- obs_data_get_default_obj not documented
-obslua.obs_data_get_default_obj = function() end
+--- :return: An incremented reference to a data object.
+--- 
+--- C definition: obs_data_t *obs_data_get_default_obj(obs_data_t *data, const char *name)
+--- @param data obs_data_t*
+--- @param name char*
+--- @return obs_data_t*
+function obslua.obs_data_get_default_obj(data, name) end
 
 --- obs_data_get_default_quat not documented
 obslua.obs_data_get_default_quat = function() end
 
---- obs_data_get_default_string not documented
-obslua.obs_data_get_default_string = function() end
+--- C definition: const char *obs_data_get_default_string(obs_data_t *data, const char *name)
+--- @param data obs_data_t*
+--- @param name char*
+--- @return char*
+function obslua.obs_data_get_default_string(data, name) end
 
 --- obs_data_get_default_vec2 not documented
 obslua.obs_data_get_default_vec2 = function() end
@@ -2508,33 +3110,44 @@ obslua.obs_data_get_default_vec3 = function() end
 --- obs_data_get_default_vec4 not documented
 obslua.obs_data_get_default_vec4 = function() end
 
---- double obs_data_get_double(obs_data_t *data, const char *name)
+--- C definition: double obs_data_get_double(obs_data_t *data, const char *name)
 --- @param data obs_data_t*
 --- @param name char*
 --- @return double
-obslua.obs_data_get_double = function(data, name) end
+function obslua.obs_data_get_double(data, name) end
 
 --- obs_data_get_frames_per_second not documented
 obslua.obs_data_get_frames_per_second = function() end
 
---- obs_data_get_int not documented
-obslua.obs_data_get_int = function() end
+--- C definition: long long obs_data_get_int(obs_data_t *data, const char *name)
+--- @param data obs_data_t*
+--- @param name char*
+--- @return long
+function obslua.obs_data_get_int(data, name) end
 
---- obs_data_get_json not documented
-obslua.obs_data_get_json = function() end
+--- :return: Json string for this object
+--- 
+--- C definition: const char *obs_data_get_json(obs_data_t *data)
+--- @param data obs_data_t*
+--- @return char*
+function obslua.obs_data_get_json(data) end
 
---- obs_data_t* obs_data_get_obj(obs_data_t *data, const char *name)
 --- :return: An incremented reference to a data object.
+--- 
+--- C definition: obs_data_t *obs_data_get_obj(obs_data_t *data, const char *name)
 --- @param data obs_data_t*
 --- @param name char*
 --- @return obs_data_t*
-obslua.obs_data_get_obj = function(data, name) end
+function obslua.obs_data_get_obj(data, name) end
 
 --- obs_data_get_quat not documented
 obslua.obs_data_get_quat = function() end
 
---- obs_data_get_string not documented
-obslua.obs_data_get_string = function() end
+--- C definition: const char *obs_data_get_string(obs_data_t *data, const char *name)
+--- @param data obs_data_t*
+--- @param name char*
+--- @return char*
+function obslua.obs_data_get_string(data, name) end
 
 --- obs_data_get_vec2 not documented
 obslua.obs_data_get_vec2 = function() end
@@ -2722,83 +3335,83 @@ obslua.obs_data_item_unset_user_value = function() end
 --- obs_data_newref not documented
 obslua.obs_data_newref = function() end
 
---- obs_data_release not documented
-obslua.obs_data_release = function() end
+--- Adds/releases a reference to a data object.
+--- 
+--- C definition: void obs_data_release(obs_data_t *data)
+--- @param data obs_data_t*
+function obslua.obs_data_release(data) end
 
---- bool obs_data_save_json(obs_data_t *data, const char *file)
 --- Saves the data to a file as Json text.
+--- 
 --- :param file: The file to save to
 --- :return:     *true* if successful, *false* otherwise
+--- 
+--- C definition: bool obs_data_save_json(obs_data_t *data, const char *file)
 --- @param data obs_data_t*
 --- @param file char*
 --- @return bool
-obslua.obs_data_save_json = function(data, file) end
+function obslua.obs_data_save_json(data, file) end
 
---- bool obs_data_save_json_safe(obs_data_t *data, const char *file, const char *temp_ext, const char *backup_ext)
 --- Saves the data to a file as Json text, and if overwriting an old
 --- file, backs up that old file to help prevent potential file
 --- corruption.
+--- 
 --- :param file:       The file to save to
 --- :param backup_ext: The backup extension to use for the overwritten
 ---                    file if it exists
 --- :return:           *true* if successful, *false* otherwise
+--- 
+--- C definition: bool obs_data_save_json_safe(obs_data_t *data, const char *file, const char *temp_ext, const char *backup_ext)
 --- @param data obs_data_t*
 --- @param file char*
 --- @param temp_ext char*
 --- @param backup_ext char*
 --- @return bool
-obslua.obs_data_save_json_safe = function(data, file, temp_ext, backup_ext) end
+function obslua.obs_data_save_json_safe(data, file, temp_ext, backup_ext) end
 
---- void obs_data_set_array(obs_data_t *data, const char *name, obs_data_array_t *array)
---- .. _obs_data_get_funcs:
---- Get Functions
+--- C definition: void obs_data_set_array(obs_data_t *data, const char *name, obs_data_array_t *array)
 --- @param data obs_data_t*
 --- @param name char*
 --- @param array obs_data_array_t*
-obslua.obs_data_set_array = function(data, name, array) end
+function obslua.obs_data_set_array(data, name, array) end
 
---- void obs_data_set_autoselect_bool(obs_data_t *data, const char *name, bool val)
----            bool obs_data_get_autoselect_bool(obs_data_t *data, const char *name)
+--- C definition: void obs_data_set_autoselect_bool(obs_data_t *data, const char *name, bool val)
 --- @param data obs_data_t*
 --- @param name char*
 --- @param val bool
-obslua.obs_data_set_autoselect_bool = function(data, name, val) end
+function obslua.obs_data_set_autoselect_bool(data, name, val) end
 
---- void obs_data_set_autoselect_double(obs_data_t *data, const char *name, double val)
----            double obs_data_get_autoselect_double(obs_data_t *data, const char *name)
+--- C definition: void obs_data_set_autoselect_double(obs_data_t *data, const char *name, double val)
 --- @param data obs_data_t*
 --- @param name char*
 --- @param val double
-obslua.obs_data_set_autoselect_double = function(data, name, val) end
+function obslua.obs_data_set_autoselect_double(data, name, val) end
 
 --- obs_data_set_autoselect_frames_per_second not documented
 obslua.obs_data_set_autoselect_frames_per_second = function() end
 
---- void obs_data_set_autoselect_int(obs_data_t *data, const char *name, long long val)
----            long long obs_data_get_autoselect_int(obs_data_t *data, const char *name)
+--- C definition: void obs_data_set_autoselect_int(obs_data_t *data, const char *name, long long val)
 --- @param data obs_data_t*
 --- @param name char*
 --- @param val longlong
-obslua.obs_data_set_autoselect_int = function(data, name, val) end
+function obslua.obs_data_set_autoselect_int(data, name, val) end
 
---- void obs_data_set_autoselect_obj(obs_data_t *data, const char *name, obs_data_t *obj)
----            obs_data_t *obs_data_get_autoselect_obj(obs_data_t *data, const char *name)
 --- :return: An incremented reference to a data object.
---- Array Functions
+--- 
+--- C definition: void obs_data_set_autoselect_obj(obs_data_t *data, const char *name, obs_data_t *obj)
 --- @param data obs_data_t*
 --- @param name char*
 --- @param obj obs_data_t*
-obslua.obs_data_set_autoselect_obj = function(data, name, obj) end
+function obslua.obs_data_set_autoselect_obj(data, name, obj) end
 
 --- obs_data_set_autoselect_quat not documented
 obslua.obs_data_set_autoselect_quat = function() end
 
---- void obs_data_set_autoselect_string(obs_data_t *data, const char *name, const char *val)
----            const char *obs_data_get_autoselect_string(obs_data_t *data, const char *name)
+--- C definition: void obs_data_set_autoselect_string(obs_data_t *data, const char *name, const char *val)
 --- @param data obs_data_t*
 --- @param name char*
 --- @param val char*
-obslua.obs_data_set_autoselect_string = function(data, name, val) end
+function obslua.obs_data_set_autoselect_string(data, name, val) end
 
 --- obs_data_set_autoselect_vec2 not documented
 obslua.obs_data_set_autoselect_vec2 = function() end
@@ -2809,57 +3422,49 @@ obslua.obs_data_set_autoselect_vec3 = function() end
 --- obs_data_set_autoselect_vec4 not documented
 obslua.obs_data_set_autoselect_vec4 = function() end
 
---- void obs_data_set_bool(obs_data_t *data, const char *name, bool val)
+--- C definition: void obs_data_set_bool(obs_data_t *data, const char *name, bool val)
 --- @param data obs_data_t*
 --- @param name char*
 --- @param val bool
-obslua.obs_data_set_bool = function(data, name, val) end
+function obslua.obs_data_set_bool(data, name, val) end
 
---- void obs_data_set_default_bool(obs_data_t *data, const char *name, bool val)
----            bool obs_data_get_default_bool(obs_data_t *data, const char *name)
+--- C definition: void obs_data_set_default_bool(obs_data_t *data, const char *name, bool val)
 --- @param data obs_data_t*
 --- @param name char*
 --- @param val bool
-obslua.obs_data_set_default_bool = function(data, name, val) end
+function obslua.obs_data_set_default_bool(data, name, val) end
 
---- void obs_data_set_default_double(obs_data_t *data, const char *name, double val)
----            double obs_data_get_default_double(obs_data_t *data, const char *name)
+--- C definition: void obs_data_set_default_double(obs_data_t *data, const char *name, double val)
 --- @param data obs_data_t*
 --- @param name char*
 --- @param val double
-obslua.obs_data_set_default_double = function(data, name, val) end
+function obslua.obs_data_set_default_double(data, name, val) end
 
 --- obs_data_set_default_frames_per_second not documented
 obslua.obs_data_set_default_frames_per_second = function() end
 
---- void obs_data_set_default_int(obs_data_t *data, const char *name, long long val)
----            long long obs_data_get_default_int(obs_data_t *data, const char *name)
+--- C definition: void obs_data_set_default_int(obs_data_t *data, const char *name, long long val)
 --- @param data obs_data_t*
 --- @param name char*
 --- @param val longlong
-obslua.obs_data_set_default_int = function(data, name, val) end
+function obslua.obs_data_set_default_int(data, name, val) end
 
---- void obs_data_set_default_obj(obs_data_t *data, const char *name, obs_data_t *obj)
----            obs_data_t *obs_data_get_default_obj(obs_data_t *data, const char *name)
 --- :return: An incremented reference to a data object.
---- Autoselect Functions
---- Autoselect values are optionally used to determine what values should be
---- used to ensure functionality if the currently set values are
---- inappropriate or invalid.
+--- 
+--- C definition: void obs_data_set_default_obj(obs_data_t *data, const char *name, obs_data_t *obj)
 --- @param data obs_data_t*
 --- @param name char*
 --- @param obj obs_data_t*
-obslua.obs_data_set_default_obj = function(data, name, obj) end
+function obslua.obs_data_set_default_obj(data, name, obj) end
 
 --- obs_data_set_default_quat not documented
 obslua.obs_data_set_default_quat = function() end
 
---- void obs_data_set_default_string(obs_data_t *data, const char *name, const char *val)
----            const char *obs_data_get_default_string(obs_data_t *data, const char *name)
+--- C definition: void obs_data_set_default_string(obs_data_t *data, const char *name, const char *val)
 --- @param data obs_data_t*
 --- @param name char*
 --- @param val char*
-obslua.obs_data_set_default_string = function(data, name, val) end
+function obslua.obs_data_set_default_string(data, name, val) end
 
 --- obs_data_set_default_vec2 not documented
 obslua.obs_data_set_default_vec2 = function() end
@@ -2870,35 +3475,35 @@ obslua.obs_data_set_default_vec3 = function() end
 --- obs_data_set_default_vec4 not documented
 obslua.obs_data_set_default_vec4 = function() end
 
---- void obs_data_set_double(obs_data_t *data, const char *name, double val)
+--- C definition: void obs_data_set_double(obs_data_t *data, const char *name, double val)
 --- @param data obs_data_t*
 --- @param name char*
 --- @param val double
-obslua.obs_data_set_double = function(data, name, val) end
+function obslua.obs_data_set_double(data, name, val) end
 
 --- obs_data_set_frames_per_second not documented
 obslua.obs_data_set_frames_per_second = function() end
 
---- void obs_data_set_int(obs_data_t *data, const char *name, long long val)
+--- C definition: void obs_data_set_int(obs_data_t *data, const char *name, long long val)
 --- @param data obs_data_t*
 --- @param name char*
 --- @param val longlong
-obslua.obs_data_set_int = function(data, name, val) end
+function obslua.obs_data_set_int(data, name, val) end
 
---- void obs_data_set_obj(obs_data_t *data, const char *name, obs_data_t *obj)
+--- C definition: void obs_data_set_obj(obs_data_t *data, const char *name, obs_data_t *obj)
 --- @param data obs_data_t*
 --- @param name char*
 --- @param obj obs_data_t*
-obslua.obs_data_set_obj = function(data, name, obj) end
+function obslua.obs_data_set_obj(data, name, obj) end
 
 --- obs_data_set_quat not documented
 obslua.obs_data_set_quat = function() end
 
---- void obs_data_set_string(obs_data_t *data, const char *name, const char *val)
+--- C definition: void obs_data_set_string(obs_data_t *data, const char *name, const char *val)
 --- @param data obs_data_t*
 --- @param name char*
 --- @param val char*
-obslua.obs_data_set_string = function(data, name, val) end
+function obslua.obs_data_set_string(data, name, val) end
 
 --- obs_data_set_vec2 not documented
 obslua.obs_data_set_vec2 = function() end
@@ -2918,31 +3523,54 @@ obslua.obs_data_unset_default_value = function() end
 --- obs_data_unset_user_value not documented
 obslua.obs_data_unset_user_value = function() end
 
---- obs_display_add_draw_callback not documented
-obslua.obs_display_add_draw_callback = function() end
+--- Adds a draw callback for a display context, which will be called
+--- whenever the display is rendered.
+--- 
+--- :param  display: The display context
+--- :param  draw:    The draw callback which is called each time a frame
+---                  updates
+--- :param  param:   The user data to be associated with this draw callback
+--- 
+--- C definition: void obs_display_add_draw_callback(obs_display_t *display, void (*draw)(void *param, uint32_t cx, uint32_t cy), void *param)
+--- @param display obs_display_t*
+--- @param ( void
+--- @param cx uint32_t
+--- @param cy) uint32_t
+--- @param param void*
+function obslua.obs_display_add_draw_callback(display, (, cx, cy), param) end
 
---- obs_display_t* obs_display_create(const struct gs_init_data *graphics_data)
 --- Adds a new window display linked to the main render pipeline.  This creates
 --- a new swap chain which updates every frame.
+--- 
 --- *(Important note: do not use more than one display widget within the
 --- hierarchy of the same base window; this will cause presentation
 --- stalls on Macs.)*
+--- 
 --- :param  graphics_data: The swap chain initialization data
 --- :return:               The new display context, or NULL if failed
+--- 
 --- Relevant data types used with this function:
+--- 
 --- .. code:: cpp
+--- 
 --- enum gs_color_format {
+---         [...]
 ---         GS_RGBA,
 ---         GS_BGRX,
 ---         GS_BGRA,
 ---         GS_RGBA16F,
 ---         GS_RGBA32F,
+---         [...]
+--- };
+--- 
 --- enum gs_zstencil_format {
 ---         GS_ZS_NONE,
 ---         GS_Z16,
 ---         GS_Z24_S8,
 ---         GS_Z32F,
 ---         GS_Z32F_S8X24
+--- };
+--- 
 --- struct gs_window {
 --- #if defined(_WIN32)
 ---         void                    *hwnd;
@@ -2952,6 +3580,8 @@ obslua.obs_display_add_draw_callback = function() end
 ---         uint32_t                id;
 ---         void                    *display;
 --- #endif
+--- };
+--- 
 --- struct gs_init_data {
 ---         struct gs_window        window;
 ---         uint32_t                cx, cy;
@@ -2959,97 +3589,138 @@ obslua.obs_display_add_draw_callback = function() end
 ---         enum gs_color_format    format;
 ---         enum gs_zstencil_format zsformat;
 ---         uint32_t                adapter;
+--- };
+--- 
+--- C definition: obs_display_t *obs_display_create(const struct gs_init_data *graphics_data)
 --- @param graphics_data gs_init_data*
 --- @return obs_display_t*
-obslua.obs_display_create = function(graphics_data) end
+function obslua.obs_display_create(graphics_data) end
 
---- void obs_display_destroy(obs_display_t *display)
 --- Destroys a display context.
+--- 
+--- C definition: void obs_display_destroy(obs_display_t *display)
 --- @param display obs_display_t*
-obslua.obs_display_destroy = function(display) end
+function obslua.obs_display_destroy(display) end
 
---- bool obs_display_enabled(obs_display_t *display)
 --- :return: *true* if the display is enabled, *false* otherwise
+--- 
+--- C definition: bool obs_display_enabled(obs_display_t *display)
 --- @param display obs_display_t*
 --- @return bool
-obslua.obs_display_enabled = function(display) end
+function obslua.obs_display_enabled(display) end
 
---- obs_display_remove_draw_callback not documented
-obslua.obs_display_remove_draw_callback = function() end
+--- Removes a draw callback for a display context.
+--- 
+--- C definition: void obs_display_remove_draw_callback(obs_display_t *display, void (*draw)(void *param, uint32_t cx, uint32_t cy), void *param)
+--- @param display obs_display_t*
+--- @param ( void
+--- @param cx uint32_t
+--- @param cy) uint32_t
+--- @param param void*
+function obslua.obs_display_remove_draw_callback(display, (, cx, cy), param) end
 
---- void obs_display_resize(obs_display_t *display, uint32_t cx, uint32_t cy)
 --- Changes the size of a display context.
+--- 
+--- C definition: void obs_display_resize(obs_display_t *display, uint32_t cx, uint32_t cy)
 --- @param display obs_display_t*
 --- @param cx uint32_t
 --- @param cy uint32_t
-obslua.obs_display_resize = function(display, cx, cy) end
+function obslua.obs_display_resize(display, cx, cy) end
 
---- void obs_display_set_background_color(obs_display_t *display, uint32_t color)
 --- Sets the background (clear) color for the display context.
+--- C definition: void obs_display_set_background_color(obs_display_t *display, uint32_t color)
 --- @param display obs_display_t*
 --- @param color uint32_t
-obslua.obs_display_set_background_color = function(display, color) end
+function obslua.obs_display_set_background_color(display, color) end
 
---- void obs_display_set_enabled(obs_display_t *display, bool enable)
 --- Enables/disables a display context.
+--- 
+--- C definition: void obs_display_set_enabled(obs_display_t *display, bool enable)
 --- @param display obs_display_t*
 --- @param enable bool
-obslua.obs_display_set_enabled = function(display, enable) end
+function obslua.obs_display_set_enabled(display, enable) end
 
 --- obs_display_size not documented
 obslua.obs_display_size = function() end
 
---- bool obs_encoder_active(const obs_encoder_t *encoder)
 --- :return: *true* if the encoder is active, *false* otherwise
---- Functions used by encoders
+--- 
+--- C definition: bool obs_encoder_active(const obs_encoder_t *encoder)
 --- @param encoder obs_encoder_t*
 --- @return bool
-obslua.obs_encoder_active = function(encoder) end
+function obslua.obs_encoder_active(encoder) end
 
---- void obs_encoder_addref(obs_encoder_t *encoder)
----            void obs_encoder_release(obs_encoder_t *encoder)
 --- Adds/releases a reference to an encoder.  When the last reference is
 --- released, the encoder is destroyed.
+--- 
+--- C definition: void obs_encoder_addref(obs_encoder_t *encoder)
 --- @param encoder obs_encoder_t*
-obslua.obs_encoder_addref = function(encoder) end
+function obslua.obs_encoder_addref(encoder) end
 
---- obs_encoder_audio not documented
-obslua.obs_encoder_audio = function() end
+--- :return: The video/audio handler associated with this encoder, or
+---          *NULL* if none or not a matching encoder type
+--- 
+--- C definition: audio_t *obs_encoder_audio(const obs_encoder_t *encoder)
+--- @param encoder obs_encoder_t*
+--- @return audio_t*
+function obslua.obs_encoder_audio(encoder) end
 
 --- obs_encoder_create_rerouted not documented
 obslua.obs_encoder_create_rerouted = function() end
 
---- obs_data_t* obs_encoder_defaults(const char *id)
----            obs_data_t *obs_encoder_get_defaults(const obs_encoder_t *encoder)
 --- :return: An incremented reference to the encoder's default settings
+--- 
+--- C definition: obs_data_t *obs_encoder_defaults(const char *id)
 --- @param id char*
 --- @return obs_data_t*
-obslua.obs_encoder_defaults = function(id) end
+function obslua.obs_encoder_defaults(id) end
 
 --- obs_encoder_get_caps not documented
 obslua.obs_encoder_get_caps = function() end
 
---- obs_encoder_get_codec not documented
-obslua.obs_encoder_get_codec = function() end
+--- :return: The codec identifier of the encoder
+--- 
+--- C definition: const char *obs_encoder_get_codec(const obs_encoder_t *encoder)
+--- @param encoder obs_encoder_t*
+--- @return char*
+function obslua.obs_encoder_get_codec(encoder) end
 
---- obs_encoder_get_defaults not documented
-obslua.obs_encoder_get_defaults = function() end
+--- :return: An incremented reference to the encoder's default settings
+--- 
+--- C definition: obs_data_t *obs_encoder_get_defaults(const obs_encoder_t *encoder)
+--- @param encoder obs_encoder_t*
+--- @return obs_data_t*
+function obslua.obs_encoder_get_defaults(encoder) end
 
---- obs_encoder_get_display_name not documented
-obslua.obs_encoder_get_display_name = function() end
+--- Calls the :c:member:`obs_encoder_info.get_name` callback to get the
+--- translated display name of an encoder type.
+--- 
+--- :param    id:            The encoder type string identifier
+--- :return:                 The translated display name of an encoder type
+--- 
+--- C definition: const char *obs_encoder_get_display_name(const char *id)
+--- @param id char*
+--- @return char*
+function obslua.obs_encoder_get_display_name(id) end
 
---- bool obs_encoder_get_extra_data(const obs_encoder_t *encoder, uint8_t **extra_data, size_t *size)
 --- Gets extra data (headers) associated with this encoder.
+--- 
 --- :return: *true* if successful, *false* if no extra data associated
 ---          with this encoder
+--- 
+--- C definition: bool obs_encoder_get_extra_data(const obs_encoder_t *encoder, uint8_t **extra_data, size_t *size)
 --- @param encoder obs_encoder_t*
 --- @param extra_data uint8_t**
 --- @param size size_t*
 --- @return bool
-obslua.obs_encoder_get_extra_data = function(encoder, extra_data, size) end
+function obslua.obs_encoder_get_extra_data(encoder, extra_data, size) end
 
---- obs_encoder_get_height not documented
-obslua.obs_encoder_get_height = function() end
+--- :return: The width/height of a video encoder's encoded image
+--- 
+--- C definition: uint32_t obs_encoder_get_height(const obs_encoder_t *encoder)
+--- @param encoder obs_encoder_t*
+--- @return uint32_t
+function obslua.obs_encoder_get_height(encoder) end
 
 --- obs_encoder_get_id not documented
 obslua.obs_encoder_get_id = function() end
@@ -3057,171 +3728,225 @@ obslua.obs_encoder_get_id = function() end
 --- obs_encoder_get_last_error not documented
 obslua.obs_encoder_get_last_error = function() end
 
---- obs_encoder_get_name not documented
-obslua.obs_encoder_get_name = function() end
+--- :return: The name of the encoder
+--- 
+--- C definition: const char *obs_encoder_get_name(const obs_encoder_t *encoder)
+--- @param encoder obs_encoder_t*
+--- @return char*
+function obslua.obs_encoder_get_name(encoder) end
 
---- obs_encoder_get_preferred_video_format not documented
-obslua.obs_encoder_get_preferred_video_format = function() end
+--- Sets the preferred video format for a video encoder.  If the encoder can use
+--- the format specified, it will force a conversion to that format if the
+--- obs output format does not match the preferred format.
+--- 
+--- If the format is set to VIDEO_FORMAT_NONE, will revert to the default
+--- functionality of converting only when absolutely necessary.
+--- 
+--- C definition: enum video_format obs_encoder_get_preferred_video_format(const obs_encoder_t *encoder)
+--- @param encoder obs_encoder_t*
+--- @return video_format
+function obslua.obs_encoder_get_preferred_video_format(encoder) end
 
 --- obs_encoder_get_ref not documented
 obslua.obs_encoder_get_ref = function() end
 
---- uint32_t obs_encoder_get_sample_rate(const obs_encoder_t *encoder)
 --- :return: The sample rate of an audio encoder's audio data
+--- 
+--- C definition: uint32_t obs_encoder_get_sample_rate(const obs_encoder_t *encoder)
 --- @param encoder obs_encoder_t*
 --- @return uint32_t
-obslua.obs_encoder_get_sample_rate = function(encoder) end
+function obslua.obs_encoder_get_sample_rate(encoder) end
 
---- obs_data_t* obs_encoder_get_settings(const obs_encoder_t *encoder)
 --- :return: An incremented reference to the encoder's settings
+--- 
+--- C definition: obs_data_t *obs_encoder_get_settings(const obs_encoder_t *encoder)
 --- @param encoder obs_encoder_t*
 --- @return obs_data_t*
-obslua.obs_encoder_get_settings = function(encoder) end
+function obslua.obs_encoder_get_settings(encoder) end
 
---- obs_encoder_get_type not documented
-obslua.obs_encoder_get_type = function() end
+--- :return: The encoder type: OBS_ENCODER_VIDEO or OBS_ENCODER_AUDIO
+--- 
+--- C definition: enum obs_encoder_type obs_encoder_get_type(const obs_encoder_t *encoder)
+--- @param encoder obs_encoder_t*
+--- @return obs_encoder_type
+function obslua.obs_encoder_get_type(encoder) end
 
 --- obs_encoder_get_type_data not documented
 obslua.obs_encoder_get_type_data = function() end
 
---- obs_weak_encoder_t* obs_encoder_get_weak_encoder(obs_encoder_t *encoder)
----            obs_encoder_t *obs_weak_encoder_get_encoder(obs_weak_encoder_t *weak)
 --- These functions are used to get a weak reference from a strong encoder
 --- reference, or a strong encoder reference from a weak reference.  If
 --- the encoder is destroyed, *obs_weak_encoder_get_encoder* will return
 --- *NULL*.
+--- 
+--- C definition: obs_weak_encoder_t *obs_encoder_get_weak_encoder(obs_encoder_t *encoder)
 --- @param encoder obs_encoder_t*
 --- @return obs_weak_encoder_t*
-obslua.obs_encoder_get_weak_encoder = function(encoder) end
+function obslua.obs_encoder_get_weak_encoder(encoder) end
 
---- uint32_t obs_encoder_get_width(const obs_encoder_t *encoder)
----            uint32_t obs_encoder_get_height(const obs_encoder_t *encoder)
 --- :return: The width/height of a video encoder's encoded image
+--- 
+--- C definition: uint32_t obs_encoder_get_width(const obs_encoder_t *encoder)
 --- @param encoder obs_encoder_t*
 --- @return uint32_t
-obslua.obs_encoder_get_width = function(encoder) end
+function obslua.obs_encoder_get_width(encoder) end
 
---- void obs_encoder_packet_ref(struct encoder_packet *dst, struct encoder_packet *src)
----            void obs_encoder_packet_release(struct encoder_packet *packet)
 --- Adds or releases a reference to an encoder packet.
+--- 
+--- .. ---------------------------------------------------------------------------
+--- 
 --- .. _libobs/obs-encoder.h: https://github.com/jp9000/obs-studio/blob/master/libobs/obs-encoder.h
+--- C definition: void obs_encoder_packet_ref(struct encoder_packet *dst, struct encoder_packet *src)
 --- @param dst encoder_packet*
 --- @param src encoder_packet*
-obslua.obs_encoder_packet_ref = function(dst, src) end
+function obslua.obs_encoder_packet_ref(dst, src) end
 
---- obs_encoder_packet_release not documented
-obslua.obs_encoder_packet_release = function() end
+--- Adds or releases a reference to an encoder packet.
+--- 
+--- .. ---------------------------------------------------------------------------
+--- 
+--- .. _libobs/obs-encoder.h: https://github.com/jp9000/obs-studio/blob/master/libobs/obs-encoder.h
+--- C definition: void obs_encoder_packet_release(struct encoder_packet *packet)
+--- @param packet encoder_packet*
+function obslua.obs_encoder_packet_release(packet) end
 
 --- obs_encoder_paused not documented
 obslua.obs_encoder_paused = function() end
 
---- obs_properties_t* obs_encoder_properties(const obs_encoder_t *encoder)
----            obs_properties_t *obs_get_encoder_properties(const char *id)
 --- Use these functions to get the properties of an encoder or encoder
 --- type.  Properties are optionally used (if desired) to automatically
 --- generate user interface widgets to allow users to update settings.
+--- 
 --- :return: The properties list for a specific existing encoder.  Free
 ---          with :c:func:`obs_properties_destroy()`
+--- 
+--- C definition: obs_properties_t *obs_encoder_properties(const obs_encoder_t *encoder)
 --- @param encoder obs_encoder_t*
 --- @return obs_properties_t*
-obslua.obs_encoder_properties = function(encoder) end
+function obslua.obs_encoder_properties(encoder) end
 
---- obs_encoder_release not documented
-obslua.obs_encoder_release = function() end
+--- Adds/releases a reference to an encoder.  When the last reference is
+--- released, the encoder is destroyed.
+--- 
+--- C definition: void obs_encoder_release(obs_encoder_t *encoder)
+--- @param encoder obs_encoder_t*
+function obslua.obs_encoder_release(encoder) end
 
---- bool obs_encoder_scaling_enabled(const obs_encoder_t *encoder)
 --- :return: *true* if pre-encode (CPU) scaling enabled, *false*
 ---          otherwise.
+--- 
+--- C definition: bool obs_encoder_scaling_enabled(const obs_encoder_t *encoder)
 --- @param encoder obs_encoder_t*
 --- @return bool
-obslua.obs_encoder_scaling_enabled = function(encoder) end
+function obslua.obs_encoder_scaling_enabled(encoder) end
 
---- obs_encoder_set_audio not documented
-obslua.obs_encoder_set_audio = function() end
+--- Sets the video/audio handler to use with this video/audio encoder.
+--- This is used to capture the raw video/audio data.
+--- 
+--- C definition: void obs_encoder_set_audio(obs_encoder_t *encoder, audio_t *audio)
+--- @param encoder obs_encoder_t*
+--- @param audio audio_t*
+function obslua.obs_encoder_set_audio(encoder, audio) end
 
 --- obs_encoder_set_last_error not documented
 obslua.obs_encoder_set_last_error = function() end
 
---- void obs_encoder_set_name(obs_encoder_t *encoder, const char *name)
 --- Sets the name of an encoder.  If the encoder is not private and the
 --- name is not unique, it will automatically be given a unique name.
+--- 
+--- C definition: void obs_encoder_set_name(obs_encoder_t *encoder, const char *name)
 --- @param encoder obs_encoder_t*
 --- @param name char*
-obslua.obs_encoder_set_name = function(encoder, name) end
+function obslua.obs_encoder_set_name(encoder, name) end
 
---- void obs_encoder_set_preferred_video_format(obs_encoder_t *encoder, enum video_format format)
----            enum video_format obs_encoder_get_preferred_video_format(const obs_encoder_t *encoder)
 --- Sets the preferred video format for a video encoder.  If the encoder can use
 --- the format specified, it will force a conversion to that format if the
 --- obs output format does not match the preferred format.
+--- 
 --- If the format is set to VIDEO_FORMAT_NONE, will revert to the default
 --- functionality of converting only when absolutely necessary.
+--- 
+--- C definition: void obs_encoder_set_preferred_video_format(obs_encoder_t *encoder, enum video_format format)
 --- @param encoder obs_encoder_t*
 --- @param format video_format
-obslua.obs_encoder_set_preferred_video_format = function(encoder, format) end
+function obslua.obs_encoder_set_preferred_video_format(encoder, format) end
 
---- void obs_encoder_set_scaled_size(obs_encoder_t *encoder, uint32_t width, uint32_t height)
 --- Sets the scaled resolution for a video encoder.  Set width and height to 0
 --- to disable scaling.  If the encoder is active, this function will trigger
 --- a warning, and do nothing.
+--- 
+--- C definition: void obs_encoder_set_scaled_size(obs_encoder_t *encoder, uint32_t width, uint32_t height)
 --- @param encoder obs_encoder_t*
 --- @param width uint32_t
 --- @param height uint32_t
-obslua.obs_encoder_set_scaled_size = function(encoder, width, height) end
+function obslua.obs_encoder_set_scaled_size(encoder, width, height) end
 
---- void obs_encoder_set_video(obs_encoder_t *encoder, video_t *video)
----            void obs_encoder_set_audio(obs_encoder_t *encoder, audio_t *audio)
 --- Sets the video/audio handler to use with this video/audio encoder.
 --- This is used to capture the raw video/audio data.
+--- 
+--- C definition: void obs_encoder_set_video(obs_encoder_t *encoder, video_t *video)
 --- @param encoder obs_encoder_t*
 --- @param video video_t*
-obslua.obs_encoder_set_video = function(encoder, video) end
+function obslua.obs_encoder_set_video(encoder, video) end
 
---- void obs_encoder_update(obs_encoder_t *encoder, obs_data_t *settings)
 --- Updates the settings for this encoder context.
+--- 
+--- C definition: void obs_encoder_update(obs_encoder_t *encoder, obs_data_t *settings)
 --- @param encoder obs_encoder_t*
 --- @param settings obs_data_t*
-obslua.obs_encoder_update = function(encoder, settings) end
+function obslua.obs_encoder_update(encoder, settings) end
 
---- video_t* obs_encoder_video(const obs_encoder_t *encoder)
----            audio_t *obs_encoder_audio(const obs_encoder_t *encoder)
 --- :return: The video/audio handler associated with this encoder, or
 ---          *NULL* if none or not a matching encoder type
+--- 
+--- C definition: video_t *obs_encoder_video(const obs_encoder_t *encoder)
 --- @param encoder obs_encoder_t*
 --- @return video_t*
-obslua.obs_encoder_video = function(encoder) end
+function obslua.obs_encoder_video(encoder) end
 
---- void obs_enter_graphics(void)
 --- Helper function for entering the OBS graphics context.
-obslua.obs_enter_graphics = function() end
+--- 
+--- C definition: void obs_enter_graphics(void)
+function obslua.obs_enter_graphics() end
 
---- void obs_enum_audio_monitoring_devices(obs_enum_audio_device_cb cb, void *data)
 --- Enumerates audio devices which can be used for audio monitoring.
+--- 
 --- Relevant data types used with this function:
+--- 
 --- .. code:: cpp
+--- 
 --- typedef bool (*obs_enum_audio_device_cb)(void *data, const char *name, const char *id);
+--- 
+--- C definition: void obs_enum_audio_monitoring_devices(obs_enum_audio_device_cb cb, void *data)
 --- @param cb obs_enum_audio_device_cb
 --- @param data void*
-obslua.obs_enum_audio_monitoring_devices = function(cb, data) end
+function obslua.obs_enum_audio_monitoring_devices(cb, data) end
 
---- bool obs_enum_encoder_types(size_t idx, const char **id)
 --- Enumerates all available encoder types.
+--- 
+--- C definition: bool obs_enum_encoder_types(size_t idx, const char **id)
 --- @param idx size_t
 --- @param id char**
 --- @return bool
-obslua.obs_enum_encoder_types = function(idx, id) end
+function obslua.obs_enum_encoder_types(idx, id) end
 
---- obs_enum_encoders not documented
-obslua.obs_enum_encoders = function() end
+--- Enumerates encoders.
+--- 
+--- C definition: void obs_enum_encoders(bool (*enum_proc)(void*, obs_encoder_t*), void *param)
+--- @param ( bool
+--- @param param void*
+function obslua.obs_enum_encoders((, param) end
 
---- bool obs_enum_filter_types(size_t idx, const char **id)
 --- Enumerates all available filter source types.
+--- 
 --- Filters are sources that are used to modify the video/audio output of
 --- other sources.
+--- 
+--- C definition: bool obs_enum_filter_types(size_t idx, const char **id)
 --- @param idx size_t
 --- @param id char**
 --- @return bool
-obslua.obs_enum_filter_types = function(idx, id) end
+function obslua.obs_enum_filter_types(idx, id) end
 
 --- obs_enum_hotkey_bindings not documented
 obslua.obs_enum_hotkey_bindings = function() end
@@ -3229,122 +3954,170 @@ obslua.obs_enum_hotkey_bindings = function() end
 --- obs_enum_hotkeys not documented
 obslua.obs_enum_hotkeys = function() end
 
---- bool obs_enum_input_types(size_t idx, const char **id)
 --- Enumerates all available inputs source types.
+--- 
 --- Inputs are general source inputs (such as capture sources, device sources,
 --- etc).
+--- 
+--- C definition: bool obs_enum_input_types(size_t idx, const char **id)
 --- @param idx size_t
 --- @param id char**
 --- @return bool
-obslua.obs_enum_input_types = function(idx, id) end
+function obslua.obs_enum_input_types(idx, id) end
 
 --- obs_enum_input_types2 not documented
 obslua.obs_enum_input_types2 = function() end
 
---- void obs_enum_modules(obs_enum_module_callback_t callback, void *param)
 --- Enumerates all loaded modules.
+--- 
 --- Relevant data types used with this function:
+--- 
 --- .. code:: cpp
+--- 
 --- typedef void (*obs_enum_module_callback_t)(void *param, obs_module_t *module);
+--- 
+--- C definition: void obs_enum_modules(obs_enum_module_callback_t callback, void *param)
 --- @param callback obs_enum_module_callback_t
 --- @param param void*
-obslua.obs_enum_modules = function(callback, param) end
+function obslua.obs_enum_modules(callback, param) end
 
---- bool obs_enum_output_types(size_t idx, const char **id)
 --- Enumerates all available output types.
+--- 
+--- C definition: bool obs_enum_output_types(size_t idx, const char **id)
 --- @param idx size_t
 --- @param id char**
 --- @return bool
-obslua.obs_enum_output_types = function(idx, id) end
+function obslua.obs_enum_output_types(idx, id) end
 
---- obs_enum_outputs not documented
-obslua.obs_enum_outputs = function() end
+--- Enumerates outputs.
+--- 
+--- C definition: void obs_enum_outputs(bool (*enum_proc)(void*, obs_output_t*), void *param)
+--- @param ( bool
+--- @param param void*
+function obslua.obs_enum_outputs((, param) end
 
---- obs_enum_scenes not documented
-obslua.obs_enum_scenes = function() end
+--- Enumerates all scenes.
+--- 
+--- Callback function returns true to continue enumeration, or false to end
+--- enumeration.
+--- 
+--- Use :c:func:`obs_source_get_ref()` or
+--- :c:func:`obs_source_get_weak_source()` if you want to retain a
+--- reference after obs_enum_scenes finishes.
+--- 
+--- C definition: void obs_enum_scenes(bool (*enum_proc)(void*, obs_source_t*), void *param)
+--- @param ( bool
+--- @param param void*
+function obslua.obs_enum_scenes((, param) end
 
---- bool obs_enum_service_types(size_t idx, const char **id)
 --- Enumerates all available service types.
+--- 
+--- C definition: bool obs_enum_service_types(size_t idx, const char **id)
 --- @param idx size_t
 --- @param id char**
 --- @return bool
-obslua.obs_enum_service_types = function(idx, id) end
+function obslua.obs_enum_service_types(idx, id) end
 
 --- obs_enum_services not documented
 obslua.obs_enum_services = function() end
 
---- bool obs_enum_source_types(size_t idx, const char **id)
 --- Enumerates all source types (inputs, filters, transitions, etc).
+--- 
+--- C definition: bool obs_enum_source_types(size_t idx, const char **id)
 --- @param idx size_t
 --- @param id char**
 --- @return bool
-obslua.obs_enum_source_types = function(idx, id) end
+function obslua.obs_enum_source_types(idx, id) end
 
---- obs_enum_sources not documented
-obslua.obs_enum_sources = function() end
+--- Enumerates all input sources.
+--- 
+--- Callback function returns true to continue enumeration, or false to end
+--- enumeration.
+--- 
+--- Use :c:func:`obs_source_get_ref()` or
+--- :c:func:`obs_source_get_weak_source()` if you want to retain a
+--- reference after obs_enum_sources finishes.
+--- 
+--- C definition: void obs_enum_sources(bool (*enum_proc)(void*, obs_source_t*), void *param)
+--- @param ( bool
+--- @param param void*
+function obslua.obs_enum_sources((, param) end
 
---- bool obs_enum_transition_types(size_t idx, const char **id)
 --- Enumerates all available transition source types.
+--- 
 --- Transitions are sources used to transition between two or more other
 --- sources.
+--- 
+--- C definition: bool obs_enum_transition_types(size_t idx, const char **id)
 --- @param idx size_t
 --- @param id char**
 --- @return bool
-obslua.obs_enum_transition_types = function(idx, id) end
+function obslua.obs_enum_transition_types(idx, id) end
 
---- obs_source_t* obs_filter_get_parent(const obs_source_t *filter)
 --- If the source is a filter, returns the parent source of the filter.
 --- The parent source is the source being filtered.
+--- 
 --- Only guaranteed to be valid inside of the video_render, filter_audio,
 --- filter_video, and filter_remove callbacks.
+--- 
+--- C definition: obs_source_t *obs_filter_get_parent(const obs_source_t *filter)
 --- @param filter obs_source_t*
 --- @return obs_source_t*
-obslua.obs_filter_get_parent = function(filter) end
+function obslua.obs_filter_get_parent(filter) end
 
---- obs_source_t* obs_filter_get_target(const obs_source_t *filter)
 --- If the source is a filter, returns the target source of the filter.
 --- The target source is the next source in the filter chain.
+--- 
 --- Only guaranteed to be valid inside of the video_render, filter_audio,
 --- filter_video, and filter_remove callbacks.
+--- 
+--- C definition: obs_source_t *obs_filter_get_target(const obs_source_t *filter)
 --- @param filter obs_source_t*
 --- @return obs_source_t*
-obslua.obs_filter_get_target = function(filter) end
+function obslua.obs_filter_get_target(filter) end
 
 --- obs_find_data_file not documented
 obslua.obs_find_data_file = function() end
 
---- char* obs_find_module_file(obs_module_t *module, const char *file)
 --- Returns the location of a plugin module data file.
+--- 
 --- Note:   Modules should use obs_module_file function defined in obs-module.h
 ---         as a more elegant means of getting their files without having to
 ---         specify the module parameter.
+--- 
 --- :param  module: The module associated with the file to locate
 --- :param  file:   The file to locate
 --- :return:        Path string, or NULL if not found.  Use bfree to free string
+--- 
+--- C definition: char *obs_find_module_file(obs_module_t *module, const char *file)
 --- @param module obs_module_t*
 --- @param file char*
 --- @return char*
-obslua.obs_find_module_file = function(module, file) end
+function obslua.obs_find_module_file(module, file) end
 
---- void obs_frontend_add_event_callback(obs_frontend_event_cb callback, void *private_data)
 --- Adds a callback that will be called when a frontend event occurs.
 --- See :c:type:`obs_frontend_event` on what sort of events can be
 --- triggered.
+--- 
 --- :param callback:     Callback to use when a frontend event occurs.
 --- :param private_data: Private data associated with the callback.
+--- 
+--- C definition: void obs_frontend_add_event_callback(obs_frontend_event_cb callback, void *private_data)
 --- @param callback obs_frontend_event_cb
 --- @param private_data void*
-obslua.obs_frontend_add_event_callback = function(callback, private_data) end
+function obslua.obs_frontend_add_event_callback(callback, private_data) end
 
---- void obs_frontend_add_save_callback(obs_frontend_save_cb callback, void *private_data)
 --- Adds a callback that will be called when the current scene collection
 --- is being saved/loaded.
+--- 
 --- :param callback:     Callback to use when saving/loading a scene
 ---                      collection.
 --- :param private_data: Private data associated with the callback.
+--- 
+--- C definition: void obs_frontend_add_save_callback(obs_frontend_save_cb callback, void *private_data)
 --- @param callback obs_frontend_save_cb
 --- @param private_data void*
-obslua.obs_frontend_add_save_callback = function(callback, private_data) end
+function obslua.obs_frontend_add_save_callback(callback, private_data) end
 
 --- obs_frontend_defer_save_begin not documented
 obslua.obs_frontend_defer_save_begin = function() end
@@ -3352,34 +4125,39 @@ obslua.obs_frontend_defer_save_begin = function() end
 --- obs_frontend_defer_save_end not documented
 obslua.obs_frontend_defer_save_end = function() end
 
---- obs_source_t* obs_frontend_get_current_preview_scene(void)
 --- :return: A new reference to the current preview scene if studio mode
 ---          is active, or the current scene if studio mode is not
 ---          active.
+--- 
+--- C definition: obs_source_t *obs_frontend_get_current_preview_scene(void)
 --- @return obs_source_t*
-obslua.obs_frontend_get_current_preview_scene = function() end
+function obslua.obs_frontend_get_current_preview_scene() end
 
---- char* obs_frontend_get_current_profile(void)
 --- :return: A new pointer to the current profile name.  Free with
 ---          :c:func:`bfree()`.
+--- 
+--- C definition: char *obs_frontend_get_current_profile(void)
 --- @return char*
-obslua.obs_frontend_get_current_profile = function() end
+function obslua.obs_frontend_get_current_profile() end
 
---- obs_source_t* obs_frontend_get_current_scene(void)
 --- :return: A new reference to the currently active scene.
+--- 
+--- C definition: obs_source_t *obs_frontend_get_current_scene(void)
 --- @return obs_source_t*
-obslua.obs_frontend_get_current_scene = function() end
+function obslua.obs_frontend_get_current_scene() end
 
---- char* obs_frontend_get_current_scene_collection(void)
 --- :return: A new pointer to the current scene collection name.  Free
 ---          with :c:func:`bfree()`.
+--- 
+--- C definition: char *obs_frontend_get_current_scene_collection(void)
 --- @return char*
-obslua.obs_frontend_get_current_scene_collection = function() end
+function obslua.obs_frontend_get_current_scene_collection() end
 
---- obs_source_t* obs_frontend_get_current_transition(void)
 --- :return: A new reference to the currently active transition.
+--- 
+--- C definition: obs_source_t *obs_frontend_get_current_transition(void)
 --- @return obs_source_t*
-obslua.obs_frontend_get_current_transition = function() end
+function obslua.obs_frontend_get_current_transition() end
 
 --- obs_frontend_get_global_config not documented
 obslua.obs_frontend_get_global_config = function() end
@@ -3387,50 +4165,74 @@ obslua.obs_frontend_get_global_config = function() end
 --- obs_frontend_get_profile_config not documented
 obslua.obs_frontend_get_profile_config = function() end
 
---- obs_frontend_get_profiles not documented
-obslua.obs_frontend_get_profiles = function() end
+--- :return: The list of profile names, ending with NULL.  The list is
+---          stored within one contiguous segment of memory, so freeing
+---          the returned pointer with :c:func:`bfree()` will free the
+---          entire list.
+--- 
+--- C definition: char **obs_frontend_get_profiles(void)
+--- @return char**
+function obslua.obs_frontend_get_profiles() end
 
---- obs_output_t* obs_frontend_get_recording_output(void)
 --- :return: A new reference to the current srecording output.
+--- 
+--- C definition: obs_output_t *obs_frontend_get_recording_output(void)
 --- @return obs_output_t*
-obslua.obs_frontend_get_recording_output = function() end
+function obslua.obs_frontend_get_recording_output() end
 
---- obs_output_t* obs_frontend_get_replay_buffer_output(void)
 --- :return: A new reference to the current replay buffer output.
+--- 
+--- C definition: obs_output_t *obs_frontend_get_replay_buffer_output(void)
 --- @return obs_output_t*
-obslua.obs_frontend_get_replay_buffer_output = function() end
+function obslua.obs_frontend_get_replay_buffer_output() end
 
---- obs_frontend_get_scene_collections not documented
-obslua.obs_frontend_get_scene_collections = function() end
+--- :return: The list of profile names, ending with NULL.  The list is
+---          stored within one contiguous segment of memory, so freeing
+---          the returned pointer with :c:func:`bfree()` will free the
+---          entire list.
+--- 
+--- C definition: char **obs_frontend_get_scene_collections(void)
+--- @return char**
+function obslua.obs_frontend_get_scene_collections() end
 
---- obs_frontend_get_scene_names not documented
-obslua.obs_frontend_get_scene_names = function() end
+--- :return: The scene name list, ending with NULL.  The list is stored
+---          within one contiguous segment of memory, so freeing the
+---          returned pointer with :c:func:`bfree()` will free the entire
+---          list.
+--- 
+--- C definition: char **obs_frontend_get_scene_names(void)
+--- @return char**
+function obslua.obs_frontend_get_scene_names() end
 
---- void obs_frontend_get_scenes(struct obs_frontend_source_list *sources)
 --- :param sources: Pointer to a :c:type:`obs_frontend_source_list`
 ---                 structure to receive the list of
 ---                 reference-incremented scenes.  Release with
 ---                 :c:func:`obs_frontend_source_list_free`.
+--- 
+--- C definition: void obs_frontend_get_scenes(struct obs_frontend_source_list *sources)
 --- @param sources obs_frontend_source_list*
-obslua.obs_frontend_get_scenes = function(sources) end
+function obslua.obs_frontend_get_scenes(sources) end
 
---- obs_output_t* obs_frontend_get_streaming_output(void)
 --- :return: A new reference to the current streaming output.
+--- 
+--- C definition: obs_output_t *obs_frontend_get_streaming_output(void)
 --- @return obs_output_t*
-obslua.obs_frontend_get_streaming_output = function() end
+function obslua.obs_frontend_get_streaming_output() end
 
---- obs_service_t* obs_frontend_get_streaming_service(void)
 --- :return: A new reference to the current streaming service object.
+--- 
+--- C definition: obs_service_t *obs_frontend_get_streaming_service(void)
 --- @return obs_service_t*
-obslua.obs_frontend_get_streaming_service = function() end
+function obslua.obs_frontend_get_streaming_service() end
 
---- void obs_frontend_get_transitions(struct obs_frontend_source_list *sources)
 --- :param sources: Pointer to a :c:type:`obs_frontend_source_list`
 ---                 structure to receive the list of
 ---                 reference-incremented transitions.  Release with
 ---                 :c:func:`obs_frontend_source_list_free`.
+--- 
+--- C definition: void obs_frontend_get_transitions(struct obs_frontend_source_list *sources)
 --- @param sources obs_frontend_source_list*
-obslua.obs_frontend_get_transitions = function(sources) end
+function obslua.obs_frontend_get_transitions(sources) end
 
 --- obs_frontend_open_projector not documented
 obslua.obs_frontend_open_projector = function() end
@@ -3438,174 +4240,209 @@ obslua.obs_frontend_open_projector = function() end
 --- obs_frontend_preview_enabled not documented
 obslua.obs_frontend_preview_enabled = function() end
 
---- bool obs_frontend_preview_program_mode_active(void)
 --- :return: *true* if studio mode is active, *false* otherwise.
+--- 
+--- C definition: bool obs_frontend_preview_program_mode_active(void)
 --- @return bool
-obslua.obs_frontend_preview_program_mode_active = function() end
+function obslua.obs_frontend_preview_program_mode_active() end
 
---- void obs_frontend_preview_program_trigger_transition(void)
 --- Triggers a preview-to-program transition if studio mode is active.
-obslua.obs_frontend_preview_program_trigger_transition = function() end
+--- 
+--- C definition: void obs_frontend_preview_program_trigger_transition(void)
+function obslua.obs_frontend_preview_program_trigger_transition() end
 
---- bool obs_frontend_recording_active(void)
 --- :return: *true* if recording active, *false* otherwise.
+--- 
+--- C definition: bool obs_frontend_recording_active(void)
 --- @return bool
-obslua.obs_frontend_recording_active = function() end
+function obslua.obs_frontend_recording_active() end
 
---- void obs_frontend_recording_pause(bool pause)
 --- :pause: *true* to pause recording, *false* to unpause.
+--- 
+--- C definition: void obs_frontend_recording_pause(bool pause)
 --- @param pause bool
-obslua.obs_frontend_recording_pause = function(pause) end
+function obslua.obs_frontend_recording_pause(pause) end
 
---- bool obs_frontend_recording_paused(void)
 --- :return: *true* if recording paused, *false* otherwise.
+--- 
+--- C definition: bool obs_frontend_recording_paused(void)
 --- @return bool
-obslua.obs_frontend_recording_paused = function() end
+function obslua.obs_frontend_recording_paused() end
 
---- void obs_frontend_recording_start(void)
 --- Starts recording.
-obslua.obs_frontend_recording_start = function() end
+--- 
+--- C definition: void obs_frontend_recording_start(void)
+function obslua.obs_frontend_recording_start() end
 
---- void obs_frontend_recording_stop(void)
 --- Stops recording.
-obslua.obs_frontend_recording_stop = function() end
+--- 
+--- C definition: void obs_frontend_recording_stop(void)
+function obslua.obs_frontend_recording_stop() end
 
---- void obs_frontend_remove_event_callback(obs_frontend_event_cb callback, void *private_data)
 --- Removes an event callback.
+--- 
 --- :param callback:     Callback to remove.
 --- :param private_data: Private data associated with the callback.
+--- 
+--- C definition: void obs_frontend_remove_event_callback(obs_frontend_event_cb callback, void *private_data)
 --- @param callback obs_frontend_event_cb
 --- @param private_data void*
-obslua.obs_frontend_remove_event_callback = function(callback, private_data) end
+function obslua.obs_frontend_remove_event_callback(callback, private_data) end
 
---- void obs_frontend_remove_save_callback(obs_frontend_save_cb callback, void *private_data)
 --- Removes a save/load callback.
+--- 
 --- :param callback:     Callback to remove.
 --- :param private_data: Private data associated with the callback.
+--- 
+--- C definition: void obs_frontend_remove_save_callback(obs_frontend_save_cb callback, void *private_data)
 --- @param callback obs_frontend_save_cb
 --- @param private_data void*
-obslua.obs_frontend_remove_save_callback = function(callback, private_data) end
+function obslua.obs_frontend_remove_save_callback(callback, private_data) end
 
---- bool obs_frontend_replay_buffer_active(void)
 --- :return: *true* if replay buffer active, *false* otherwise.
+--- 
+--- C definition: bool obs_frontend_replay_buffer_active(void)
 --- @return bool
-obslua.obs_frontend_replay_buffer_active = function() end
+function obslua.obs_frontend_replay_buffer_active() end
 
---- void obs_frontend_replay_buffer_save(void)
 --- Saves a replay if the replay buffer is active.
-obslua.obs_frontend_replay_buffer_save = function() end
+--- 
+--- C definition: void obs_frontend_replay_buffer_save(void)
+function obslua.obs_frontend_replay_buffer_save() end
 
---- void obs_frontend_replay_buffer_start(void)
 --- Starts replay buffer.
-obslua.obs_frontend_replay_buffer_start = function() end
+--- 
+--- C definition: void obs_frontend_replay_buffer_start(void)
+function obslua.obs_frontend_replay_buffer_start() end
 
---- void obs_frontend_replay_buffer_stop(void)
 --- Stops replay buffer.
-obslua.obs_frontend_replay_buffer_stop = function() end
+--- 
+--- C definition: void obs_frontend_replay_buffer_stop(void)
+function obslua.obs_frontend_replay_buffer_stop() end
 
---- void obs_frontend_save(void)
 --- Saves the current scene collection.
-obslua.obs_frontend_save = function() end
+--- 
+--- C definition: void obs_frontend_save(void)
+function obslua.obs_frontend_save() end
 
---- void obs_frontend_save_streaming_service(void)
 --- Saves the current streaming service data.
-obslua.obs_frontend_save_streaming_service = function() end
+--- 
+--- C definition: void obs_frontend_save_streaming_service(void)
+function obslua.obs_frontend_save_streaming_service() end
 
---- void obs_frontend_set_current_preview_scene(obs_source_t *scene)
 --- Sets the current preview scene in studio mode, or the currently
 --- active scene if not in studio mode.
+--- 
 --- :param scene: The scene to set as the current preview.
+--- 
+--- C definition: void obs_frontend_set_current_preview_scene(obs_source_t *scene)
 --- @param scene obs_source_t*
-obslua.obs_frontend_set_current_preview_scene = function(scene) end
+function obslua.obs_frontend_set_current_preview_scene(scene) end
 
---- void obs_frontend_set_current_profile(const char *profile)
 --- :param profile: Name of the profile to activate.
+--- 
+--- C definition: void obs_frontend_set_current_profile(const char *profile)
 --- @param profile char*
-obslua.obs_frontend_set_current_profile = function(profile) end
+function obslua.obs_frontend_set_current_profile(profile) end
 
---- void obs_frontend_set_current_scene(obs_source_t *scene)
 --- :param scene: The scene to set as the current scene.
+--- 
+--- C definition: void obs_frontend_set_current_scene(obs_source_t *scene)
 --- @param scene obs_source_t*
-obslua.obs_frontend_set_current_scene = function(scene) end
+function obslua.obs_frontend_set_current_scene(scene) end
 
---- void obs_frontend_set_current_scene_collection(const char *collection)
 --- :param profile: Name of the scene collection to activate.
+--- 
+--- C definition: void obs_frontend_set_current_scene_collection(const char *collection)
 --- @param collection char*
-obslua.obs_frontend_set_current_scene_collection = function(collection) end
+function obslua.obs_frontend_set_current_scene_collection(collection) end
 
---- void obs_frontend_set_current_transition(obs_source_t *transition)
 --- :param transition: The transition to set as the current transition.
+--- 
+--- C definition: void obs_frontend_set_current_transition(obs_source_t *transition)
 --- @param transition obs_source_t*
-obslua.obs_frontend_set_current_transition = function(transition) end
+function obslua.obs_frontend_set_current_transition(transition) end
 
 --- obs_frontend_set_preview_enabled not documented
 obslua.obs_frontend_set_preview_enabled = function() end
 
---- void obs_frontend_set_preview_program_mode(bool enable)
 --- Activates/deactivates studio mode.
+--- 
 --- :param enable: *true* to activate studio mode, *false* to deactivate
 ---                studio mode.
+--- 
+--- C definition: void obs_frontend_set_preview_program_mode(bool enable)
 --- @param enable bool
-obslua.obs_frontend_set_preview_program_mode = function(enable) end
+function obslua.obs_frontend_set_preview_program_mode(enable) end
 
---- void obs_frontend_set_streaming_service(obs_service_t *service)
 --- Sets the current streaming service to stream with.
+--- 
 --- :param service: The streaming service to set.
+--- 
+--- C definition: void obs_frontend_set_streaming_service(obs_service_t *service)
 --- @param service obs_service_t*
-obslua.obs_frontend_set_streaming_service = function(service) end
+function obslua.obs_frontend_set_streaming_service(service) end
 
---- bool obs_frontend_streaming_active(void)
 --- :return: *true* if streaming active, *false* otherwise.
+--- 
+--- C definition: bool obs_frontend_streaming_active(void)
 --- @return bool
-obslua.obs_frontend_streaming_active = function() end
+function obslua.obs_frontend_streaming_active() end
 
---- void obs_frontend_streaming_start(void)
 --- Starts streaming.
-obslua.obs_frontend_streaming_start = function() end
+--- 
+--- C definition: void obs_frontend_streaming_start(void)
+function obslua.obs_frontend_streaming_start() end
 
---- void obs_frontend_streaming_stop(void)
 --- Stops streaming.
-obslua.obs_frontend_streaming_stop = function() end
+--- 
+--- C definition: void obs_frontend_streaming_stop(void)
+function obslua.obs_frontend_streaming_stop() end
 
---- void* obs_frontend_take_screenshot(void)
 --- Takes a screenshot of the main OBS output.
+--- 
+--- C definition: void *obs_frontend_take_screenshot(void)
 --- @return void*
-obslua.obs_frontend_take_screenshot = function() end
+function obslua.obs_frontend_take_screenshot() end
 
---- void* obs_frontend_take_source_screenshot(obs_source_t *source)
 --- Takes a screenshot of the specified source.
+--- 
 --- :param source: The source to take screenshot of.
+--- C definition: void *obs_frontend_take_source_screenshot(obs_source_t *source)
 --- @param source obs_source_t*
 --- @return void*
-obslua.obs_frontend_take_source_screenshot = function(source) end
+function obslua.obs_frontend_take_source_screenshot(source) end
 
 --- obs_get_active_fps not documented
 obslua.obs_get_active_fps = function() end
 
---- audio_t* obs_get_audio(void)
 --- :return: The main audio output handler for this OBS context
+--- 
+--- C definition: audio_t *obs_get_audio(void)
 --- @return audio_t*
-obslua.obs_get_audio = function() end
+function obslua.obs_get_audio() end
 
---- bool obs_get_audio_info(struct obs_audio_info *oai)
 --- Gets the current audio settings.
+--- 
 --- :return: *false* if no audio
---- Libobs Objects
+--- 
+--- C definition: bool obs_get_audio_info(struct obs_audio_info *oai)
 --- @param oai obs_audio_info*
 --- @return bool
-obslua.obs_get_audio_info = function(oai) end
+function obslua.obs_get_audio_info(oai) end
 
---- void obs_get_audio_monitoring_device(const char **name, const char **id)
 --- Gets the current audio device for audio monitoring.
+--- 
+--- C definition: void obs_get_audio_monitoring_device(const char **name, const char **id)
 --- @param name char**
 --- @param id char**
-obslua.obs_get_audio_monitoring_device = function(name, id) end
+function obslua.obs_get_audio_monitoring_device(name, id) end
 
 --- obs_get_average_frame_time_ns not documented
 obslua.obs_get_average_frame_time_ns = function() end
 
---- gs_effect_t* obs_get_base_effect(enum obs_base_effect effect)
 --- Returns a commoinly used base effect.
+--- 
 --- :param effect: | Can be one of the following values:
 ---                | OBS_EFFECT_DEFAULT             - RGB/YUV
 ---                | OBS_EFFECT_DEFAULT_RECT        - RGB/YUV (using texture_rect)
@@ -3615,32 +4452,53 @@ obslua.obs_get_average_frame_time_ns = function() end
 ---                | OBS_EFFECT_LANCZOS             - Lanczos downscale
 ---                | OBS_EFFECT_BILINEAR_LOWRES     - Bilinear low resolution downscale
 ---                | OBS_EFFECT_PREMULTIPLIED_ALPHA - Premultiplied alpha
+--- 
+--- C definition: gs_effect_t *obs_get_base_effect(enum obs_base_effect effect)
 --- @param effect obs_base_effect
 --- @return gs_effect_t*
-obslua.obs_get_base_effect = function(effect) end
+function obslua.obs_get_base_effect(effect) end
 
 --- obs_get_cmdline_args not documented
 obslua.obs_get_cmdline_args = function() end
 
---- obs_encoder_t* obs_get_encoder_by_name(const char *name)
 --- Gets an encoder by its name.
+--- 
 --- Increments the encoder reference counter, use
 --- :c:func:`obs_encoder_release()` to release it when complete.
+--- 
+--- C definition: obs_encoder_t *obs_get_encoder_by_name(const char *name)
 --- @param name char*
 --- @return obs_encoder_t*
-obslua.obs_get_encoder_by_name = function(name) end
+function obslua.obs_get_encoder_by_name(name) end
 
 --- obs_get_encoder_caps not documented
 obslua.obs_get_encoder_caps = function() end
 
---- obs_get_encoder_codec not documented
-obslua.obs_get_encoder_codec = function() end
+--- :return: The codec identifier of the encoder
+--- 
+--- C definition: const char *obs_get_encoder_codec(const char *id)
+--- @param id char*
+--- @return char*
+function obslua.obs_get_encoder_codec(id) end
 
---- obs_get_encoder_properties not documented
-obslua.obs_get_encoder_properties = function() end
+--- Use these functions to get the properties of an encoder or encoder
+--- type.  Properties are optionally used (if desired) to automatically
+--- generate user interface widgets to allow users to update settings.
+--- 
+--- :return: The properties list for a specific existing encoder.  Free
+---          with :c:func:`obs_properties_destroy()`
+--- 
+--- C definition: obs_properties_t *obs_get_encoder_properties(const char *id)
+--- @param id char*
+--- @return obs_properties_t*
+function obslua.obs_get_encoder_properties(id) end
 
---- obs_get_encoder_type not documented
-obslua.obs_get_encoder_type = function() end
+--- :return: The encoder type: OBS_ENCODER_VIDEO or OBS_ENCODER_AUDIO
+--- 
+--- C definition: enum obs_encoder_type obs_get_encoder_type(const char *id)
+--- @param id char*
+--- @return obs_encoder_type
+function obslua.obs_get_encoder_type(id) end
 
 --- obs_get_frame_interval_ns not documented
 obslua.obs_get_frame_interval_ns = function() end
@@ -3651,198 +4509,239 @@ obslua.obs_get_lagged_frames = function() end
 --- obs_get_latest_input_type_id not documented
 obslua.obs_get_latest_input_type_id = function() end
 
---- obs_get_locale not documented
-obslua.obs_get_locale = function() end
+--- :return: The current locale
+--- 
+--- C definition: const char *obs_get_locale(void)
+--- @return char*
+function obslua.obs_get_locale() end
 
 --- obs_get_main_texture not documented
 obslua.obs_get_main_texture = function() end
 
---- float obs_get_master_volume(void)
 --- :return: The master user volume
+--- 
+--- C definition: float obs_get_master_volume(void)
 --- @return float
-obslua.obs_get_master_volume = function() end
+function obslua.obs_get_master_volume() end
 
 --- obs_get_module not documented
 obslua.obs_get_module = function() end
 
---- void obs_get_module_author(obs_module_t *module)
 --- :return: The module author(s)
+--- 
+--- C definition: void obs_get_module_author(obs_module_t *module)
 --- @param module obs_module_t*
-obslua.obs_get_module_author = function(module) end
+function obslua.obs_get_module_author(module) end
 
---- obs_get_module_binary_path not documented
-obslua.obs_get_module_binary_path = function() end
+--- :return: The module binary path
+--- 
+--- C definition: const char *obs_get_module_binary_path(obs_module_t *module)
+--- @param module obs_module_t*
+--- @return char*
+function obslua.obs_get_module_binary_path(module) end
 
---- obs_get_module_data_path not documented
-obslua.obs_get_module_data_path = function() end
+--- :return: The module data path
+--- 
+--- C definition: const char *obs_get_module_data_path(obs_module_t *module)
+--- @param module obs_module_t*
+--- @return char*
+function obslua.obs_get_module_data_path(module) end
 
---- obs_get_module_description not documented
-obslua.obs_get_module_description = function() end
+--- :return: The module description
+--- 
+--- C definition: const char *obs_get_module_description(obs_module_t *module)
+--- @param module obs_module_t*
+--- @return char*
+function obslua.obs_get_module_description(module) end
 
---- obs_get_module_file_name not documented
-obslua.obs_get_module_file_name = function() end
+--- :return: The module file name
+--- 
+--- C definition: const char *obs_get_module_file_name(obs_module_t *module)
+--- @param module obs_module_t*
+--- @return char*
+function obslua.obs_get_module_file_name(module) end
 
---- obs_get_module_name not documented
-obslua.obs_get_module_name = function() end
+--- :return: The module full name (or *NULL* if none)
+--- 
+--- C definition: const char *obs_get_module_name(obs_module_t *module)
+--- @param module obs_module_t*
+--- @return char*
+function obslua.obs_get_module_name(module) end
 
---- obs_output_t* obs_get_output_by_name(const char *name)
 --- Gets an output by its name.
+--- 
 --- Increments the output reference counter, use
 --- :c:func:`obs_output_release()` to release it when complete.
+--- 
+--- C definition: obs_output_t *obs_get_output_by_name(const char *name)
 --- @param name char*
 --- @return obs_output_t*
-obslua.obs_get_output_by_name = function(name) end
+function obslua.obs_get_output_by_name(name) end
 
---- obs_get_output_flags not documented
-obslua.obs_get_output_flags = function() end
+--- :return: The output capability flags
+--- 
+--- C definition: uint32_t obs_get_output_flags(const char *id)
+--- @param id char*
+--- @return uint32_t
+function obslua.obs_get_output_flags(id) end
 
---- obs_get_output_properties not documented
-obslua.obs_get_output_properties = function() end
+--- Use these functions to get the properties of an output or output
+--- type.  Properties are optionally used (if desired) to automatically
+--- generate user interface widgets to allow users to update settings.
+--- 
+--- :return: The properties list for a specific existing output.  Free
+---          with :c:func:`obs_properties_destroy()`
+--- 
+--- C definition: obs_properties_t *obs_get_output_properties(const char *id)
+--- @param id char*
+--- @return obs_properties_t*
+function obslua.obs_get_output_properties(id) end
 
---- obs_source_t* obs_get_output_source(uint32_t channel)
 --- Gets the primary output source for a channel and increments the reference
 --- counter for that source.  Use :c:func:`obs_source_release()` to release.
+--- 
+--- C definition: obs_source_t *obs_get_output_source(uint32_t channel)
 --- @param channel uint32_t
 --- @return obs_source_t*
-obslua.obs_get_output_source = function(channel) end
+function obslua.obs_get_output_source(channel) end
 
 --- obs_get_private_data not documented
 obslua.obs_get_private_data = function() end
 
---- proc_handler_t* obs_get_proc_handler(void)
 --- :return: The primary obs procedure handler
+--- 
 --- .. _core_signal_handler_reference:
+--- 
 --- Core OBS Signals
---- **source_create** (ptr source)
---- Called when a source has been created.
---- **source_destroy** (ptr source)
---- Called when a source has been destroyed.
---- **source_remove** (ptr source)
---- Called when a source has been removed (:c:func:`obs_source_remove()`
---- has been called on the source).
---- **source_save** (ptr source)
---- Called when a source is being saved.
---- **source_load** (ptr source)
---- Called when a source is being loaded.
---- **source_activate** (ptr source)
---- Called when a source has been activated in the main view (visible on
---- stream/recording).
---- **source_deactivate** (ptr source)
---- Called when a source has been deactivated from the main view (no
---- longer visible on stream/recording).
---- **source_show** (ptr source)
---- Called when a source is visible on any display and/or on the main
---- view.
---- **source_hide** (ptr source)
---- Called when a source is no longer visible on any display and/or on
---- the main view.
---- **source_rename** (ptr source, string new_name, string prev_name)
---- Called when a source has been renamed.
---- **source_volume** (ptr source, in out float volume)
---- Called when a source's volume has changed.
---- **source_transition_start** (ptr source)
---- Called when a transition has started its transition.
---- **source_transition_video_stop** (ptr source)
---- Called when a transition has stopped its video transitioning.
---- **source_transition_stop** (ptr source)
---- Called when a transition has stopped its transition.
---- **channel_change** (int channel, in out ptr source, ptr prev_source)
---- Called when :c:func:`obs_set_output_source()` has been called.
---- **master_volume** (in out float volume)
---- Called when the master volume has changed.
---- **hotkey_layout_change** ()
---- Called when the hotkey layout has changed.
---- **hotkey_register** (ptr hotkey)
---- Called when a hotkey has been registered.
---- **hotkey_unregister** (ptr hotkey)
---- Called when a hotkey has been unregistered.
---- **hotkey_bindings_changed** (ptr hotkey)
---- Called when a hotkey's bindings has changed.
---- .. _display_reference:
---- Displays
+--- C definition: proc_handler_t *obs_get_proc_handler(void)
 --- @return proc_handler_t*
-obslua.obs_get_proc_handler = function() end
+function obslua.obs_get_proc_handler() end
 
---- profiler_name_store_t* obs_get_profiler_name_store(void)
 --- :return: The profiler name store (see util/profiler.h) used by OBS,
 ---          which is either a name store passed to obs_startup, an
 ---          internal name store, or NULL in case obs_initialized()
 ---          returns false.
+--- 
+--- C definition: profiler_name_store_t *obs_get_profiler_name_store(void)
 --- @return profiler_name_store_t*
-obslua.obs_get_profiler_name_store = function() end
+function obslua.obs_get_profiler_name_store() end
 
---- obs_service_t* obs_get_service_by_name(const char *name)
 --- Gets an service by its name.
+--- 
 --- Increments the service reference counter, use
 --- :c:func:`obs_service_release()` to release it when complete.
+--- 
+--- C definition: obs_service_t *obs_get_service_by_name(const char *name)
 --- @param name char*
 --- @return obs_service_t*
-obslua.obs_get_service_by_name = function(name) end
+function obslua.obs_get_service_by_name(name) end
 
---- obs_get_service_properties not documented
-obslua.obs_get_service_properties = function() end
+--- Use these functions to get the properties of a service or service
+--- type.  Properties are optionally used (if desired) to automatically
+--- generate user interface widgets to allow users to update settings.
+--- 
+--- :return: The properties list for a specific existing service.  Free
+---          with :c:func:`obs_properties_destroy()`
+--- 
+--- C definition: obs_properties_t *obs_get_service_properties(const char *id)
+--- @param id char*
+--- @return obs_properties_t*
+function obslua.obs_get_service_properties(id) end
 
---- signal_handler_t* obs_get_signal_handler(void)
 --- :return: The primary obs signal handler
+--- 
 --- See :ref:`core_signal_handler_reference` for more information on
 --- core signals.
+--- 
+--- C definition: signal_handler_t *obs_get_signal_handler(void)
 --- @return signal_handler_t*
-obslua.obs_get_signal_handler = function() end
+function obslua.obs_get_signal_handler() end
 
---- obs_source_t* obs_get_source_by_name(const char *name)
 --- Gets a source by its name.
+--- 
 --- Increments the source reference counter, use
 --- :c:func:`obs_source_release()` to release it when complete.
+--- 
+--- C definition: obs_source_t *obs_get_source_by_name(const char *name)
 --- @param name char*
 --- @return obs_source_t*
-obslua.obs_get_source_by_name = function(name) end
+function obslua.obs_get_source_by_name(name) end
 
---- obs_data_t* obs_get_source_defaults(const char *id)
 --- Calls :c:member:`obs_source_info.get_defaults` to get the defaults
 --- settings of the source type.
+--- 
 --- :return: The default settings for a source type
+--- 
+--- C definition: obs_data_t *obs_get_source_defaults(const char *id)
 --- @param id char*
 --- @return obs_data_t*
-obslua.obs_get_source_defaults = function(id) end
+function obslua.obs_get_source_defaults(id) end
 
---- obs_get_source_output_flags not documented
-obslua.obs_get_source_output_flags = function() end
+--- :return: Capability flags of a source
+--- 
+--- Author's Note: "Output flags" is poor wording in retrospect; this
+--- should have been named "Capability flags", and the OBS_SOURCE_*
+--- macros should really be OBS_SOURCE_CAP_* macros instead.
+--- 
+--- See :c:member:`obs_source_info.output_flags` for more information.
+--- 
+--- C definition: uint32_t obs_get_source_output_flags(const char *id)
+--- @param id char*
+--- @return uint32_t
+function obslua.obs_get_source_output_flags(id) end
 
---- obs_get_source_properties not documented
-obslua.obs_get_source_properties = function() end
+--- Use these functions to get the properties of a source or source type.
+--- Properties are optionally used (if desired) to automatically generate
+--- user interface widgets to allow users to update settings.
+--- 
+--- :return: The properties list for a specific existing source.  Free with
+---          :c:func:`obs_properties_destroy()`
+--- 
+--- C definition: obs_properties_t *obs_get_source_properties(const char *id)
+--- @param id char*
+--- @return obs_properties_t*
+function obslua.obs_get_source_properties(id) end
 
 --- obs_get_total_frames not documented
 obslua.obs_get_total_frames = function() end
 
---- uint32_t obs_get_version(void)
 --- :return: The current core version
+--- 
+--- C definition: uint32_t obs_get_version(void)
 --- @return uint32_t
-obslua.obs_get_version = function() end
+function obslua.obs_get_version() end
 
---- obs_get_version_string not documented
-obslua.obs_get_version_string = function() end
+--- :return: The current core version string
+--- 
+--- C definition: const char *obs_get_version_string(void)
+--- @return char*
+function obslua.obs_get_version_string() end
 
---- video_t* obs_get_video(void)
 --- :return: The main video output handler for this OBS context
+--- 
+--- C definition: video_t *obs_get_video(void)
 --- @return video_t*
-obslua.obs_get_video = function() end
+function obslua.obs_get_video() end
 
 --- obs_get_video_frame_time not documented
 obslua.obs_get_video_frame_time = function() end
 
---- bool obs_get_video_info(struct obs_video_info *ovi)
 --- Gets the current video settings.
+--- 
 --- :return: *false* if no video
+--- 
+--- C definition: bool obs_get_video_info(struct obs_video_info *ovi)
 --- @param ovi obs_video_info*
 --- @return bool
-obslua.obs_get_video_info = function(ovi) end
+function obslua.obs_get_video_info(ovi) end
 
---- obs_scene_t* obs_group_from_source(const obs_source_t *source)
 --- :return: The group context, or *NULL* if not a group.  Does not
 ---          increase the reference
+--- 
+--- C definition: obs_scene_t *obs_group_from_source(const obs_source_t *source)
 --- @param source obs_source_t*
 --- @return obs_scene_t*
-obslua.obs_group_from_source = function(source) end
+function obslua.obs_group_from_source(source) end
 
 --- obs_hotkey_binding_get_hotkey not documented
 obslua.obs_hotkey_binding_get_hotkey = function() end
@@ -3958,20 +4857,28 @@ obslua.obs_hotkeys_set_audio_hotkeys_translations = function() end
 --- obs_hotkeys_set_sceneitem_hotkeys_translations not documented
 obslua.obs_hotkeys_set_sceneitem_hotkeys_translations = function() end
 
---- bool obs_init_module(obs_module_t *module)
 --- Initializes the module, which calls its obs_module_load export.
+--- 
 --- :return: *true* if the module was loaded successfully
+--- 
+--- C definition: bool obs_init_module(obs_module_t *module)
 --- @param module obs_module_t*
 --- @return bool
-obslua.obs_init_module = function(module) end
+function obslua.obs_init_module(module) end
 
---- bool obs_initialized(void)
 --- :return: true if the main OBS context has been initialized
+--- 
+--- C definition: bool obs_initialized(void)
 --- @return bool
-obslua.obs_initialized = function() end
+function obslua.obs_initialized() end
 
---- obs_is_source_configurable not documented
-obslua.obs_is_source_configurable = function() end
+--- :return: *true* if the the source has custom properties, *false*
+---          otherwise
+--- 
+--- C definition: bool obs_is_source_configurable(const char *id)
+--- @param id char*
+--- @return bool
+function obslua.obs_is_source_configurable(id) end
 
 --- obs_key_combination_is_empty not documented
 obslua.obs_key_combination_is_empty = function() end
@@ -3994,46 +4901,56 @@ obslua.obs_key_to_str = function() end
 --- obs_key_to_virtual_key not documented
 obslua.obs_key_to_virtual_key = function() end
 
---- void obs_leave_graphics(void)
 --- Helper function for leaving the OBS graphics context.
-obslua.obs_leave_graphics = function() end
+--- 
+--- C definition: void obs_leave_graphics(void)
+function obslua.obs_leave_graphics() end
 
---- void obs_load_all_modules(void)
 --- Automatically loads all modules from module paths (convenience function).
-obslua.obs_load_all_modules = function() end
+--- 
+--- C definition: void obs_load_all_modules(void)
+function obslua.obs_load_all_modules() end
 
---- obs_source_t* obs_load_source(obs_data_t *data)
 --- :return: A source created from saved data
+--- 
+--- C definition: obs_source_t *obs_load_source(obs_data_t *data)
 --- @param data obs_data_t*
 --- @return obs_source_t*
-obslua.obs_load_source = function(data) end
+function obslua.obs_load_source(data) end
 
---- void obs_load_sources(obs_data_array_t *array, obs_load_source_cb cb, void *private_data)
 --- Helper function to load active sources from a data array.
+--- 
 --- Relevant data types used with this function:
+--- 
 --- .. code:: cpp
+--- 
 --- typedef void (*obs_load_source_cb)(void *private_data, obs_source_t *source);
+--- 
+--- C definition: void obs_load_sources(obs_data_array_t *array, obs_load_source_cb cb, void *private_data)
 --- @param array obs_data_array_t*
 --- @param cb obs_load_source_cb
 --- @param private_data void*
-obslua.obs_load_sources = function(array, cb, private_data) end
+function obslua.obs_load_sources(array, cb, private_data) end
 
---- void obs_log_loaded_modules(void)
 --- Logs loaded modules.
-obslua.obs_log_loaded_modules = function() end
+--- 
+--- C definition: void obs_log_loaded_modules(void)
+function obslua.obs_log_loaded_modules() end
 
---- char* obs_module_get_config_path(obs_module_t *module, const char *file)
 --- Returns the path of a plugin module config file (whether it exists or not).
+--- 
 --- Note:   Modules should use obs_module_config_path function defined in
 ---         obs-module.h as a more elegant means of getting their files without
 ---         having to specify the module parameter.
+--- 
 --- :param  module: The module associated with the path
 --- :param  file:   The file to get a path to
 --- :return:        Path string, or NULL if not found.  Use bfree to free string
+--- C definition: char *obs_module_get_config_path(obs_module_t *module, const char *file)
 --- @param module obs_module_t*
 --- @param file char*
 --- @return char*
-obslua.obs_module_get_config_path = function(module, file) end
+function obslua.obs_module_get_config_path(module, file) end
 
 --- obs_module_get_locale_string not documented
 obslua.obs_module_get_locale_string = function() end
@@ -4059,13 +4976,15 @@ obslua.obs_obj_get_type = function() end
 --- obs_obj_invalid not documented
 obslua.obs_obj_invalid = function() end
 
---- int obs_open_module(obs_module_t **module, const char *path, const char *data_path)
 --- Opens a plugin module directly from a specific path.
+--- 
 --- If the module already exists then the function will return successful, and
 --- the module parameter will be given the pointer to the existing
 --- module.
+--- 
 --- This does not initialize the module, it only loads the module image.  To
 --- initialize the module, call :c:func:`obs_init_module()`.
+--- 
 --- :param  module:    The pointer to the created module
 --- :param  path:      Specifies the path to the module library file.  If the
 ---                    extension is not specified, it will use the extension
@@ -4077,32 +4996,39 @@ obslua.obs_obj_invalid = function() end
 ---                    | MODULE_FILE_NOT_FOUND   - The module was not found
 ---                    | MODULE_MISSING_EXPORTS  - Required exports are missing
 ---                    | MODULE_INCOMPATIBLE_VER - Incompatible version
+--- 
+--- C definition: int obs_open_module(obs_module_t **module, const char *path, const char *data_path)
 --- @param module obs_module_t**
 --- @param path char*
 --- @param data_path char*
 --- @return int
-obslua.obs_open_module = function(module, path, data_path) end
+function obslua.obs_open_module(module, path, data_path) end
 
---- bool obs_output_active(const obs_output_t *output)
 --- :return: *true* if the output is currently active, *false* otherwise
+--- 
+--- C definition: bool obs_output_active(const obs_output_t *output)
 --- @param output obs_output_t*
 --- @return bool
-obslua.obs_output_active = function(output) end
+function obslua.obs_output_active(output) end
 
---- void obs_output_addref(obs_output_t *output)
----            void obs_output_release(obs_output_t *output)
 --- Adds/releases a reference to an output.  When the last reference is
 --- released, the output is destroyed.
+--- 
+--- C definition: void obs_output_addref(obs_output_t *output)
 --- @param output obs_output_t*
-obslua.obs_output_addref = function(output) end
+function obslua.obs_output_addref(output) end
 
---- obs_output_audio not documented
-obslua.obs_output_audio = function() end
+--- Gets the current video/audio handlers for the output.
+--- 
+--- C definition: audio_t *obs_output_audio(const obs_output_t *output)
+--- @param output obs_output_t*
+--- @return audio_t*
+function obslua.obs_output_audio(output) end
 
---- bool obs_output_begin_data_capture(obs_output_t *output, uint32_t flags)
 --- Begins data capture from raw media or encoders.  This is typically
 --- when the output actually activates (starts) internally.  Video/audio
 --- data will start being sent to the callbacks of the output.
+--- 
 --- :param flags: Set to 0 to initialize both audio/video, otherwise a
 ---               bitwise OR combination of OBS_OUTPUT_VIDEO and/or
 ---               OBS_OUTPUT_AUDIO
@@ -4110,35 +5036,41 @@ obslua.obs_output_audio = function() end
 ---               return value does not need to be checked if
 ---               :c:func:`obs_output_can_begin_data_capture()` was
 ---               called
+--- 
+--- C definition: bool obs_output_begin_data_capture(obs_output_t *output, uint32_t flags)
 --- @param output obs_output_t*
 --- @param flags uint32_t
 --- @return bool
-obslua.obs_output_begin_data_capture = function(output, flags) end
+function obslua.obs_output_begin_data_capture(output, flags) end
 
---- bool obs_output_can_begin_data_capture(const obs_output_t *output, uint32_t flags)
 --- Determines whether video/audio capture (encoded or raw) is able to
 --- start.  Call this before initializing any output data to ensure that
 --- the output can start.
+--- 
 --- :param flags: Set to 0 to initialize both audio/video, otherwise a
 ---               bitwise OR combination of OBS_OUTPUT_VIDEO and/or
 ---               OBS_OUTPUT_AUDIO
 --- :return:      *true* if data capture can begin
+--- 
+--- C definition: bool obs_output_can_begin_data_capture(const obs_output_t *output, uint32_t flags)
 --- @param output obs_output_t*
 --- @param flags uint32_t
 --- @return bool
-obslua.obs_output_can_begin_data_capture = function(output, flags) end
+function obslua.obs_output_can_begin_data_capture(output, flags) end
 
---- bool obs_output_can_pause(const obs_output_t *output)
 --- :return: *true* if the output can be paused, *false* otherwise
+--- 
+--- C definition: bool obs_output_can_pause(const obs_output_t *output)
 --- @param output obs_output_t*
 --- @return bool
-obslua.obs_output_can_pause = function(output) end
+function obslua.obs_output_can_pause(output) end
 
---- obs_output_t* obs_output_create(const char *id, const char *name, obs_data_t *settings, obs_data_t *hotkey_data)
 --- Creates an output with the specified settings.
+--- 
 --- The "output" context is used for anything related to outputting the
 --- final video/audio mix (E.g. streaming or recording).  Use
 --- obs_output_release to release it.
+--- 
 --- :param   id:             The output type string identifier
 --- :param   name:           The desired name of the output.  If this is
 ---                          not unique, it will be made to be unique
@@ -4148,20 +5080,22 @@ obslua.obs_output_can_pause = function(output) end
 ---                          if none
 --- :return:                 A reference to the newly created output, or
 ---                          *NULL* if failed
+--- 
+--- C definition: obs_output_t *obs_output_create(const char *id, const char *name, obs_data_t *settings, obs_data_t *hotkey_data)
 --- @param id char*
 --- @param name char*
 --- @param settings obs_data_t*
 --- @param hotkey_data obs_data_t*
 --- @return obs_output_t*
-obslua.obs_output_create = function(id, name, settings, hotkey_data) end
+function obslua.obs_output_create(id, name, settings, hotkey_data) end
 
---- obs_data_t* obs_output_defaults(const char *id)
 --- :return: An incremented reference to the output's default settings
+--- 
+--- C definition: obs_data_t *obs_output_defaults(const char *id)
 --- @param id char*
 --- @return obs_data_t*
-obslua.obs_output_defaults = function(id) end
+function obslua.obs_output_defaults(id) end
 
---- void obs_output_end_data_capture(obs_output_t *output)
 --- Ends data capture of an output.  This is typically when the output
 --- actually intentionally deactivates (stops).  Video/audio data will
 --- stop being sent to the callbacks of the output.  The output will
@@ -4169,177 +5103,255 @@ obslua.obs_output_defaults = function(id) end
 --- indicate that the output has stopped successfully.  See
 --- :ref:`output_signal_handler_reference` for more information on output
 --- signals.
+--- 
+--- C definition: void obs_output_end_data_capture(obs_output_t *output)
 --- @param output obs_output_t*
-obslua.obs_output_end_data_capture = function(output) end
+function obslua.obs_output_end_data_capture(output) end
 
---- void obs_output_force_stop(obs_output_t *output)
 --- Attempts to get the output to stop immediately without waiting for
 --- data to send.
+--- 
+--- C definition: void obs_output_force_stop(obs_output_t *output)
 --- @param output obs_output_t*
-obslua.obs_output_force_stop = function(output) end
+function obslua.obs_output_force_stop(output) end
 
---- uint32_t obs_output_get_active_delay(const obs_output_t *output)
 --- If delay is active, gets the currently active delay value, in
 --- seconds.  The active delay can increase if the
 --- OBS_OUTPUT_DELAY_PRESERVE flag was set when setting a delay.
+--- 
+--- C definition: uint32_t obs_output_get_active_delay(const obs_output_t *output)
 --- @param output obs_output_t*
 --- @return uint32_t
-obslua.obs_output_get_active_delay = function(output) end
+function obslua.obs_output_get_active_delay(output) end
 
---- obs_output_get_audio_encoder not documented
-obslua.obs_output_get_audio_encoder = function() end
-
---- float obs_output_get_congestion(obs_output_t *output)
---- :return: The congestion value.  This value is used to visualize the
----          current congestion of a network output.  For example, if
----          there is no congestion, the value will be 0.0f, if it's
----          fully congested, the value will be 1.0f
---- @param output obs_output_t*
---- @return float
-obslua.obs_output_get_congestion = function(output) end
-
---- int obs_output_get_connect_time_ms(obs_output_t *output)
---- :return: How long the output took to connect to a server, in
----          milliseconds
---- @param output obs_output_t*
---- @return int
-obslua.obs_output_get_connect_time_ms = function(output) end
-
---- uint32_t obs_output_get_delay(const obs_output_t *output)
---- Gets the currently set delay value, in seconds.
---- @param output obs_output_t*
---- @return uint32_t
-obslua.obs_output_get_delay = function(output) end
-
---- obs_output_get_display_name not documented
-obslua.obs_output_get_display_name = function() end
-
---- uint32_t obs_output_get_flags(const obs_output_t *output)
----            uint32_t obs_get_output_flags(const char *id)
---- :return: The output capability flags
---- Functions used by outputs
---- @param output obs_output_t*
---- @return uint32_t
-obslua.obs_output_get_flags = function(output) end
-
---- int obs_output_get_frames_dropped(const obs_output_t *output)
---- :return: Number of frames that were dropped due to network congestion
---- @param output obs_output_t*
---- @return int
-obslua.obs_output_get_frames_dropped = function(output) end
-
---- obs_output_get_height not documented
-obslua.obs_output_get_height = function() end
-
---- obs_output_get_id not documented
-obslua.obs_output_get_id = function() end
-
---- obs_output_get_last_error not documented
-obslua.obs_output_get_last_error = function() end
-
---- obs_output_get_mixer not documented
-obslua.obs_output_get_mixer = function() end
-
---- obs_output_get_mixers not documented
-obslua.obs_output_get_mixers = function() end
-
---- obs_output_get_name not documented
-obslua.obs_output_get_name = function() end
-
---- uint64_t obs_output_get_pause_offset(obs_output_t *output)
---- Returns the current pause offset of the output.  Used with raw
---- outputs to calculate system timestamps when using calculated
---- timestamps (see FFmpeg output for an example).
---- .. _libobs/obs-output.h: https://github.com/jp9000/obs-studio/blob/master/libobs/obs-output.h
---- @param output obs_output_t*
---- @return uint64_t
-obslua.obs_output_get_pause_offset = function(output) end
-
---- proc_handler_t* obs_output_get_proc_handler(const obs_output_t *output)
---- :return: The procedure handler of the output
---- @param output obs_output_t*
---- @return proc_handler_t*
-obslua.obs_output_get_proc_handler = function(output) end
-
---- obs_output_get_ref not documented
-obslua.obs_output_get_ref = function() end
-
---- obs_output_get_service not documented
-obslua.obs_output_get_service = function() end
-
---- obs_data_t* obs_output_get_settings(const obs_output_t *output)
---- :return: An incremented reference to the output's settings
---- @param output obs_output_t*
---- @return obs_data_t*
-obslua.obs_output_get_settings = function(output) end
-
---- signal_handler_t* obs_output_get_signal_handler(const obs_output_t *output)
---- :return: The signal handler of the output
---- @param output obs_output_t*
---- @return signal_handler_t*
-obslua.obs_output_get_signal_handler = function(output) end
-
---- obs_output_get_supported_audio_codecs not documented
-obslua.obs_output_get_supported_audio_codecs = function() end
-
---- obs_output_get_supported_video_codecs not documented
-obslua.obs_output_get_supported_video_codecs = function() end
-
---- uint64_t obs_output_get_total_bytes(const obs_output_t *output)
---- :return: Total bytes sent/processed
---- @param output obs_output_t*
---- @return uint64_t
-obslua.obs_output_get_total_bytes = function(output) end
-
---- int obs_output_get_total_frames(const obs_output_t *output)
---- :return: Total frames sent/processed
---- @param output obs_output_t*
---- @return int
-obslua.obs_output_get_total_frames = function(output) end
-
---- obs_output_get_type_data not documented
-obslua.obs_output_get_type_data = function() end
-
---- obs_encoder_t* obs_output_get_video_encoder(const obs_output_t *output)
----            obs_encoder_t *obs_output_get_audio_encoder(const obs_output_t *output, size_t idx)
 --- Gets the video/audio encoders for an encoded output.
+--- 
 --- :param idx:     The audio encoder index if the output supports
 ---                 multiple audio streams at once
 --- :return:        The video/audio encoder.  The reference is not
 ---                 incremented
+--- 
+--- C definition: obs_encoder_t *obs_output_get_audio_encoder(const obs_output_t *output, size_t idx)
+--- @param output obs_output_t*
+--- @param idx size_t
+--- @return obs_encoder_t*
+function obslua.obs_output_get_audio_encoder(output, idx) end
+
+--- :return: The congestion value.  This value is used to visualize the
+---          current congestion of a network output.  For example, if
+---          there is no congestion, the value will be 0.0f, if it's
+---          fully congested, the value will be 1.0f
+--- 
+--- C definition: float obs_output_get_congestion(obs_output_t *output)
+--- @param output obs_output_t*
+--- @return float
+function obslua.obs_output_get_congestion(output) end
+
+--- :return: How long the output took to connect to a server, in
+---          milliseconds
+--- 
+--- C definition: int obs_output_get_connect_time_ms(obs_output_t *output)
+--- @param output obs_output_t*
+--- @return int
+function obslua.obs_output_get_connect_time_ms(output) end
+
+--- Gets the currently set delay value, in seconds.
+--- 
+--- C definition: uint32_t obs_output_get_delay(const obs_output_t *output)
+--- @param output obs_output_t*
+--- @return uint32_t
+function obslua.obs_output_get_delay(output) end
+
+--- Calls the :c:member:`obs_output_info.get_name` callback to get the
+--- translated display name of an output type.
+--- 
+--- :param    id:            The output type string identifier
+--- :return:                 The translated display name of an output type
+--- 
+--- C definition: const char *obs_output_get_display_name(const char *id)
+--- @param id char*
+--- @return char*
+function obslua.obs_output_get_display_name(id) end
+
+--- :return: The output capability flags
+--- 
+--- C definition: uint32_t obs_output_get_flags(const obs_output_t *output)
+--- @param output obs_output_t*
+--- @return uint32_t
+function obslua.obs_output_get_flags(output) end
+
+--- :return: Number of frames that were dropped due to network congestion
+--- 
+--- C definition: int obs_output_get_frames_dropped(const obs_output_t *output)
+--- @param output obs_output_t*
+--- @return int
+function obslua.obs_output_get_frames_dropped(output) end
+
+--- :return: The width/height of the output
+--- 
+--- C definition: uint32_t obs_output_get_height(const obs_output_t *output)
+--- @param output obs_output_t*
+--- @return uint32_t
+function obslua.obs_output_get_height(output) end
+
+--- obs_output_get_id not documented
+obslua.obs_output_get_id = function() end
+
+--- Sets/gets the translated error message that is presented to a user in
+--- case of disconnection, inability to connect, etc.
+--- 
+--- C definition: const char *obs_output_get_last_error(obs_output_t *output)
+--- @param output obs_output_t*
+--- @return char*
+function obslua.obs_output_get_last_error(output) end
+
+--- Sets/gets the current audio mixer for non-encoded outputs.  For
+--- multi-track outputs, this would be the equivalent of setting the mask
+--- only for the specified mixer index.
+--- 
+--- C definition: size_t obs_output_get_mixer(const obs_output_t *output)
+--- @param output obs_output_t*
+--- @return size_t
+function obslua.obs_output_get_mixer(output) end
+
+--- Sets/gets the current audio mixers (via mask) for non-encoded
+--- multi-track outputs.  If used with single-track outputs, the
+--- single-track output will use either the first set mixer track in the
+--- bitmask, or the first track if none is set in the bitmask.
+--- 
+--- C definition: size_t obs_output_get_mixers(const obs_output_t *output)
+--- @param output obs_output_t*
+--- @return size_t
+function obslua.obs_output_get_mixers(output) end
+
+--- :return: The name of the output
+--- 
+--- C definition: const char *obs_output_get_name(const obs_output_t *output)
+--- @param output obs_output_t*
+--- @return char*
+function obslua.obs_output_get_name(output) end
+
+--- Returns the current pause offset of the output.  Used with raw
+--- outputs to calculate system timestamps when using calculated
+--- timestamps (see FFmpeg output for an example).
+--- 
+--- .. ---------------------------------------------------------------------------
+--- 
+--- .. _libobs/obs-output.h: https://github.com/jp9000/obs-studio/blob/master/libobs/obs-output.h
+--- C definition: uint64_t obs_output_get_pause_offset(obs_output_t *output)
+--- @param output obs_output_t*
+--- @return uint64_t
+function obslua.obs_output_get_pause_offset(output) end
+
+--- :return: The procedure handler of the output
+--- 
+--- C definition: proc_handler_t *obs_output_get_proc_handler(const obs_output_t *output)
+--- @param output obs_output_t*
+--- @return proc_handler_t*
+function obslua.obs_output_get_proc_handler(output) end
+
+--- obs_output_get_ref not documented
+obslua.obs_output_get_ref = function() end
+
+--- Sets/gets the service for outputs that require services (such as RTMP
+--- outputs).  *obs_output_get_service* does not return an incremented
+--- reference.
+--- 
+--- C definition: obs_service_t *obs_output_get_service(const obs_output_t *output)
+--- @param output obs_output_t*
+--- @return obs_service_t*
+function obslua.obs_output_get_service(output) end
+
+--- :return: An incremented reference to the output's settings
+--- 
+--- C definition: obs_data_t *obs_output_get_settings(const obs_output_t *output)
+--- @param output obs_output_t*
+--- @return obs_data_t*
+function obslua.obs_output_get_settings(output) end
+
+--- :return: The signal handler of the output
+--- 
+--- C definition: signal_handler_t *obs_output_get_signal_handler(const obs_output_t *output)
+--- @param output obs_output_t*
+--- @return signal_handler_t*
+function obslua.obs_output_get_signal_handler(output) end
+
+--- :return: Supported video/audio codecs of an encoded output, separated
+---          by semicolen
+--- 
+--- C definition: const char *obs_output_get_supported_audio_codecs(const obs_output_t *output)
+--- @param output obs_output_t*
+--- @return char*
+function obslua.obs_output_get_supported_audio_codecs(output) end
+
+--- :return: Supported video/audio codecs of an encoded output, separated
+---          by semicolen
+--- 
+--- C definition: const char *obs_output_get_supported_video_codecs(const obs_output_t *output)
+--- @param output obs_output_t*
+--- @return char*
+function obslua.obs_output_get_supported_video_codecs(output) end
+
+--- :return: Total bytes sent/processed
+--- 
+--- C definition: uint64_t obs_output_get_total_bytes(const obs_output_t *output)
+--- @param output obs_output_t*
+--- @return uint64_t
+function obslua.obs_output_get_total_bytes(output) end
+
+--- :return: Total frames sent/processed
+--- 
+--- C definition: int obs_output_get_total_frames(const obs_output_t *output)
+--- @param output obs_output_t*
+--- @return int
+function obslua.obs_output_get_total_frames(output) end
+
+--- obs_output_get_type_data not documented
+obslua.obs_output_get_type_data = function() end
+
+--- Gets the video/audio encoders for an encoded output.
+--- 
+--- :param idx:     The audio encoder index if the output supports
+---                 multiple audio streams at once
+--- :return:        The video/audio encoder.  The reference is not
+---                 incremented
+--- 
+--- C definition: obs_encoder_t *obs_output_get_video_encoder(const obs_output_t *output)
 --- @param output obs_output_t*
 --- @return obs_encoder_t*
-obslua.obs_output_get_video_encoder = function(output) end
+function obslua.obs_output_get_video_encoder(output) end
 
---- obs_weak_output_t* obs_output_get_weak_output(obs_output_t *output)
----            obs_output_t *obs_weak_output_get_output(obs_weak_output_t *weak)
 --- These functions are used to get a weak reference from a strong output
 --- reference, or a strong output reference from a weak reference.  If
 --- the output is destroyed, *obs_weak_output_get_output* will return
 --- *NULL*.
+--- 
+--- C definition: obs_weak_output_t *obs_output_get_weak_output(obs_output_t *output)
 --- @param output obs_output_t*
 --- @return obs_weak_output_t*
-obslua.obs_output_get_weak_output = function(output) end
+function obslua.obs_output_get_weak_output(output) end
 
---- uint32_t obs_output_get_width(const obs_output_t *output)
----            uint32_t obs_output_get_height(const obs_output_t *output)
 --- :return: The width/height of the output
+--- 
+--- C definition: uint32_t obs_output_get_width(const obs_output_t *output)
 --- @param output obs_output_t*
 --- @return uint32_t
-obslua.obs_output_get_width = function(output) end
+function obslua.obs_output_get_width(output) end
 
---- bool obs_output_initialize_encoders(obs_output_t *output, uint32_t flags)
 --- Initializes any encoders/services associated with the output.  This
 --- must be called for encoded outputs before calling
 --- :c:func:`obs_output_begin_data_capture()`.
+--- 
 --- :param flags: Set to 0 to initialize both audio/video, otherwise a
 ---               bitwise OR combination of OBS_OUTPUT_VIDEO and/or
 ---               OBS_OUTPUT_AUDIO
 --- :return:      *true* if successful, *false* otherwise
+--- 
+--- C definition: bool obs_output_initialize_encoders(obs_output_t *output, uint32_t flags)
 --- @param output obs_output_t*
 --- @param flags uint32_t
 --- @return bool
-obslua.obs_output_initialize_encoders = function(output, flags) end
+function obslua.obs_output_initialize_encoders(output, flags) end
 
 --- obs_output_output_caption_text1 not documented
 obslua.obs_output_output_caption_text1 = function() end
@@ -4347,57 +5359,72 @@ obslua.obs_output_output_caption_text1 = function() end
 --- obs_output_output_caption_text2 not documented
 obslua.obs_output_output_caption_text2 = function() end
 
---- bool obs_output_pause(obs_output_t *output, bool pause)
 --- Pause an output (if supported by the output).
+--- 
 --- :return: *true* if the output was paused successfully, *false*
 ---          otherwise
+--- 
+--- C definition: bool obs_output_pause(obs_output_t *output, bool pause)
 --- @param output obs_output_t*
 --- @param pause bool
 --- @return bool
-obslua.obs_output_pause = function(output, pause) end
+function obslua.obs_output_pause(output, pause) end
 
---- bool obs_output_paused(const obs_output_t *output)
 --- :return: *true* if the output is paused, *false* otherwise
+--- 
+--- C definition: bool obs_output_paused(const obs_output_t *output)
 --- @param output obs_output_t*
 --- @return bool
-obslua.obs_output_paused = function(output) end
+function obslua.obs_output_paused(output) end
 
---- obs_properties_t* obs_output_properties(const obs_output_t *output)
----            obs_properties_t *obs_get_output_properties(const char *id)
 --- Use these functions to get the properties of an output or output
 --- type.  Properties are optionally used (if desired) to automatically
 --- generate user interface widgets to allow users to update settings.
+--- 
 --- :return: The properties list for a specific existing output.  Free
 ---          with :c:func:`obs_properties_destroy()`
+--- 
+--- C definition: obs_properties_t *obs_output_properties(const obs_output_t *output)
 --- @param output obs_output_t*
 --- @return obs_properties_t*
-obslua.obs_output_properties = function(output) end
+function obslua.obs_output_properties(output) end
 
---- bool obs_output_reconnecting(const obs_output_t *output)
 --- :return: *true* if the output is currently reconnecting to a server,
 ---          *false* otherwise
+--- 
+--- C definition: bool obs_output_reconnecting(const obs_output_t *output)
 --- @param output obs_output_t*
 --- @return bool
-obslua.obs_output_reconnecting = function(output) end
+function obslua.obs_output_reconnecting(output) end
 
---- obs_output_release not documented
-obslua.obs_output_release = function() end
+--- Adds/releases a reference to an output.  When the last reference is
+--- released, the output is destroyed.
+--- 
+--- C definition: void obs_output_release(obs_output_t *output)
+--- @param output obs_output_t*
+function obslua.obs_output_release(output) end
 
---- void obs_output_set_audio_conversion(obs_output_t *output, const struct audio_convert_info *conversion)
 --- Optionally sets the audio conversion information.  Only used by raw
 --- outputs.
+--- 
 --- Relevant data types used with this function:
+--- 
 --- .. code:: cpp
+--- 
 --- enum audio_format {
 ---         AUDIO_FORMAT_UNKNOWN,
+--- 
 ---         AUDIO_FORMAT_U8BIT,
 ---         AUDIO_FORMAT_16BIT,
 ---         AUDIO_FORMAT_32BIT,
 ---         AUDIO_FORMAT_FLOAT,
+--- 
 ---         AUDIO_FORMAT_U8BIT_PLANAR,
 ---         AUDIO_FORMAT_16BIT_PLANAR,
 ---         AUDIO_FORMAT_32BIT_PLANAR,
 ---         AUDIO_FORMAT_FLOAT_PLANAR,
+--- };
+--- 
 --- enum speaker_layout {
 ---         SPEAKERS_UNKNOWN,
 ---         SPEAKERS_MONO,
@@ -4410,148 +5437,185 @@ obslua.obs_output_release = function() end
 ---         SPEAKERS_7POINT1,
 ---         SPEAKERS_7POINT1_SURROUND,
 ---         SPEAKERS_SURROUND,
+--- };
+--- 
 --- struct audio_convert_info {
 ---         uint32_t            samples_per_sec;
 ---         enum audio_format   format;
 ---         enum speaker_layout speakers;
+--- };
+--- 
+--- C definition: void obs_output_set_audio_conversion(obs_output_t *output, const struct audio_convert_info *conversion)
 --- @param output obs_output_t*
 --- @param conversion audio_convert_info*
-obslua.obs_output_set_audio_conversion = function(output, conversion) end
+function obslua.obs_output_set_audio_conversion(output, conversion) end
 
---- obs_output_set_audio_encoder not documented
-obslua.obs_output_set_audio_encoder = function() end
+--- Sets the video/audio encoders for an encoded output.
+--- 
+--- :param encoder: The video/audio encoder
+--- :param idx:     The audio encoder index if the output supports
+---                 multiple audio streams at once
+--- 
+--- C definition: void obs_output_set_audio_encoder(obs_output_t *output, obs_encoder_t *encoder, size_t idx)
+--- @param output obs_output_t*
+--- @param encoder obs_encoder_t*
+--- @param idx size_t
+function obslua.obs_output_set_audio_encoder(output, encoder, idx) end
 
---- void obs_output_set_delay(obs_output_t *output, uint32_t delay_sec, uint32_t flags)
 --- Sets the current output delay, in seconds (if the output supports delay)
+--- 
 --- If delay is currently active, it will set the delay value, but will not
 --- affect the current delay, it will only affect the next time the output is
 --- activated.
+--- 
 --- :param delay_sec: Amount to delay the output, in seconds
 --- :param flags:      | Can be 0 or a combination of one of the following values:
 ---                    | OBS_OUTPUT_DELAY_PRESERVE - On reconnection, start where it left of on reconnection.  Note however that this option will consume extra memory to continually increase delay while waiting to reconnect
+--- 
+--- C definition: void obs_output_set_delay(obs_output_t *output, uint32_t delay_sec, uint32_t flags)
 --- @param output obs_output_t*
 --- @param delay_sec uint32_t
 --- @param flags uint32_t
-obslua.obs_output_set_delay = function(output, delay_sec, flags) end
+function obslua.obs_output_set_delay(output, delay_sec, flags) end
 
---- void obs_output_set_last_error(obs_output_t *output, const char *message)
----            const char *obs_output_get_last_error(obs_output_t *output)
 --- Sets/gets the translated error message that is presented to a user in
 --- case of disconnection, inability to connect, etc.
+--- 
+--- C definition: void obs_output_set_last_error(obs_output_t *output, const char *message)
 --- @param output obs_output_t*
 --- @param message char*
-obslua.obs_output_set_last_error = function(output, message) end
+function obslua.obs_output_set_last_error(output, message) end
 
---- void obs_output_set_media(obs_output_t *output, video_t *video, audio_t *audio)
 --- Sets the current video/audio handlers for the output (typically
 --- :c:func:`obs_get_video()` and :c:func:`obs_get_audio()`).  Only used
 --- with raw outputs so they can catch the raw video/audio frames.
+--- 
+--- C definition: void obs_output_set_media(obs_output_t *output, video_t *video, audio_t *audio)
 --- @param output obs_output_t*
 --- @param video video_t*
 --- @param audio audio_t*
-obslua.obs_output_set_media = function(output, video, audio) end
+function obslua.obs_output_set_media(output, video, audio) end
 
---- void obs_output_set_mixer(obs_output_t *output, size_t mixer_idx)
----            size_t obs_output_get_mixer(const obs_output_t *output)
 --- Sets/gets the current audio mixer for non-encoded outputs.  For
 --- multi-track outputs, this would be the equivalent of setting the mask
 --- only for the specified mixer index.
+--- 
+--- C definition: void obs_output_set_mixer(obs_output_t *output, size_t mixer_idx)
 --- @param output obs_output_t*
 --- @param mixer_idx size_t
-obslua.obs_output_set_mixer = function(output, mixer_idx) end
+function obslua.obs_output_set_mixer(output, mixer_idx) end
 
---- void obs_output_set_mixers(obs_output_t *output, size_t mixers)
----            size_t obs_output_get_mixers(const obs_output_t *output)
 --- Sets/gets the current audio mixers (via mask) for non-encoded
 --- multi-track outputs.  If used with single-track outputs, the
 --- single-track output will use either the first set mixer track in the
 --- bitmask, or the first track if none is set in the bitmask.
+--- 
+--- C definition: void obs_output_set_mixers(obs_output_t *output, size_t mixers)
 --- @param output obs_output_t*
 --- @param mixers size_t
-obslua.obs_output_set_mixers = function(output, mixers) end
+function obslua.obs_output_set_mixers(output, mixers) end
 
---- void obs_output_set_preferred_size(obs_output_t *output, uint32_t width, uint32_t height)
 --- Sets the preferred scaled resolution for this output.  Set width and height
 --- to 0 to disable scaling.
+--- 
 --- If this output uses an encoder, it will call obs_encoder_set_scaled_size on
 --- the encoder before the stream is started.  If the encoder is already active,
 --- then this function will trigger a warning and do nothing.
+--- 
+--- C definition: void obs_output_set_preferred_size(obs_output_t *output, uint32_t width, uint32_t height)
 --- @param output obs_output_t*
 --- @param width uint32_t
 --- @param height uint32_t
-obslua.obs_output_set_preferred_size = function(output, width, height) end
+function obslua.obs_output_set_preferred_size(output, width, height) end
 
---- void obs_output_set_reconnect_settings(obs_output_t *output, int retry_count, int retry_sec)
 --- Sets the auto-reconnect settings for outputs that support it.  The
 --- retry time will double on each retry to prevent overloading services.
+--- 
 --- :param retry_count: Maximum retry count.  Set to 0 to disable
 ---                     reconnecting
 --- :param retry_sec:   Starting retry wait duration, in seconds
+--- 
+--- C definition: void obs_output_set_reconnect_settings(obs_output_t *output, int retry_count, int retry_sec)
 --- @param output obs_output_t*
 --- @param retry_count int
 --- @param retry_sec int
-obslua.obs_output_set_reconnect_settings = function(output, retry_count, retry_sec) end
+function obslua.obs_output_set_reconnect_settings(output, retry_count, retry_sec) end
 
---- void obs_output_set_service(obs_output_t *output, obs_service_t *service)
----            obs_service_t *obs_output_get_service(const obs_output_t *output)
 --- Sets/gets the service for outputs that require services (such as RTMP
 --- outputs).  *obs_output_get_service* does not return an incremented
 --- reference.
+--- 
+--- C definition: void obs_output_set_service(obs_output_t *output, obs_service_t *service)
 --- @param output obs_output_t*
 --- @param service obs_service_t*
-obslua.obs_output_set_service = function(output, service) end
+function obslua.obs_output_set_service(output, service) end
 
---- void obs_output_set_video_conversion(obs_output_t *output, const struct video_scale_info *conversion)
 --- Optionally sets the video conversion information.  Only used by raw
 --- outputs.
+--- 
 --- Relevant data types used with this function:
+--- 
 --- .. code:: cpp
+--- 
 --- enum video_format {
 ---         VIDEO_FORMAT_NONE,
+--- 
 ---         /* planar 420 format */
 ---         VIDEO_FORMAT_I420, /* three-plane */
 ---         VIDEO_FORMAT_NV12, /* two-plane, luma and packed chroma */
+--- 
 ---         /* packed 422 formats */
 ---         VIDEO_FORMAT_YVYU,
 ---         VIDEO_FORMAT_YUY2, /* YUYV */
 ---         VIDEO_FORMAT_UYVY,
+--- 
 ---         /* packed uncompressed formats */
 ---         VIDEO_FORMAT_RGBA,
 ---         VIDEO_FORMAT_BGRA,
 ---         VIDEO_FORMAT_BGRX,
 ---         VIDEO_FORMAT_Y800, /* grayscale */
+--- 
 ---         /* planar 4:4:4 */
 ---         VIDEO_FORMAT_I444,
+--- };
+--- 
 --- enum video_colorspace {
 ---         VIDEO_CS_DEFAULT,
 ---         VIDEO_CS_601,
 ---         VIDEO_CS_709,
 ---         VIDEO_CS_SRGB,
+--- };
+--- 
 --- enum video_range_type {
 ---         VIDEO_RANGE_DEFAULT,
 ---         VIDEO_RANGE_PARTIAL,
 ---         VIDEO_RANGE_FULL
+--- };
+--- 
 --- struct video_scale_info {
 ---         enum video_format     format;
 ---         uint32_t              width;
 ---         uint32_t              height;
 ---         enum video_range_type range;
 ---         enum video_colorspace colorspace;
+--- };
+--- 
+--- C definition: void obs_output_set_video_conversion(obs_output_t *output, const struct video_scale_info *conversion)
 --- @param output obs_output_t*
 --- @param conversion video_scale_info*
-obslua.obs_output_set_video_conversion = function(output, conversion) end
+function obslua.obs_output_set_video_conversion(output, conversion) end
 
---- void obs_output_set_video_encoder(obs_output_t *output, obs_encoder_t *encoder)
----            void obs_output_set_audio_encoder(obs_output_t *output, obs_encoder_t *encoder, size_t idx)
 --- Sets the video/audio encoders for an encoded output.
+--- 
 --- :param encoder: The video/audio encoder
 --- :param idx:     The audio encoder index if the output supports
 ---                 multiple audio streams at once
+--- 
+--- C definition: void obs_output_set_video_encoder(obs_output_t *output, obs_encoder_t *encoder)
 --- @param output obs_output_t*
 --- @param encoder obs_encoder_t*
-obslua.obs_output_set_video_encoder = function(output, encoder) end
+function obslua.obs_output_set_video_encoder(output, encoder) end
 
---- void obs_output_signal_stop(obs_output_t *output, int code)
 --- Ends data capture of an output with an output code, indicating that
 --- the output stopped unexpectedly.  This is typically used if for
 --- example the server was disconnected for some reason, or if there was
@@ -4559,9 +5623,11 @@ obslua.obs_output_set_video_encoder = function(output, encoder) end
 --- with the the desired code to indicate that the output has stopped
 --- successfully.  See :ref:`output_signal_handler_reference` for more
 --- information on output signals.
+--- 
 --- :c:func:`obs_output_set_last_error()` may be used in conjunction with
 --- these error codes to optionally relay more detailed error information
 --- to the user
+--- 
 --- :param code: | Can be one of the following values:
 ---              | OBS_OUTPUT_SUCCESS        - Successfully stopped
 ---              | OBS_OUTPUT_BAD_PATH       - The specified path was invalid
@@ -4571,96 +5637,116 @@ obslua.obs_output_set_video_encoder = function(output, encoder) end
 ---              | OBS_OUTPUT_DISCONNECTED   - Unexpectedly disconnected
 ---              | OBS_OUTPUT_UNSUPPORTED    - The settings, video/audio format, or codecs are unsupported by this output
 ---              | OBS_OUTPUT_NO_SPACE       - Ran out of disk space
+--- 
+--- C definition: void obs_output_signal_stop(obs_output_t *output, int code)
 --- @param output obs_output_t*
 --- @param code int
-obslua.obs_output_signal_stop = function(output, code) end
+function obslua.obs_output_signal_stop(output, code) end
 
---- bool obs_output_start(obs_output_t *output)
 --- Starts the output.
+--- 
 --- :return: *true* if output successfully started, *false* otherwise.  If
 ---          the output failed to start,
 ---          :c:func:`obs_output_get_last_error()` may contain a specific
 ---          error string related to the reason
+--- 
+--- C definition: bool obs_output_start(obs_output_t *output)
 --- @param output obs_output_t*
 --- @return bool
-obslua.obs_output_start = function(output) end
+function obslua.obs_output_start(output) end
 
---- void obs_output_stop(obs_output_t *output)
 --- Requests the output to stop.  The output will wait until all data is
 --- sent up until the time the call was made, then when the output has
 --- successfully stopped, it will send the "stop" signal.  See
 --- :ref:`output_signal_handler_reference` for more information on output
 --- signals.
+--- 
+--- C definition: void obs_output_stop(obs_output_t *output)
 --- @param output obs_output_t*
-obslua.obs_output_stop = function(output) end
+function obslua.obs_output_stop(output) end
 
---- void obs_output_update(obs_output_t *output, obs_data_t *settings)
 --- Updates the settings for this output context.
+--- 
+--- C definition: void obs_output_update(obs_output_t *output, obs_data_t *settings)
 --- @param output obs_output_t*
 --- @param settings obs_data_t*
-obslua.obs_output_update = function(output, settings) end
+function obslua.obs_output_update(output, settings) end
 
---- void obs_post_load_modules(void)
 --- Notifies modules that all modules have been loaded.
-obslua.obs_post_load_modules = function() end
+--- 
+--- C definition: void obs_post_load_modules(void)
+function obslua.obs_post_load_modules() end
 
---- obs_property_t* obs_properties_add_bool(obs_properties_t *props, const char *name, const char *description)
 --- Adds a boolean property.
+--- 
 --- :param    name:        Setting identifier string
 --- :param    description: Localized name shown to user
 --- :return:               The property
+--- 
+--- C definition: obs_property_t *obs_properties_add_bool(obs_properties_t *props, const char *name, const char *description)
 --- @param props obs_properties_t*
 --- @param name char*
 --- @param description char*
 --- @return obs_property_t*
-obslua.obs_properties_add_bool = function(props, name, description) end
+function obslua.obs_properties_add_bool(props, name, description) end
 
---- obs_property_t* obs_properties_add_button(obs_properties_t *props, const char *name, const char *text, obs_property_clicked_t callback)
 --- Adds a button property.  This property does not actually store any
 --- settings; it's used to implement a button in user interface if the
 --- properties are used to generate user interface.
+--- 
 --- :param    name:        Setting identifier string
 --- :param    description: Localized name shown to user
 --- :return:               The property
+--- 
 --- Relevant data types used with this function:
+--- 
 --- .. code:: cpp
+--- 
 --- typedef bool (*obs_property_clicked_t)(obs_properties_t *props,
 ---                 obs_property_t *property, void *data);
+--- 
+--- C definition: obs_property_t *obs_properties_add_button(obs_properties_t *props, const char *name, const char *text, obs_property_clicked_t callback)
 --- @param props obs_properties_t*
 --- @param name char*
 --- @param text char*
 --- @param callback obs_property_clicked_t
 --- @return obs_property_t*
-obslua.obs_properties_add_button = function(props, name, text, callback) end
+function obslua.obs_properties_add_button(props, name, text, callback) end
 
 --- obs_properties_add_button2 not documented
 obslua.obs_properties_add_button2 = function() end
 
---- obs_property_t* obs_properties_add_color(obs_properties_t *props, const char *name, const char *description)
 --- Adds a color property.
+--- 
 --- :param    name:        Setting identifier string
 --- :param    description: Localized name shown to user
 --- :return:               The property
+--- 
+--- C definition: obs_property_t *obs_properties_add_color(obs_properties_t *props, const char *name, const char *description)
 --- @param props obs_properties_t*
 --- @param name char*
 --- @param description char*
 --- @return obs_property_t*
-obslua.obs_properties_add_color = function(props, name, description) end
+function obslua.obs_properties_add_color(props, name, description) end
 
---- obs_property_t* obs_properties_add_editable_list(obs_properties_t *props, const char *name, const char *description, enum obs_editable_list_type type, const char *filter, const char *default_path)
 --- Adds a list in which the user can add/insert/remove items.
+--- 
 --- :param    name:         Setting identifier string
 --- :param    description:  Localized name shown to user
 --- :param    type:         Can be one of the following values:
+--- 
 ---                         - **OBS_EDITABLE_LIST_TYPE_STRINGS** - An
 ---                           editable list of strings.
 ---                         - **OBS_EDITABLE_LIST_TYPE_FILES** - An
 ---                           editable list of files.
 ---                         - **OBS_EDITABLE_LIST_TYPE_FILES_AND_URLS** -
 ---                           An editable list of files and URLs.
+--- 
 --- :param    filter:       File filter to use if a file list
 --- :param    default_path: Default path if a file list
 --- :return:                The property
+--- 
+--- C definition: obs_property_t *obs_properties_add_editable_list(obs_properties_t *props, const char *name, const char *description, enum obs_editable_list_type type, const char *filter, const char *default_path)
 --- @param props obs_properties_t*
 --- @param name char*
 --- @param description char*
@@ -4668,15 +5754,16 @@ obslua.obs_properties_add_color = function(props, name, description) end
 --- @param filter char*
 --- @param default_path char*
 --- @return obs_property_t*
-obslua.obs_properties_add_editable_list = function(props, name, description, type, filter, default_path) end
+function obslua.obs_properties_add_editable_list(props, name, description, type, filter, default_path) end
 
---- obs_property_t* obs_properties_add_float(obs_properties_t *props, const char *name, const char *description, double min, double max, double step)
 --- :param    name:        Setting identifier string
 --- :param    description: Localized name shown to user
 --- :param    min:         Minimum value
 --- :param    max:         Maximum value
 --- :param    step:        Step value
 --- :return:               The property
+--- 
+--- C definition: obs_property_t *obs_properties_add_float(obs_properties_t *props, const char *name, const char *description, double min, double max, double step)
 --- @param props obs_properties_t*
 --- @param name char*
 --- @param description char*
@@ -4684,15 +5771,16 @@ obslua.obs_properties_add_editable_list = function(props, name, description, typ
 --- @param max double
 --- @param step double
 --- @return obs_property_t*
-obslua.obs_properties_add_float = function(props, name, description, min, max, step) end
+function obslua.obs_properties_add_float(props, name, description, min, max, step) end
 
---- obs_property_t* obs_properties_add_float_slider(obs_properties_t *props, const char *name, const char *description, double min, double max, double step)
 --- :param    name:        Setting identifier string
 --- :param    description: Localized name shown to user
 --- :param    min:         Minimum value
 --- :param    max:         Maximum value
 --- :param    step:        Step value
 --- :return:               The property
+--- 
+--- C definition: obs_property_t *obs_properties_add_float_slider(obs_properties_t *props, const char *name, const char *description, double min, double max, double step)
 --- @param props obs_properties_t*
 --- @param name char*
 --- @param description char*
@@ -4700,65 +5788,79 @@ obslua.obs_properties_add_float = function(props, name, description, min, max, s
 --- @param max double
 --- @param step double
 --- @return obs_property_t*
-obslua.obs_properties_add_float_slider = function(props, name, description, min, max, step) end
+function obslua.obs_properties_add_float_slider(props, name, description, min, max, step) end
 
---- obs_property_t* obs_properties_add_font(obs_properties_t *props, const char *name, const char *description)
 --- Adds a font property.
+--- 
 --- :param    name:        Setting identifier string
 --- :param    description: Localized name shown to user
 --- :return:               The property
+--- 
+--- C definition: obs_property_t *obs_properties_add_font(obs_properties_t *props, const char *name, const char *description)
 --- @param props obs_properties_t*
 --- @param name char*
 --- @param description char*
 --- @return obs_property_t*
-obslua.obs_properties_add_font = function(props, name, description) end
+function obslua.obs_properties_add_font(props, name, description) end
 
---- obs_property_t* obs_properties_add_frame_rate(obs_properties_t *props, const char *name, const char *description)
 --- Adds a frame rate property.
+--- 
 --- :param    name:        Setting identifier string
 --- :param    description: Localized name shown to user
 --- :return:               The property
+--- 
 --- Important Related Functions:
+--- 
 --- - :c:func:`obs_property_frame_rate_option_add`
 --- - :c:func:`obs_property_frame_rate_fps_range_add`
 --- - :c:func:`obs_property_frame_rate_option_insert`
 --- - :c:func:`obs_property_frame_rate_fps_range_insert`
+--- 
+--- C definition: obs_property_t *obs_properties_add_frame_rate(obs_properties_t *props, const char *name, const char *description)
 --- @param props obs_properties_t*
 --- @param name char*
 --- @param description char*
 --- @return obs_property_t*
-obslua.obs_properties_add_frame_rate = function(props, name, description) end
+function obslua.obs_properties_add_frame_rate(props, name, description) end
 
---- obs_property_t* obs_properties_add_group(obs_properties_t *props, const char *name, const char *description, enum obs_group_type type, obs_properties_t *group)
 --- Adds a property group.
+--- 
 --- :param    name:        Setting identifier string
 --- :param    description: Localized name shown to user
 --- :param    type:        Can be one of the following values:
+--- 
 ---                        - **OBS_GROUP_NORMAL** - A normal group with just a name and content.
 ---                        - **OBS_GROUP_CHECKABLE** - A checkable group with a checkbox, name and content.
+--- 
 --- :param    group:       Group to add
+--- 
 --- :return:               The property
+--- 
 --- Important Related Functions:
+--- 
 --- - :c:func:`obs_property_group_type`
 --- - :c:func:`obs_property_group_content`
 --- - :c:func:`obs_properties_get_parent`
---- Property Enumeration Functions
+--- 
+--- C definition: obs_property_t *obs_properties_add_group(obs_properties_t *props, const char *name, const char *description, enum obs_group_type type, obs_properties_t *group)
 --- @param props obs_properties_t*
 --- @param name char*
 --- @param description char*
 --- @param type obs_group_type
 --- @param group obs_properties_t*
 --- @return obs_property_t*
-obslua.obs_properties_add_group = function(props, name, description, type, group) end
+function obslua.obs_properties_add_group(props, name, description, type, group) end
 
---- obs_property_t* obs_properties_add_int(obs_properties_t *props, const char *name, const char *description, int min, int max, int step)
 --- Adds an integer property.
+--- 
 --- :param    name:        Setting identifier string
 --- :param    description: Localized name shown to user
 --- :param    min:         Minimum value
 --- :param    max:         Maximum value
 --- :param    step:        Step value
 --- :return:               The property
+--- 
+--- C definition: obs_property_t *obs_properties_add_int(obs_properties_t *props, const char *name, const char *description, int min, int max, int step)
 --- @param props obs_properties_t*
 --- @param name char*
 --- @param description char*
@@ -4766,15 +5868,16 @@ obslua.obs_properties_add_group = function(props, name, description, type, group
 --- @param max int
 --- @param step int
 --- @return obs_property_t*
-obslua.obs_properties_add_int = function(props, name, description, min, max, step) end
+function obslua.obs_properties_add_int(props, name, description, min, max, step) end
 
---- obs_property_t* obs_properties_add_int_slider(obs_properties_t *props, const char *name, const char *description, int min, int max, int step)
 --- :param    name:        Setting identifier string
 --- :param    description: Localized name shown to user
 --- :param    min:         Minimum value
 --- :param    max:         Maximum value
 --- :param    step:        Step value
 --- :return:               The property
+--- 
+--- C definition: obs_property_t *obs_properties_add_int_slider(obs_properties_t *props, const char *name, const char *description, int min, int max, int step)
 --- @param props obs_properties_t*
 --- @param name char*
 --- @param description char*
@@ -4782,24 +5885,30 @@ obslua.obs_properties_add_int = function(props, name, description, min, max, ste
 --- @param max int
 --- @param step int
 --- @return obs_property_t*
-obslua.obs_properties_add_int_slider = function(props, name, description, min, max, step) end
+function obslua.obs_properties_add_int_slider(props, name, description, min, max, step) end
 
---- obs_property_t* obs_properties_add_list(obs_properties_t *props, const char *name, const char *description, enum obs_combo_type type, enum obs_combo_format format)
 --- Adds an integer/string/floating point item list.  This would be
 --- implemented as a combo box in user interface.
+--- 
 --- :param    name:        Setting identifier string
 --- :param    description: Localized name shown to user
 --- :param    type:        Can be one of the following values:
+--- 
 ---                        - **OBS_COMBO_TYPE_EDITABLE** - Can be edited.
 ---                          Only used with string lists.
 ---                        - **OBS_COMBO_TYPE_LIST** - Not editable.
+--- 
 --- :param    format:      Can be one of the following values:
+--- 
 ---                        - **OBS_COMBO_FORMAT_INT** - Integer list
 ---                        - **OBS_COMBO_FORMAT_FLOAT** - Floating point
 ---                          list
 ---                        - **OBS_COMBO_FORMAT_STRING** - String list
+--- 
 --- :return:               The property
+--- 
 --- Important Related Functions:
+--- 
 --- - :c:func:`obs_property_list_add_string`
 --- - :c:func:`obs_property_list_add_int`
 --- - :c:func:`obs_property_list_add_float`
@@ -4808,31 +5917,39 @@ obslua.obs_properties_add_int_slider = function(props, name, description, min, m
 --- - :c:func:`obs_property_list_insert_float`
 --- - :c:func:`obs_property_list_item_remove`
 --- - :c:func:`obs_property_list_clear`
+--- 
+--- C definition: obs_property_t *obs_properties_add_list(obs_properties_t *props, const char *name, const char *description, enum obs_combo_type type, enum obs_combo_format format)
 --- @param props obs_properties_t*
 --- @param name char*
 --- @param description char*
 --- @param type obs_combo_type
 --- @param format obs_combo_format
 --- @return obs_property_t*
-obslua.obs_properties_add_list = function(props, name, description, type, format) end
+function obslua.obs_properties_add_list(props, name, description, type, format) end
 
---- obs_property_t* obs_properties_add_path(obs_properties_t *props, const char *name, const char *description, enum obs_path_type type, const char *filter, const char *default_path)
 --- Adds a 'path' property.  Can be a directory or a file.
+--- 
 --- If target is a file path, the filters should be this format, separated by
 --- double semi-colens, and extensions separated by space::
+--- 
 ---   "Example types 1 and 2 (*.ex1 *.ex2);;Example type 3 (*.ex3)"
+--- 
 --- :param    name:         Setting identifier string
 --- :param    description:  Localized name shown to user
 --- :param    type:         Can be one of the following values:
+--- 
 ---                         - **OBS_PATH_FILE** - File (for reading)
 ---                         - **OBS_PATH_FILE_SAVE** - File (for writing)
 ---                         - **OBS_PATH_DIRECTORY** - Directory
+--- 
 --- :param    filter:       If type is a file path, then describes the file filter
 ---                         that the user can browse.  Items are separated via
 ---                         double semi-colens.  If multiple file types in a
 ---                         filter, separate with space.
 --- :param    default_path: The default path to start in, or *NULL*
 --- :return:                The property
+--- 
+--- C definition: obs_property_t *obs_properties_add_path(obs_properties_t *props, const char *name, const char *description, enum obs_path_type type, const char *filter, const char *default_path)
 --- @param props obs_properties_t*
 --- @param name char*
 --- @param description char*
@@ -4840,408 +5957,555 @@ obslua.obs_properties_add_list = function(props, name, description, type, format
 --- @param filter char*
 --- @param default_path char*
 --- @return obs_property_t*
-obslua.obs_properties_add_path = function(props, name, description, type, filter, default_path) end
+function obslua.obs_properties_add_path(props, name, description, type, filter, default_path) end
 
---- obs_property_t* obs_properties_add_text(obs_properties_t *props, const char *name, const char *description, enum obs_text_type type)
 --- :param    name:        Setting identifier string
 --- :param    description: Localized name shown to user
 --- :param    type:        Can be one of the following values:
+--- 
 ---                        - **OBS_TEXT_DEFAULT** - Single line of text
 ---                        - **OBS_TEXT_PASSWORD** - Single line of text (passworded)
 ---                        - **OBS_TEXT_MULTILINE** - Multi-line text
+--- 
 --- :return:               The property
+--- 
+--- C definition: obs_property_t *obs_properties_add_text(obs_properties_t *props, const char *name, const char *description, enum obs_text_type type)
 --- @param props obs_properties_t*
 --- @param name char*
 --- @param description char*
 --- @param type obs_text_type
 --- @return obs_property_t*
-obslua.obs_properties_add_text = function(props, name, description, type) end
+function obslua.obs_properties_add_text(props, name, description, type) end
 
---- void obs_properties_apply_settings(obs_properties_t *props, obs_data_t *settings)
 --- Applies settings to the properties by calling all the necessary
 --- modification callbacks
+--- 
+--- C definition: void obs_properties_apply_settings(obs_properties_t *props, obs_data_t *settings)
 --- @param props obs_properties_t*
 --- @param settings obs_data_t*
-obslua.obs_properties_apply_settings = function(props, settings) end
+function obslua.obs_properties_apply_settings(props, settings) end
 
---- obs_properties_t* obs_properties_create(void)
 --- :return: A new properties object.
+--- 
+--- C definition: obs_properties_t *obs_properties_create(void)
 --- @return obs_properties_t*
-obslua.obs_properties_create = function() end
+function obslua.obs_properties_create() end
 
---- obs_properties_create_param not documented
-obslua.obs_properties_create_param = function() end
+--- Creates a new properties object with specific private data *param*
+--- associated with the object, and is automatically freed with the
+--- object when the properties are destroyed via the *destroy* function.
+--- 
+--- :return: A new properties object.
+--- 
+--- C definition: obs_properties_t *obs_properties_create_param(void *param, void (*destroy)(void *param))
+--- @param param void*
+--- @param ( void
+--- @return obs_properties_t*
+function obslua.obs_properties_create_param(param, () end
 
---- void obs_properties_destroy(obs_properties_t *props)
+--- C definition: void obs_properties_destroy(obs_properties_t *props)
 --- @param props obs_properties_t*
-obslua.obs_properties_destroy = function(props) end
+function obslua.obs_properties_destroy(props) end
 
---- obs_property_t* obs_properties_first(obs_properties_t *props)
 --- :return: The first property in the properties object.
+--- 
+--- C definition: obs_property_t *obs_properties_first(obs_properties_t *props)
 --- @param props obs_properties_t*
 --- @return obs_property_t*
-obslua.obs_properties_first = function(props) end
+function obslua.obs_properties_first(props) end
 
---- obs_property_t* obs_properties_get(obs_properties_t *props, const char *property)
 --- :param property: The name of the property to get
 --- :return:         A specific property or *NULL* if not found
+--- 
+--- C definition: obs_property_t *obs_properties_get(obs_properties_t *props, const char *property)
 --- @param props obs_properties_t*
 --- @param property char*
 --- @return obs_property_t*
-obslua.obs_properties_get = function(props, property) end
+function obslua.obs_properties_get(props, property) end
 
---- obs_properties_get_flags not documented
-obslua.obs_properties_get_flags = function() end
-
---- obs_properties_get_param not documented
-obslua.obs_properties_get_param = function() end
-
---- obs_properties_t* obs_properties_get_parent(obs_properties_t *props)
---- Property Object Functions
---- @param props obs_properties_t*
---- @return obs_properties_t*
-obslua.obs_properties_get_parent = function(props) end
-
---- obs_properties_remove_by_name not documented
-obslua.obs_properties_remove_by_name = function() end
-
---- void obs_properties_set_flags(obs_properties_t *props, uint32_t flags)
----            uint32_t obs_properties_get_flags(obs_properties_t *props)
 --- :param flags: 0 or a bitwise OR combination of one of the following
 ---               values:
+--- 
 ---               - OBS_PROPERTIES_DEFER_UPDATE - A hint that tells the
 ---                 front-end to defers updating the settings until the
 ---                 user has finished editing all properties rather than
 ---                 immediately updating any settings
+--- 
+--- C definition: uint32_t obs_properties_get_flags(obs_properties_t *props)
+--- @param props obs_properties_t*
+--- @return uint32_t
+function obslua.obs_properties_get_flags(props) end
+
+--- Sets custom data associated with this properties object.  If private
+--- data is already associated with the object, that private data will be
+--- destroyed before assigning new private data to it.
+--- 
+--- C definition: void *obs_properties_get_param(obs_properties_t *props)
+--- @param props obs_properties_t*
+--- @return void*
+function obslua.obs_properties_get_param(props) end
+
+--- C definition: obs_properties_t *obs_properties_get_parent(obs_properties_t *props)
+--- @param props obs_properties_t*
+--- @return obs_properties_t*
+function obslua.obs_properties_get_parent(props) end
+
+--- obs_properties_remove_by_name not documented
+obslua.obs_properties_remove_by_name = function() end
+
+--- :param flags: 0 or a bitwise OR combination of one of the following
+---               values:
+--- 
+---               - OBS_PROPERTIES_DEFER_UPDATE - A hint that tells the
+---                 front-end to defers updating the settings until the
+---                 user has finished editing all properties rather than
+---                 immediately updating any settings
+--- 
+--- C definition: void obs_properties_set_flags(obs_properties_t *props, uint32_t flags)
 --- @param props obs_properties_t*
 --- @param flags uint32_t
-obslua.obs_properties_set_flags = function(props, flags) end
+function obslua.obs_properties_set_flags(props, flags) end
 
---- obs_properties_set_param not documented
-obslua.obs_properties_set_param = function() end
+--- Sets custom data associated with this properties object.  If private
+--- data is already associated with the object, that private data will be
+--- destroyed before assigning new private data to it.
+--- 
+--- C definition: void obs_properties_set_param(obs_properties_t *props, void *param, void (*destroy)(void *param))
+--- @param props obs_properties_t*
+--- @param param void*
+--- @param ( void
+function obslua.obs_properties_set_param(props, param, () end
 
---- bool obs_property_button_clicked(obs_property_t *p, void *obj)
+--- C definition: bool obs_property_button_clicked(obs_property_t *p, void *obj)
 --- @param p obs_property_t*
 --- @param obj void*
 --- @return bool
-obslua.obs_property_button_clicked = function(p, obj) end
+function obslua.obs_property_button_clicked(p, obj) end
 
---- obs_property_description not documented
-obslua.obs_property_description = function() end
-
---- obs_property_editable_list_default_path not documented
-obslua.obs_property_editable_list_default_path = function() end
-
---- obs_property_editable_list_filter not documented
-obslua.obs_property_editable_list_filter = function() end
-
---- obs_property_editable_list_type not documented
-obslua.obs_property_editable_list_type = function() end
-
---- bool obs_property_enabled(obs_property_t *p)
+--- :return: The actual localized display name of the property
+--- 
+--- *(Author's note: This one should have been the "name")*
+--- 
+--- C definition: const char *           obs_property_description(obs_property_t *p)
 --- @param p obs_property_t*
---- @return bool
-obslua.obs_property_enabled = function(p) end
+--- @return 
+function obslua.obs_property_description(p) end
 
---- double obs_property_float_max(obs_property_t *p)
+--- C definition: const char *obs_property_editable_list_default_path(obs_property_t *p)
 --- @param p obs_property_t*
---- @return double
-obslua.obs_property_float_max = function(p) end
+--- @return char*
+function obslua.obs_property_editable_list_default_path(p) end
 
---- double obs_property_float_min(obs_property_t *p)
+--- C definition: const char *obs_property_editable_list_filter(obs_property_t *p)
 --- @param p obs_property_t*
---- @return double
-obslua.obs_property_float_min = function(p) end
+--- @return char*
+function obslua.obs_property_editable_list_filter(p) end
 
---- void obs_property_float_set_limits(obs_property_t *p, double min, double max, double step)
+--- C definition: enum obs_editable_list_type obs_property_editable_list_type(obs_property_t *p)
+--- @param p obs_property_t*
+--- @return obs_editable_list_type
+function obslua.obs_property_editable_list_type(p) end
+
+--- C definition: bool                   obs_property_enabled(obs_property_t *p)
+--- @param p obs_property_t*
+--- @return 
+function obslua.obs_property_enabled(p) end
+
+--- C definition: double                 obs_property_float_max(obs_property_t *p)
+--- @param p obs_property_t*
+--- @return 
+function obslua.obs_property_float_max(p) end
+
+--- C definition: double                 obs_property_float_min(obs_property_t *p)
+--- @param p obs_property_t*
+--- @return 
+function obslua.obs_property_float_min(p) end
+
+--- C definition: void obs_property_float_set_limits(obs_property_t *p, double min, double max, double step)
 --- @param p obs_property_t*
 --- @param min double
 --- @param max double
 --- @param step double
-obslua.obs_property_float_set_limits = function(p, min, max, step) end
+function obslua.obs_property_float_set_limits(p, min, max, step) end
 
 --- obs_property_float_set_suffix not documented
 obslua.obs_property_float_set_suffix = function() end
 
---- double obs_property_float_step(obs_property_t *p)
+--- C definition: double                 obs_property_float_step(obs_property_t *p)
 --- @param p obs_property_t*
---- @return double
-obslua.obs_property_float_step = function(p) end
+--- @return 
+function obslua.obs_property_float_step(p) end
 
 --- obs_property_float_suffix not documented
 obslua.obs_property_float_suffix = function() end
 
---- obs_property_float_type not documented
-obslua.obs_property_float_type = function() end
-
---- void obs_property_frame_rate_clear(obs_property_t *p)
+--- C definition: enum obs_number_type   obs_property_float_type(obs_property_t *p)
 --- @param p obs_property_t*
-obslua.obs_property_frame_rate_clear = function(p) end
+--- @return 
+function obslua.obs_property_float_type(p) end
 
---- size_t obs_property_frame_rate_fps_range_add(obs_property_t *p, struct media_frames_per_second min, struct media_frames_per_second max)
+--- C definition: void obs_property_frame_rate_clear(obs_property_t *p)
+--- @param p obs_property_t*
+function obslua.obs_property_frame_rate_clear(p) end
+
+--- C definition: size_t obs_property_frame_rate_fps_range_add(obs_property_t *p, struct media_frames_per_second min, struct media_frames_per_second max)
 --- @param p obs_property_t*
 --- @param min media_frames_per_second
 --- @param max media_frames_per_second
 --- @return size_t
-obslua.obs_property_frame_rate_fps_range_add = function(p, min, max) end
+function obslua.obs_property_frame_rate_fps_range_add(p, min, max) end
 
---- void obs_property_frame_rate_fps_range_insert(obs_property_t *p, size_t idx, struct media_frames_per_second min, struct media_frames_per_second max)
+--- obs_property_frame_rate_fps_range_insert not documented
+obslua.obs_property_frame_rate_fps_range_insert = function() end
+
+--- C definition: struct media_frames_per_second obs_property_frame_rate_fps_range_max( obs_property_t *p, size_t idx)
 --- @param p obs_property_t*
 --- @param idx size_t
---- @param min media_frames_per_second
---- @param max media_frames_per_second
-obslua.obs_property_frame_rate_fps_range_insert = function(p, idx, min, max) end
+--- @return media_frames_per_second
+function obslua.obs_property_frame_rate_fps_range_max(p, idx) end
 
---- obs_property_frame_rate_fps_range_max not documented
-obslua.obs_property_frame_rate_fps_range_max = function() end
-
---- obs_property_frame_rate_fps_range_min not documented
-obslua.obs_property_frame_rate_fps_range_min = function() end
-
---- void obs_property_frame_rate_fps_ranges_clear(obs_property_t *p)
+--- C definition: struct media_frames_per_second obs_property_frame_rate_fps_range_min( obs_property_t *p, size_t idx)
 --- @param p obs_property_t*
-obslua.obs_property_frame_rate_fps_ranges_clear = function(p) end
+--- @param idx size_t
+--- @return media_frames_per_second
+function obslua.obs_property_frame_rate_fps_range_min(p, idx) end
 
---- size_t obs_property_frame_rate_fps_ranges_count(obs_property_t *p)
+--- C definition: void obs_property_frame_rate_fps_ranges_clear(obs_property_t *p)
 --- @param p obs_property_t*
---- @return size_t
-obslua.obs_property_frame_rate_fps_ranges_count = function(p) end
+function obslua.obs_property_frame_rate_fps_ranges_clear(p) end
 
---- size_t obs_property_frame_rate_option_add(obs_property_t *p, const char *name, const char *description)
+--- C definition: size_t      obs_property_frame_rate_fps_ranges_count(obs_property_t *p)
+--- @param p obs_property_t*
+--- @return 
+function obslua.obs_property_frame_rate_fps_ranges_count(p) end
+
+--- C definition: size_t obs_property_frame_rate_option_add(obs_property_t *p, const char *name, const char *description)
 --- @param p obs_property_t*
 --- @param name char*
 --- @param description char*
 --- @return size_t
-obslua.obs_property_frame_rate_option_add = function(p, name, description) end
+function obslua.obs_property_frame_rate_option_add(p, name, description) end
 
---- obs_property_frame_rate_option_description not documented
-obslua.obs_property_frame_rate_option_description = function() end
+--- C definition: const char *obs_property_frame_rate_option_description( obs_property_t *p, size_t idx)
+--- @param p obs_property_t*
+--- @param idx size_t
+--- @return char*
+function obslua.obs_property_frame_rate_option_description(p, idx) end
 
---- void obs_property_frame_rate_option_insert(obs_property_t *p, size_t idx, const char *name, const char *description)
+--- C definition: void obs_property_frame_rate_option_insert(obs_property_t *p, size_t idx, const char *name, const char *description)
 --- @param p obs_property_t*
 --- @param idx size_t
 --- @param name char*
 --- @param description char*
-obslua.obs_property_frame_rate_option_insert = function(p, idx, name, description) end
+function obslua.obs_property_frame_rate_option_insert(p, idx, name, description) end
 
---- obs_property_frame_rate_option_name not documented
-obslua.obs_property_frame_rate_option_name = function() end
-
---- void obs_property_frame_rate_options_clear(obs_property_t *p)
+--- C definition: const char *obs_property_frame_rate_option_name(obs_property_t *p, size_t idx)
 --- @param p obs_property_t*
-obslua.obs_property_frame_rate_options_clear = function(p) end
+--- @param idx size_t
+--- @return char*
+function obslua.obs_property_frame_rate_option_name(p, idx) end
 
---- size_t obs_property_frame_rate_options_count(obs_property_t *p)
+--- C definition: void obs_property_frame_rate_options_clear(obs_property_t *p)
 --- @param p obs_property_t*
---- @return size_t
-obslua.obs_property_frame_rate_options_count = function(p) end
+function obslua.obs_property_frame_rate_options_clear(p) end
 
---- obs_property_get_type not documented
-obslua.obs_property_get_type = function() end
+--- C definition: size_t      obs_property_frame_rate_options_count(obs_property_t *p)
+--- @param p obs_property_t*
+--- @return 
+function obslua.obs_property_frame_rate_options_count(p) end
 
---- obs_properties_t* obs_property_group_content(obs_property_t *p)
---- Property Modification Functions
+--- :return: One of the following values:
+--- 
+---          - OBS_PROPERTY_INVALID
+---          - OBS_PROPERTY_BOOL
+---          - OBS_PROPERTY_INT
+---          - OBS_PROPERTY_FLOAT
+---          - OBS_PROPERTY_TEXT
+---          - OBS_PROPERTY_PATH
+---          - OBS_PROPERTY_LIST
+---          - OBS_PROPERTY_COLOR
+---          - OBS_PROPERTY_BUTTON
+---          - OBS_PROPERTY_FONT
+---          - OBS_PROPERTY_EDITABLE_LIST
+---          - OBS_PROPERTY_FRAME_RATE
+---          - OBS_PROPERTY_GROUP
+--- 
+--- C definition: enum obs_property_type obs_property_get_type(obs_property_t *p)
+--- @param p obs_property_t*
+--- @return obs_property_type
+function obslua.obs_property_get_type(p) end
+
+--- C definition: obs_properties_t *obs_property_group_content(obs_property_t *p)
 --- @param p obs_property_t*
 --- @return obs_properties_t*
-obslua.obs_property_group_content = function(p) end
+function obslua.obs_property_group_content(p) end
 
---- obs_property_group_type not documented
-obslua.obs_property_group_type = function() end
-
---- int obs_property_int_max(obs_property_t *p)
+---   :return: One of the following values:
+--- 
+---          - OBS_COMBO_INVALID
+---          - OBS_GROUP_NORMAL
+---          - OBS_GROUP_CHECKABLE
+--- 
+--- C definition: enum obs_group_type obs_property_group_type(obs_property_t *p)
 --- @param p obs_property_t*
---- @return int
-obslua.obs_property_int_max = function(p) end
+--- @return obs_group_type
+function obslua.obs_property_group_type(p) end
 
---- int obs_property_int_min(obs_property_t *p)
+--- C definition: int                    obs_property_int_max(obs_property_t *p)
 --- @param p obs_property_t*
---- @return int
-obslua.obs_property_int_min = function(p) end
+--- @return 
+function obslua.obs_property_int_max(p) end
 
---- void obs_property_int_set_limits(obs_property_t *p, int min, int max, int step)
+--- C definition: int                    obs_property_int_min(obs_property_t *p)
+--- @param p obs_property_t*
+--- @return 
+function obslua.obs_property_int_min(p) end
+
+--- C definition: void obs_property_int_set_limits(obs_property_t *p, int min, int max, int step)
 --- @param p obs_property_t*
 --- @param min int
 --- @param max int
 --- @param step int
-obslua.obs_property_int_set_limits = function(p, min, max, step) end
+function obslua.obs_property_int_set_limits(p, min, max, step) end
 
 --- obs_property_int_set_suffix not documented
 obslua.obs_property_int_set_suffix = function() end
 
---- int obs_property_int_step(obs_property_t *p)
+--- C definition: int                    obs_property_int_step(obs_property_t *p)
 --- @param p obs_property_t*
---- @return int
-obslua.obs_property_int_step = function(p) end
+--- @return 
+function obslua.obs_property_int_step(p) end
 
 --- obs_property_int_suffix not documented
 obslua.obs_property_int_suffix = function() end
 
---- obs_property_int_type not documented
-obslua.obs_property_int_type = function() end
+--- C definition: enum obs_number_type   obs_property_int_type(obs_property_t *p)
+--- @param p obs_property_t*
+--- @return 
+function obslua.obs_property_int_type(p) end
 
---- size_t obs_property_list_add_float(obs_property_t *p, const char *name, double val)
 --- Adds a floating point to a floating point list.
+--- 
+--- C definition: size_t obs_property_list_add_float(obs_property_t *p, const char *name, double val)
 --- @param p obs_property_t*
 --- @param name char*
 --- @param val double
 --- @return size_t
-obslua.obs_property_list_add_float = function(p, name, val) end
+function obslua.obs_property_list_add_float(p, name, val) end
 
---- size_t obs_property_list_add_int(obs_property_t *p, const char *name, long long val)
 --- Adds an integer to a integer list.
+--- 
+--- C definition: size_t obs_property_list_add_int(obs_property_t *p, const char *name, long long val)
 --- @param p obs_property_t*
 --- @param name char*
 --- @param val longlong
 --- @return size_t
-obslua.obs_property_list_add_int = function(p, name, val) end
+function obslua.obs_property_list_add_int(p, name, val) end
 
---- size_t obs_property_list_add_string(obs_property_t *p, const char *name, const char *val)
 --- Adds a string to a string list.
+--- 
+--- C definition: size_t obs_property_list_add_string(obs_property_t *p, const char *name, const char *val)
 --- @param p obs_property_t*
 --- @param name char*
 --- @param val char*
 --- @return size_t
-obslua.obs_property_list_add_string = function(p, name, val) end
+function obslua.obs_property_list_add_string(p, name, val) end
 
---- void obs_property_list_clear(obs_property_t *p)
+--- C definition: void obs_property_list_clear(obs_property_t *p)
 --- @param p obs_property_t*
-obslua.obs_property_list_clear = function(p) end
+function obslua.obs_property_list_clear(p) end
 
---- obs_property_list_format not documented
-obslua.obs_property_list_format = function() end
+--- C definition: enum obs_combo_format  obs_property_list_format(obs_property_t *p)
+--- @param p obs_property_t*
+--- @return 
+function obslua.obs_property_list_format(p) end
 
---- void obs_property_list_insert_float(obs_property_t *p, size_t idx, const char *name, double val)
 --- Inserts a floating point in to a floating point list.
+--- 
+--- C definition: void obs_property_list_insert_float(obs_property_t *p, size_t idx, const char *name, double val)
 --- @param p obs_property_t*
 --- @param idx size_t
 --- @param name char*
 --- @param val double
-obslua.obs_property_list_insert_float = function(p, idx, name, val) end
+function obslua.obs_property_list_insert_float(p, idx, name, val) end
 
---- void obs_property_list_insert_int(obs_property_t *p, size_t idx, const char *name, long long val)
 --- Inserts an integer in to an integer list.
+--- 
+--- C definition: void obs_property_list_insert_int(obs_property_t *p, size_t idx, const char *name, long long val)
 --- @param p obs_property_t*
 --- @param idx size_t
 --- @param name char*
 --- @param val longlong
-obslua.obs_property_list_insert_int = function(p, idx, name, val) end
+function obslua.obs_property_list_insert_int(p, idx, name, val) end
 
---- void obs_property_list_insert_string(obs_property_t *p, size_t idx, const char *name, const char *val)
 --- Inserts a string in to a string list.
+--- 
+--- C definition: void obs_property_list_insert_string(obs_property_t *p, size_t idx, const char *name, const char *val)
 --- @param p obs_property_t*
 --- @param idx size_t
 --- @param name char*
 --- @param val char*
-obslua.obs_property_list_insert_string = function(p, idx, name, val) end
+function obslua.obs_property_list_insert_string(p, idx, name, val) end
 
---- size_t obs_property_list_item_count(obs_property_t *p)
+--- C definition: size_t      obs_property_list_item_count(obs_property_t *p)
 --- @param p obs_property_t*
---- @return size_t
-obslua.obs_property_list_item_count = function(p) end
+--- @return 
+function obslua.obs_property_list_item_count(p) end
 
---- void obs_property_list_item_disable(obs_property_t *p, size_t idx, bool disabled)
+--- C definition: void obs_property_list_item_disable(obs_property_t *p, size_t idx, bool disabled)
 --- @param p obs_property_t*
 --- @param idx size_t
 --- @param disabled bool
-obslua.obs_property_list_item_disable = function(p, idx, disabled) end
+function obslua.obs_property_list_item_disable(p, idx, disabled) end
 
---- bool obs_property_list_item_disabled(obs_property_t *p, size_t idx)
+--- C definition: bool obs_property_list_item_disabled(obs_property_t *p, size_t idx)
 --- @param p obs_property_t*
 --- @param idx size_t
 --- @return bool
-obslua.obs_property_list_item_disabled = function(p, idx) end
+function obslua.obs_property_list_item_disabled(p, idx) end
 
---- double obs_property_list_item_float(obs_property_t *p, size_t idx)
+--- C definition: double      obs_property_list_item_float(obs_property_t *p, size_t idx)
 --- @param p obs_property_t*
 --- @param idx size_t
---- @return double
-obslua.obs_property_list_item_float = function(p, idx) end
+--- @return 
+function obslua.obs_property_list_item_float(p, idx) end
 
---- obs_property_list_item_int not documented
-obslua.obs_property_list_item_int = function() end
-
---- obs_property_list_item_name not documented
-obslua.obs_property_list_item_name = function() end
-
---- void obs_property_list_item_remove(obs_property_t *p, size_t idx)
+--- C definition: long long   obs_property_list_item_int(obs_property_t *p, size_t idx)
 --- @param p obs_property_t*
 --- @param idx size_t
-obslua.obs_property_list_item_remove = function(p, idx) end
+--- @return 
+function obslua.obs_property_list_item_int(p, idx) end
 
---- obs_property_list_item_string not documented
-obslua.obs_property_list_item_string = function() end
+--- C definition: const char *obs_property_list_item_name(obs_property_t *p, size_t idx)
+--- @param p obs_property_t*
+--- @param idx size_t
+--- @return char*
+function obslua.obs_property_list_item_name(p, idx) end
 
---- obs_property_list_type not documented
-obslua.obs_property_list_type = function() end
+--- C definition: void obs_property_list_item_remove(obs_property_t *p, size_t idx)
+--- @param p obs_property_t*
+--- @param idx size_t
+function obslua.obs_property_list_item_remove(p, idx) end
 
---- obs_property_long_description not documented
-obslua.obs_property_long_description = function() end
+--- C definition: const char *obs_property_list_item_string(obs_property_t *p, size_t idx)
+--- @param p obs_property_t*
+--- @param idx size_t
+--- @return char*
+function obslua.obs_property_list_item_string(p, idx) end
 
---- bool obs_property_modified(obs_property_t *p, obs_data_t *settings)
+--- C definition: enum obs_combo_type    obs_property_list_type(obs_property_t *p)
+--- @param p obs_property_t*
+--- @return 
+function obslua.obs_property_list_type(p) end
+
+--- :return: A detailed description of what the setting is used for.
+---          Usually used with things like tooltips.
+--- 
+--- C definition: const char *           obs_property_long_description(obs_property_t *p)
+--- @param p obs_property_t*
+--- @return 
+function obslua.obs_property_long_description(p) end
+
+--- C definition: bool obs_property_modified(obs_property_t *p, obs_data_t *settings)
 --- @param p obs_property_t*
 --- @param settings obs_data_t*
 --- @return bool
-obslua.obs_property_modified = function(p, settings) end
+function obslua.obs_property_modified(p, settings) end
 
---- obs_property_name not documented
-obslua.obs_property_name = function() end
+--- :return: The setting identifier string of the property
+--- 
+--- *(Author's Note: "name" was a bad name to use here.  Should have been
+--- "setting")*
+--- 
+--- C definition: const char *           obs_property_name(obs_property_t *p)
+--- @param p obs_property_t*
+--- @return 
+function obslua.obs_property_name(p) end
 
---- bool obs_property_next(obs_property_t **p)
 --- :param p: Pointer to the pointer of the next property
 --- :return: *true* if successful, *false* if no more properties
+--- 
+--- C definition: bool                   obs_property_next(obs_property_t **p)
 --- @param p obs_property_t**
---- @return bool
-obslua.obs_property_next = function(p) end
+--- @return 
+function obslua.obs_property_next(p) end
 
---- obs_property_path_default_path not documented
-obslua.obs_property_path_default_path = function() end
+--- C definition: const char *           obs_property_path_default_path(obs_property_t *p)
+--- @param p obs_property_t*
+--- @return 
+function obslua.obs_property_path_default_path(p) end
 
---- obs_property_path_filter not documented
-obslua.obs_property_path_filter = function() end
+--- C definition: const char *           obs_property_path_filter(obs_property_t *p)
+--- @param p obs_property_t*
+--- @return 
+function obslua.obs_property_path_filter(p) end
 
---- obs_property_path_type not documented
-obslua.obs_property_path_type = function() end
+--- C definition: enum obs_path_type     obs_property_path_type(obs_property_t *p)
+--- @param p obs_property_t*
+--- @return 
+function obslua.obs_property_path_type(p) end
 
---- void obs_property_set_description(obs_property_t *p, const char *description)
 --- Sets the displayed localized name of the property, shown to the user.
+--- 
+--- C definition: void obs_property_set_description(obs_property_t *p, const char *description)
 --- @param p obs_property_t*
 --- @param description char*
-obslua.obs_property_set_description = function(p, description) end
+function obslua.obs_property_set_description(p, description) end
 
---- void obs_property_set_enabled(obs_property_t *p, bool enabled)
+--- C definition: void obs_property_set_enabled(obs_property_t *p, bool enabled)
 --- @param p obs_property_t*
 --- @param enabled bool
-obslua.obs_property_set_enabled = function(p, enabled) end
+function obslua.obs_property_set_enabled(p, enabled) end
 
---- void obs_property_set_long_description(obs_property_t *p, const char *long_description)
 --- Sets the localized long description of the property, usually shown to
 --- a user via tooltip.
+--- 
+--- C definition: void obs_property_set_long_description(obs_property_t *p, const char *long_description)
 --- @param p obs_property_t*
 --- @param long_description char*
-obslua.obs_property_set_long_description = function(p, long_description) end
+function obslua.obs_property_set_long_description(p, long_description) end
 
---- void obs_property_set_modified_callback(obs_property_t *p, obs_property_modified_t modified)
----            void obs_property_set_modified_callback2(obs_property_t *p, obs_property_modified2_t modified2, void *priv)
 --- Allows the ability to change the properties depending on what
 --- settings are used by the user.
+--- 
 --- Relevant data types used with these functions:
+--- 
 --- .. code:: cpp
+--- 
 --- typedef bool (*obs_property_modified_t)(obs_properties_t *props,
 ---                 obs_property_t *property, obs_data_t *settings);
 --- typedef bool (*obs_property_modified2_t)(void *priv,
 ---                 obs_properties_t *props, obs_property_t *property,
 ---                 obs_data_t *settings);
+--- 
+--- C definition: void obs_property_set_modified_callback(obs_property_t *p, obs_property_modified_t modified)
 --- @param p obs_property_t*
 --- @param modified obs_property_modified_t
-obslua.obs_property_set_modified_callback = function(p, modified) end
+function obslua.obs_property_set_modified_callback(p, modified) end
 
---- obs_property_set_modified_callback2 not documented
-obslua.obs_property_set_modified_callback2 = function() end
+--- Allows the ability to change the properties depending on what
+--- settings are used by the user.
+--- 
+--- Relevant data types used with these functions:
+--- 
+--- .. code:: cpp
+--- 
+--- typedef bool (*obs_property_modified_t)(obs_properties_t *props,
+---                 obs_property_t *property, obs_data_t *settings);
+--- typedef bool (*obs_property_modified2_t)(void *priv,
+---                 obs_properties_t *props, obs_property_t *property,
+---                 obs_data_t *settings);
+--- 
+--- C definition: void obs_property_set_modified_callback2(obs_property_t *p, obs_property_modified2_t modified2, void *priv)
+--- @param p obs_property_t*
+--- @param modified2 obs_property_modified2_t
+--- @param priv void*
+function obslua.obs_property_set_modified_callback2(p, modified2, priv) end
 
---- void obs_property_set_visible(obs_property_t *p, bool visible)
+--- C definition: void obs_property_set_visible(obs_property_t *p, bool visible)
 --- @param p obs_property_t*
 --- @param visible bool
-obslua.obs_property_set_visible = function(p, visible) end
+function obslua.obs_property_set_visible(p, visible) end
 
 --- obs_property_text_monospace not documented
 obslua.obs_property_text_monospace = function() end
@@ -5249,61 +6513,92 @@ obslua.obs_property_text_monospace = function() end
 --- obs_property_text_set_monospace not documented
 obslua.obs_property_text_set_monospace = function() end
 
---- obs_property_text_type not documented
-obslua.obs_property_text_type = function() end
-
---- bool obs_property_visible(obs_property_t *p)
+--- C definition: enum obs_text_type     obs_property_text_type(obs_property_t *p)
 --- @param p obs_property_t*
---- @return bool
-obslua.obs_property_visible = function(p) end
+--- @return 
+function obslua.obs_property_text_type(p) end
+
+--- C definition: bool                   obs_property_visible(obs_property_t *p)
+--- @param p obs_property_t*
+--- @return 
+function obslua.obs_property_visible(p) end
 
 --- obs_queue_task not documented
 obslua.obs_queue_task = function() end
 
---- void obs_register_source(struct obs_source_info *info)
 --- Registers a source type.  Typically used in
 --- :c:func:`obs_module_load()` or in the program's initialization phase.
+--- 
+--- C definition: void obs_register_source(struct obs_source_info *info)
 --- @param info obs_source_info*
-obslua.obs_register_source = function(info) end
+function obslua.obs_register_source(info) end
 
 --- obs_remove_data_path not documented
 obslua.obs_remove_data_path = function() end
 
---- obs_remove_main_render_callback not documented
-obslua.obs_remove_main_render_callback = function() end
+--- Adds/removes a main rendering callback.  Allows custom rendering to
+--- the main stream/recording output.
+--- 
+--- C definition: void obs_remove_main_render_callback(void (*draw)(void *param, uint32_t cx, uint32_t cy), void *param)
+--- @param ( void
+--- @param cx uint32_t
+--- @param cy) uint32_t
+--- @param param void*
+function obslua.obs_remove_main_render_callback((, cx, cy), param) end
 
---- obs_remove_raw_video_callback not documented
-obslua.obs_remove_raw_video_callback = function() end
+--- Adds/removes a raw video callback.  Allows the ability to obtain raw
+--- video frames without necessarily using an output.
+--- 
+--- :param conversion: Specifies conversion requirements.  Can be NULL.
+--- :param callback:   The callback that receives raw video frames.
+--- :param param:      The private data associated with the callback.
+--- 
+--- Primary signal/procedure handlers
+--- C definition: void obs_remove_raw_video_callback(void (*callback)(void *param, struct video_data *frame), void *param)
+--- @param ( void
+--- @param frame) video_data*
+--- @param param void*
+function obslua.obs_remove_raw_video_callback((, frame), param) end
 
 --- obs_remove_tick_callback not documented
 obslua.obs_remove_tick_callback = function() end
 
---- void obs_render_main_texture(void)
 --- Renders the main output texture.  Useful for rendering a preview pane
 --- of the main output.
-obslua.obs_render_main_texture = function() end
+--- 
+--- C definition: void obs_render_main_texture(void)
+function obslua.obs_render_main_texture() end
 
 --- obs_render_main_texture_src_color_only not documented
 obslua.obs_render_main_texture_src_color_only = function() end
 
---- bool obs_reset_audio(const struct obs_audio_info *oai)
 --- Sets base audio output format/channels/samples/etc.
+--- 
 --- Note: Cannot reset base audio if an output is currently active.
+--- 
 --- :return: *true* if successful, *false* otherwise
+--- 
 --- Relevant data types used with this function:
+--- 
 --- .. code:: cpp
+--- 
 --- struct obs_audio_info {
 ---         uint32_t            samples_per_sec;
 ---         enum speaker_layout speakers;
+--- };
+--- 
+--- C definition: bool obs_reset_audio(const struct obs_audio_info *oai)
 --- @param oai obs_audio_info*
 --- @return bool
-obslua.obs_reset_audio = function(oai) end
+function obslua.obs_reset_audio(oai) end
 
---- int obs_reset_video(struct obs_video_info *ovi)
 --- Sets base video output base resolution/fps/format.
+--- 
 --- Note: This data cannot be changed if an output is currently active.
+--- 
 --- Note: The graphics module cannot be changed without fully destroying
 --- the OBS context.
+--- 
 --- :param   ovi: Pointer to an obs_video_info structure containing the
 ---               specification of the graphics subsystem,
 --- :return:      | OBS_VIDEO_SUCCESS          - Success
@@ -5312,196 +6607,242 @@ obslua.obs_reset_audio = function(oai) end
 ---               | OBS_VIDEO_CURRENTLY_ACTIVE - Video is currently active
 ---               | OBS_VIDEO_MODULE_NOT_FOUND - The graphics module is not found
 ---               | OBS_VIDEO_FAIL             - Generic failure
+--- 
 --- Relevant data types used with this function:
+--- 
 --- .. code:: cpp
+--- 
 --- struct obs_video_info {
+---         /**
 ---          * Graphics module to use (usually "libobs-opengl" or "libobs-d3d11")
+---          */
 ---         const char          *graphics_module;
+--- 
 ---         uint32_t            fps_num;       /**< Output FPS numerator */
 ---         uint32_t            fps_den;       /**< Output FPS denominator */
+--- 
 ---         uint32_t            base_width;    /**< Base compositing width */
 ---         uint32_t            base_height;   /**< Base compositing height */
+--- 
 ---         uint32_t            output_width;  /**< Output width */
 ---         uint32_t            output_height; /**< Output height */
 ---         enum video_format   output_format; /**< Output format */
+--- 
 ---         /** Video adapter index to use (NOTE: avoid for optimus laptops) */
 ---         uint32_t            adapter;
+--- 
 ---         /** Use shaders to convert to different color formats */
 ---         bool                gpu_conversion;
+--- 
 ---         enum video_colorspace colorspace;  /**< YUV type (if YUV) */
 ---         enum video_range_type range;       /**< YUV range (if YUV) */
+--- 
 ---         enum obs_scale_type scale_type;    /**< How to scale if scaling */
+--- };
+--- 
+--- C definition: int obs_reset_video(struct obs_video_info *ovi)
 --- @param ovi obs_video_info*
 --- @return int
-obslua.obs_reset_video = function(ovi) end
+function obslua.obs_reset_video(ovi) end
 
---- obs_data_t* obs_save_source(obs_source_t *source)
 --- :return: A new reference to a source's saved data
+--- 
+--- C definition: obs_data_t *obs_save_source(obs_source_t *source)
 --- @param source obs_source_t*
 --- @return obs_data_t*
-obslua.obs_save_source = function(source) end
+function obslua.obs_save_source(source) end
 
---- obs_data_array_t* obs_save_sources(void)
 --- :return: A data array with the saved data of all active sources
+--- 
+--- C definition: obs_data_array_t *obs_save_sources(void)
 --- @return obs_data_array_t*
-obslua.obs_save_sources = function() end
+function obslua.obs_save_sources() end
 
---- obs_data_array_t* obs_save_sources_filtered(obs_save_source_filter_cb cb, void *data)
 --- :return: A data array with the saved data of all active sources,
 ---          filtered by the *cb* function
+--- 
 --- Relevant data types used with this function:
+--- 
 --- .. code:: cpp
+--- 
 --- typedef bool (*obs_save_source_filter_cb)(void *data, obs_source_t *source);
---- Video, Audio, and Graphics
+--- 
+--- C definition: obs_data_array_t *obs_save_sources_filtered(obs_save_source_filter_cb cb, void *data)
 --- @param cb obs_save_source_filter_cb
 --- @param data void*
 --- @return obs_data_array_t*
-obslua.obs_save_sources_filtered = function(cb, data) end
+function obslua.obs_save_sources_filtered(cb, data) end
 
---- obs_sceneitem_t* obs_scene_add(obs_scene_t *scene, obs_source_t *source)
 --- :return: A new scene item for a source within a scene.  Does not
 ---          increment the reference
+--- 
+--- C definition: obs_sceneitem_t *obs_scene_add(obs_scene_t *scene, obs_source_t *source)
 --- @param scene obs_scene_t*
 --- @param source obs_source_t*
 --- @return obs_sceneitem_t*
-obslua.obs_scene_add = function(scene, source) end
+function obslua.obs_scene_add(scene, source) end
 
---- obs_sceneitem_t* obs_scene_add_group(obs_scene_t *scene, const char *name)
 --- Adds a group with the specified name.  Does not signal the scene with
 --- the *refresh* signal.
+--- 
 --- :param scene: Scene to add the group to
 --- :param name:  Name of the group
 --- :return:      The new group's scene item
+--- 
+--- C definition: obs_sceneitem_t *obs_scene_add_group(obs_scene_t *scene, const char *name)
 --- @param scene obs_scene_t*
 --- @param name char*
 --- @return obs_sceneitem_t*
-obslua.obs_scene_add_group = function(scene, name) end
+function obslua.obs_scene_add_group(scene, name) end
 
---- obs_sceneitem_t* obs_scene_add_group2(obs_scene_t *scene, const char *name, bool signal)
 --- Adds a group with the specified name.
+--- 
 --- :param scene:  Scene to add the group to
 --- :param name:   Name of the group
 --- :param signal: If *true*, signals the scene with the *refresh*
 ---                signal
 --- :return:       The new group's scene item
+--- 
+--- C definition: obs_sceneitem_t *obs_scene_add_group2(obs_scene_t *scene, const char *name, bool signal)
 --- @param scene obs_scene_t*
 --- @param name char*
 --- @param signal bool
 --- @return obs_sceneitem_t*
-obslua.obs_scene_add_group2 = function(scene, name, signal) end
+function obslua.obs_scene_add_group2(scene, name, signal) end
 
---- void obs_scene_addref(obs_scene_t *scene)
----            void obs_scene_release(obs_scene_t *scene)
 --- Adds/releases a reference to a scene.
+--- 
+--- C definition: void obs_scene_addref(obs_scene_t *scene)
 --- @param scene obs_scene_t*
-obslua.obs_scene_addref = function(scene) end
+function obslua.obs_scene_addref(scene) end
 
 --- obs_scene_atomic_update not documented
 obslua.obs_scene_atomic_update = function() end
 
---- obs_scene_t* obs_scene_create(const char *name)
 --- :param name: Name of the scene source.  If it's not unique, it will
 ---              be made unique
 --- :return:     A reference to a scene
+--- 
+--- C definition: obs_scene_t *obs_scene_create(const char *name)
 --- @param name char*
 --- @return obs_scene_t*
-obslua.obs_scene_create = function(name) end
+function obslua.obs_scene_create(name) end
 
---- obs_scene_t* obs_scene_create_private(const char *name)
 --- :param name: Name of the scene source.  Does not have to be unique,
 ---              or can be *NULL*
 --- :return:     A reference to a private scene
+--- 
+--- C definition: obs_scene_t *obs_scene_create_private(const char *name)
 --- @param name char*
 --- @return obs_scene_t*
-obslua.obs_scene_create_private = function(name) end
+function obslua.obs_scene_create_private(name) end
 
---- obs_scene_t* obs_scene_duplicate(obs_scene_t *scene, const char *name, enum obs_scene_duplicate_type type)
 --- Duplicates a scene.  When a scene is duplicated, its sources can be
 --- just referenced, or fully duplicated.
+--- 
 --- :param name: Name of the new scene source
+--- 
 --- :param type:  | Type of duplication:
 ---               | OBS_SCENE_DUP_REFS         - Duplicates the scene, but scene items are only duplicated with references
 ---               | OBS_SCENE_DUP_COPY         - Duplicates the scene, and scene items are also fully duplicated when possible
 ---               | OBS_SCENE_DUP_PRIVATE_REFS - Duplicates with references, but the scene is a private source
 ---               | OBS_SCENE_DUP_PRIVATE_COPY - Fully duplicates scene items when possible, but the scene and duplicates sources are private sources
+--- 
 --- :return:     A reference to a new scene
+--- 
+--- C definition: obs_scene_t *obs_scene_duplicate(obs_scene_t *scene, const char *name, enum obs_scene_duplicate_type type)
 --- @param scene obs_scene_t*
 --- @param name char*
 --- @param type obs_scene_duplicate_type
 --- @return obs_scene_t*
-obslua.obs_scene_duplicate = function(scene, name, type) end
+function obslua.obs_scene_duplicate(scene, name, type) end
 
---- obs_scene_enum_items not documented
-obslua.obs_scene_enum_items = function() end
+--- Enumerates scene items within a scene.
+--- 
+--- C definition: void obs_scene_enum_items(obs_scene_t *scene, bool (*callback)(obs_scene_t*, obs_sceneitem_t*, void*), void *param)
+--- @param scene obs_scene_t*
+--- @param ( bool
+--- @param param void*
+function obslua.obs_scene_enum_items(scene, (, param) end
 
---- obs_sceneitem_t* obs_scene_find_sceneitem_by_id(obs_scene_t *scene, int64_t id)
 --- :param id: The unique numeric identifier of the scene item
 --- :return:   The scene item if found, otherwise *NULL* if not found
+--- 
+--- C definition: obs_sceneitem_t *obs_scene_find_sceneitem_by_id(obs_scene_t *scene, int64_t id)
 --- @param scene obs_scene_t*
 --- @param id int64_t
 --- @return obs_sceneitem_t*
-obslua.obs_scene_find_sceneitem_by_id = function(scene, id) end
+function obslua.obs_scene_find_sceneitem_by_id(scene, id) end
 
---- obs_sceneitem_t* obs_scene_find_source(obs_scene_t *scene, const char *name)
 --- :param name: The name of the source to find
 --- :return:     The scene item if found, otherwise *NULL* if not found
+--- 
+--- C definition: obs_sceneitem_t *obs_scene_find_source(obs_scene_t *scene, const char *name)
 --- @param scene obs_scene_t*
 --- @param name char*
 --- @return obs_sceneitem_t*
-obslua.obs_scene_find_source = function(scene, name) end
+function obslua.obs_scene_find_source(scene, name) end
 
---- obs_sceneitem_t* obs_scene_find_source_recursive(obs_scene_t *scene, const char *name)
 --- Same as obs_scene_find_source, but also searches groups within the
 --- scene.
+--- 
 --- :param name: The name of the source to find
 --- :return:     The scene item if found, otherwise *NULL* if not found
+--- 
+--- C definition: obs_sceneitem_t *obs_scene_find_source_recursive(obs_scene_t *scene, const char *name)
 --- @param scene obs_scene_t*
 --- @param name char*
 --- @return obs_sceneitem_t*
-obslua.obs_scene_find_source_recursive = function(scene, name) end
+function obslua.obs_scene_find_source_recursive(scene, name) end
 
---- obs_scene_t* obs_scene_from_source(const obs_source_t *source)
 --- :return: The scene context, or *NULL* if not a scene.  Does not
 ---          increase the reference
+--- 
+--- C definition: obs_scene_t *obs_scene_from_source(const obs_source_t *source)
 --- @param source obs_source_t*
 --- @return obs_scene_t*
-obslua.obs_scene_from_source = function(source) end
+function obslua.obs_scene_from_source(source) end
 
---- obs_sceneitem_t* obs_scene_get_group(obs_scene_t *scene, const char *name)
 --- Finds a group within a scene by its name.
+--- 
 --- :param scene: Scene to find the group within
 --- :param name:  The name of the group to find
 --- :return:      The group scene item, or *NULL* if not found
+--- 
+--- C definition: obs_sceneitem_t *obs_scene_get_group(obs_scene_t *scene, const char *name)
 --- @param scene obs_scene_t*
 --- @param name char*
 --- @return obs_sceneitem_t*
-obslua.obs_scene_get_group = function(scene, name) end
+function obslua.obs_scene_get_group(scene, name) end
 
---- obs_source_t* obs_scene_get_source(const obs_scene_t *scene)
 --- :return: The scene's source.  Does not increment the reference
+--- 
+--- C definition: obs_source_t *obs_scene_get_source(const obs_scene_t *scene)
 --- @param scene obs_scene_t*
 --- @return obs_source_t*
-obslua.obs_scene_get_source = function(scene) end
+function obslua.obs_scene_get_source(scene) end
 
---- obs_sceneitem_t* obs_scene_insert_group(obs_scene_t *scene, const char *name, obs_sceneitem_t **items, size_t count)
 --- Creates a group out of the specified scene items.  The group will be
 --- inserted at the top scene item.  Does not signal the scene with the
 --- *refresh* signal.
+--- 
 --- :param scene: Scene to add the group to
 --- :param name:  Name of the group
 --- :param items: Array of scene items to put in a group
 --- :param count: Number of scene items in the array
 --- :return:      The new group's scene item
+--- 
+--- C definition: obs_sceneitem_t *obs_scene_insert_group(obs_scene_t *scene, const char *name, obs_sceneitem_t **items, size_t count)
 --- @param scene obs_scene_t*
 --- @param name char*
 --- @param items obs_sceneitem_t**
 --- @param count size_t
 --- @return obs_sceneitem_t*
-obslua.obs_scene_insert_group = function(scene, name, items, count) end
+function obslua.obs_scene_insert_group(scene, name, items, count) end
 
---- obs_sceneitem_t* obs_scene_insert_group2(obs_scene_t *scene, const char *name, obs_sceneitem_t **items, size_t count, bool signal)
 --- Creates a group out of the specified scene items.  The group will be
 --- inserted at the top scene item.  Does not signal a refresh.
+--- 
 --- :param scene: Scene to add the group to
 --- :param name:  Name of the group
 --- :param items: Array of scene items to put in a group
@@ -5509,259 +6850,121 @@ obslua.obs_scene_insert_group = function(scene, name, items, count) end
 --- :param signal: If *true*, signals the scene with the *refresh*
 ---                signal
 --- :return:      The new group's scene item
+--- 
+--- C definition: obs_sceneitem_t *obs_scene_insert_group2(obs_scene_t *scene, const char *name, obs_sceneitem_t **items, size_t count, bool signal)
 --- @param scene obs_scene_t*
 --- @param name char*
 --- @param items obs_sceneitem_t**
 --- @param count size_t
 --- @param signal bool
 --- @return obs_sceneitem_t*
-obslua.obs_scene_insert_group2 = function(scene, name, items, count, signal) end
+function obslua.obs_scene_insert_group2(scene, name, items, count, signal) end
 
 --- obs_scene_is_group not documented
 obslua.obs_scene_is_group = function() end
 
---- obs_scene_release not documented
-obslua.obs_scene_release = function() end
+--- Adds/releases a reference to a scene.
+--- 
+--- C definition: void obs_scene_release(obs_scene_t *scene)
+--- @param scene obs_scene_t*
+function obslua.obs_scene_release(scene) end
 
---- bool obs_scene_reorder_items(obs_scene_t *scene, obs_sceneitem_t * const *item_order, size_t item_order_size)
 --- Reorders items within a scene.
+--- 
+--- C definition: bool obs_scene_reorder_items(obs_scene_t *scene, obs_sceneitem_t * const *item_order, size_t item_order_size)
 --- @param scene obs_scene_t*
 --- @param item_order obs_sceneitem_t*const*
 --- @param item_order_size size_t
 --- @return bool
-obslua.obs_scene_reorder_items = function(scene, item_order, item_order_size) end
+function obslua.obs_scene_reorder_items(scene, item_order, item_order_size) end
 
---- bool obs_scene_reorder_items2(obs_scene_t *scene, struct obs_sceneitem_order_info *item_order, size_t item_order_size)
 --- Reorders items within a scene with groups and group sub-items.
---- .. _scene_item_reference:
---- Scene Item Functions
+--- 
+--- C definition: bool obs_scene_reorder_items2(obs_scene_t *scene, struct obs_sceneitem_order_info *item_order, size_t item_order_size)
 --- @param scene obs_scene_t*
 --- @param item_order obs_sceneitem_order_info*
 --- @param item_order_size size_t
 --- @return bool
-obslua.obs_scene_reorder_items2 = function(scene, item_order, item_order_size) end
+function obslua.obs_scene_reorder_items2(scene, item_order, item_order_size) end
 
---- void obs_sceneitem_addref(obs_sceneitem_t *item)
----            void obs_sceneitem_release(obs_sceneitem_t *item)
 --- Adds/releases a reference to a scene item.
+--- 
+--- C definition: void obs_sceneitem_addref(obs_sceneitem_t *item)
 --- @param item obs_sceneitem_t*
-obslua.obs_sceneitem_addref = function(item) end
+function obslua.obs_sceneitem_addref(item) end
 
---- void obs_sceneitem_defer_group_resize_begin(obs_sceneitem_t *item)
---- @param item obs_sceneitem_t*
-obslua.obs_sceneitem_defer_group_resize_begin = function(item) end
+--- obs_sceneitem_defer_group_resize_begin not documented
+obslua.obs_sceneitem_defer_group_resize_begin = function() end
 
---- void obs_sceneitem_defer_group_resize_end(obs_sceneitem_t *item)
 --- Allows the ability to call any one of the transform functions on
 --- scene items within a group without updating the internal matrices of
 --- the group until obs_sceneitem_defer_group_resize_end has been called.
+--- 
 --- This is necessary if the user is resizing items while they are within
 --- a group, as the group's transform will automatically update its
 --- transform every frame otherwise.
+--- C definition: void obs_sceneitem_defer_group_resize_end(obs_sceneitem_t *item)
 --- @param item obs_sceneitem_t*
-obslua.obs_sceneitem_defer_group_resize_end = function(item) end
+function obslua.obs_sceneitem_defer_group_resize_end(item) end
 
---- void obs_sceneitem_defer_update_begin(obs_sceneitem_t *item)
----            void obs_sceneitem_defer_update_end(obs_sceneitem_t *item)
 --- Allows the ability to call any one of the transform functions without
 --- updating the internal matrices until obs_sceneitem_defer_update_end
 --- has been called.
+--- 
+--- C definition: void obs_sceneitem_defer_update_begin(obs_sceneitem_t *item)
 --- @param item obs_sceneitem_t*
-obslua.obs_sceneitem_defer_update_begin = function(item) end
+function obslua.obs_sceneitem_defer_update_begin(item) end
 
---- obs_sceneitem_defer_update_end not documented
-obslua.obs_sceneitem_defer_update_end = function() end
+--- Allows the ability to call any one of the transform functions without
+--- updating the internal matrices until obs_sceneitem_defer_update_end
+--- has been called.
+--- 
+--- C definition: void obs_sceneitem_defer_update_end(obs_sceneitem_t *item)
+--- @param item obs_sceneitem_t*
+function obslua.obs_sceneitem_defer_update_end(item) end
 
 --- obs_sceneitem_force_update_transform not documented
 obslua.obs_sceneitem_force_update_transform = function() end
 
---- obs_sceneitem_get_alignment not documented
-obslua.obs_sceneitem_get_alignment = function() end
-
---- obs_sceneitem_get_bounds not documented
-obslua.obs_sceneitem_get_bounds = function() end
-
---- obs_sceneitem_get_bounds_alignment not documented
-obslua.obs_sceneitem_get_bounds_alignment = function() end
-
---- obs_sceneitem_get_bounds_type not documented
-obslua.obs_sceneitem_get_bounds_type = function() end
-
---- obs_sceneitem_get_box_scale not documented
-obslua.obs_sceneitem_get_box_scale = function() end
-
---- void obs_sceneitem_get_box_transform(const obs_sceneitem_t *item, struct matrix4 *transform)
---- Gets the transform matrix of the scene item used for the bounding box
---- or edges of the scene item.
---- @param item obs_sceneitem_t*
---- @param transform matrix4*
-obslua.obs_sceneitem_get_box_transform = function(item, transform) end
-
---- obs_sceneitem_get_crop not documented
-obslua.obs_sceneitem_get_crop = function() end
-
---- void obs_sceneitem_get_draw_transform(const obs_sceneitem_t *item, struct matrix4 *transform)
---- Gets the transform matrix of the scene item used for drawing the
---- source.
---- @param item obs_sceneitem_t*
---- @param transform matrix4*
-obslua.obs_sceneitem_get_draw_transform = function(item, transform) end
-
---- obs_sceneitem_t* obs_sceneitem_get_group(obs_sceneitem_t *item)
---- Returns the parent group of a scene item.
---- :param item: Scene item to get the group of
---- :return:     The parent group of the scene item, or *NULL* if not in
----              a group
---- @param item obs_sceneitem_t*
---- @return obs_sceneitem_t*
-obslua.obs_sceneitem_get_group = function(item) end
-
---- int64_t obs_sceneitem_get_id(const obs_sceneitem_t *item)
---- :return: The unique numeric identifier of the scene item.
---- @param item obs_sceneitem_t*
---- @return int64_t
-obslua.obs_sceneitem_get_id = function(item) end
-
---- obs_sceneitem_get_info not documented
-obslua.obs_sceneitem_get_info = function() end
-
---- obs_sceneitem_get_pos not documented
-obslua.obs_sceneitem_get_pos = function() end
-
---- obs_data_t* obs_sceneitem_get_private_settings(obs_sceneitem_t *item)
---- :return: An incremented reference to the private settings of the
----          scene item.  Allows the front-end to set custom information
----          which is saved with the scene item
---- .. _scene_item_group_reference:
---- Scene Item Group Functions
---- @param item obs_sceneitem_t*
---- @return obs_data_t*
-obslua.obs_sceneitem_get_private_settings = function(item) end
-
---- obs_sceneitem_get_rot not documented
-obslua.obs_sceneitem_get_rot = function() end
-
---- obs_sceneitem_get_scale not documented
-obslua.obs_sceneitem_get_scale = function() end
-
---- obs_sceneitem_get_scale_filter not documented
-obslua.obs_sceneitem_get_scale_filter = function() end
-
---- obs_scene_t* obs_sceneitem_get_scene(const obs_sceneitem_t *item)
---- :return: The scene associated with the scene item.  Does not
----          increment the reference
---- @param item obs_sceneitem_t*
---- @return obs_scene_t*
-obslua.obs_sceneitem_get_scene = function(item) end
-
---- obs_source_t* obs_sceneitem_get_source(const obs_sceneitem_t *item)
---- :return: The source associated with the scene item.  Does not
----          increment the reference
---- @param item obs_sceneitem_t*
---- @return obs_source_t*
-obslua.obs_sceneitem_get_source = function(item) end
-
---- void obs_sceneitem_group_add_item(obs_sceneitem_t *group, obs_sceneitem_t *item)
---- Adds a scene item to a group.
---- @param group obs_sceneitem_t*
---- @param item obs_sceneitem_t*
-obslua.obs_sceneitem_group_add_item = function(group, item) end
-
---- obs_sceneitem_group_enum_items not documented
-obslua.obs_sceneitem_group_enum_items = function() end
-
---- obs_scene_t* obs_sceneitem_group_get_scene(const obs_sceneitem_t *group)
---- :param group: Group scene item
---- :return:      Scene of the group, or *NULL* if not a group
---- @param group obs_sceneitem_t*
---- @return obs_scene_t*
-obslua.obs_sceneitem_group_get_scene = function(group) end
-
---- void obs_sceneitem_group_remove_item(obs_sceneitem_t *item)
---- Removes a scene item from a group.  The item will be placed before
---- the group in the main scene.
---- @param item obs_sceneitem_t*
-obslua.obs_sceneitem_group_remove_item = function(item) end
-
---- void obs_sceneitem_group_ungroup(obs_sceneitem_t *group)
---- Ungroups the specified group.  Scene items within the group will be
---- placed where the group was.  Does not signal the scene with the
---- *refresh* signal.
---- @param group obs_sceneitem_t*
-obslua.obs_sceneitem_group_ungroup = function(group) end
-
---- void obs_sceneitem_group_ungroup2(obs_sceneitem_t *group, bool signal)
---- Ungroups the specified group.  Scene items within the group will be
---- placed where the group was.
---- :param group: Group scene item
---- :param signal: If *true*, signals the scene with the *refresh*
----                signal
---- @param group obs_sceneitem_t*
---- @param signal bool
-obslua.obs_sceneitem_group_ungroup2 = function(group, signal) end
-
---- bool obs_sceneitem_is_group(obs_sceneitem_t *item)
---- :param item: Scene item
---- :return:     *true* if scene item is a group, *false* otherwise
---- @param item obs_sceneitem_t*
---- @return bool
-obslua.obs_sceneitem_is_group = function(item) end
-
---- obs_sceneitem_locked not documented
-obslua.obs_sceneitem_locked = function() end
-
---- obs_sceneitem_release not documented
-obslua.obs_sceneitem_release = function() end
-
---- void obs_sceneitem_remove(obs_sceneitem_t *item)
---- Removes the scene item from the scene.
---- @param item obs_sceneitem_t*
-obslua.obs_sceneitem_remove = function(item) end
-
---- obs_sceneitem_select not documented
-obslua.obs_sceneitem_select = function() end
-
---- obs_sceneitem_selected not documented
-obslua.obs_sceneitem_selected = function() end
-
---- void obs_sceneitem_set_alignment(obs_sceneitem_t *item, uint32_t alignment)
----            uint32_t obs_sceneitem_get_alignment(const obs_sceneitem_t *item)
 --- Sets/gets the alignment of the scene item relative to its position.
+--- 
 --- :param alignment: | Can be any bitwise OR combination of:
 ---                   | OBS_ALIGN_CENTER
 ---                   | OBS_ALIGN_LEFT
 ---                   | OBS_ALIGN_RIGHT
 ---                   | OBS_ALIGN_TOP
 ---                   | OBS_ALIGN_BOTTOM
+--- 
+--- C definition: uint32_t obs_sceneitem_get_alignment(const obs_sceneitem_t *item)
 --- @param item obs_sceneitem_t*
---- @param alignment uint32_t
-obslua.obs_sceneitem_set_alignment = function(item, alignment) end
+--- @return uint32_t
+function obslua.obs_sceneitem_get_alignment(item) end
 
---- void obs_sceneitem_set_bounds(obs_sceneitem_t *item, const struct vec2 *bounds)
----            void obs_sceneitem_get_bounds(const obs_sceneitem_t *item, struct vec2 *bounds)
 --- Sets/gets the bounding box width/height of the scene item.
+--- 
+--- C definition: void obs_sceneitem_get_bounds(const obs_sceneitem_t *item, struct vec2 *bounds)
 --- @param item obs_sceneitem_t*
 --- @param bounds vec2*
-obslua.obs_sceneitem_set_bounds = function(item, bounds) end
+function obslua.obs_sceneitem_get_bounds(item, bounds) end
 
---- void obs_sceneitem_set_bounds_alignment(obs_sceneitem_t *item, uint32_t alignment)
----            uint32_t obs_sceneitem_get_bounds_alignment(const obs_sceneitem_t *item)
 --- Sets/gets the alignment of the source within the bounding box.
+--- 
 --- :param alignment: | Can be any bitwise OR combination of:
 ---                   | OBS_ALIGN_CENTER
 ---                   | OBS_ALIGN_LEFT
 ---                   | OBS_ALIGN_RIGHT
 ---                   | OBS_ALIGN_TOP
 ---                   | OBS_ALIGN_BOTTOM
+--- 
+--- C definition: uint32_t obs_sceneitem_get_bounds_alignment(const obs_sceneitem_t *item)
 --- @param item obs_sceneitem_t*
---- @param alignment uint32_t
-obslua.obs_sceneitem_set_bounds_alignment = function(item, alignment) end
+--- @return uint32_t
+function obslua.obs_sceneitem_get_bounds_alignment(item) end
 
---- void obs_sceneitem_set_bounds_type(obs_sceneitem_t *item, enum obs_bounds_type type)
----            enum obs_bounds_type obs_sceneitem_get_bounds_type(const obs_sceneitem_t *item)
 --- Sets/gets the bounding box type of a scene item.  Bounding boxes are
 --- used to stretch/position the source relative to a specific bounding
 --- box of a specific size.
+--- 
 --- :param type: | Can be one of the following values:
 ---              | OBS_BOUNDS_NONE            - No bounding box
 ---              | OBS_BOUNDS_STRETCH         - Stretch to the bounding box without preserving aspect ratio
@@ -5770,116 +6973,378 @@ obslua.obs_sceneitem_set_bounds_alignment = function(item, alignment) end
 ---              | OBS_BOUNDS_SCALE_TO_WIDTH  - Scales with aspect ratio to the bounding box width
 ---              | OBS_BOUNDS_SCALE_TO_HEIGHT - Scales with aspect ratio to the bounding box height
 ---              | OBS_BOUNDS_MAX_ONLY        - Scales with aspect ratio, but only to the size of the source maximum
+--- 
+--- C definition: enum obs_bounds_type obs_sceneitem_get_bounds_type(const obs_sceneitem_t *item)
 --- @param item obs_sceneitem_t*
---- @param type obs_bounds_type
-obslua.obs_sceneitem_set_bounds_type = function(item, type) end
+--- @return obs_bounds_type
+function obslua.obs_sceneitem_get_bounds_type(item) end
 
---- void obs_sceneitem_set_crop(obs_sceneitem_t *item, const struct obs_sceneitem_crop *crop)
----            void obs_sceneitem_get_crop(const obs_sceneitem_t *item, struct obs_sceneitem_crop *crop)
+--- obs_sceneitem_get_box_scale not documented
+obslua.obs_sceneitem_get_box_scale = function() end
+
+--- Gets the transform matrix of the scene item used for the bounding box
+--- or edges of the scene item.
+--- 
+--- C definition: void obs_sceneitem_get_box_transform(const obs_sceneitem_t *item, struct matrix4 *transform)
+--- @param item obs_sceneitem_t*
+--- @param transform matrix4*
+function obslua.obs_sceneitem_get_box_transform(item, transform) end
+
 --- Sets/gets the cropping of the scene item.
+--- 
+--- C definition: void obs_sceneitem_get_crop(const obs_sceneitem_t *item, struct obs_sceneitem_crop *crop)
 --- @param item obs_sceneitem_t*
 --- @param crop obs_sceneitem_crop*
-obslua.obs_sceneitem_set_crop = function(item, crop) end
+function obslua.obs_sceneitem_get_crop(item, crop) end
 
---- void obs_sceneitem_set_info(obs_sceneitem_t *item, const struct obs_transform_info *info)
----            void obs_sceneitem_get_info(const obs_sceneitem_t *item, struct obs_transform_info *info)
+--- Gets the transform matrix of the scene item used for drawing the
+--- source.
+--- 
+--- C definition: void obs_sceneitem_get_draw_transform(const obs_sceneitem_t *item, struct matrix4 *transform)
+--- @param item obs_sceneitem_t*
+--- @param transform matrix4*
+function obslua.obs_sceneitem_get_draw_transform(item, transform) end
+
+--- Returns the parent group of a scene item.
+--- 
+--- :param item: Scene item to get the group of
+--- :return:     The parent group of the scene item, or *NULL* if not in
+---              a group
+--- 
+--- C definition: obs_sceneitem_t *obs_sceneitem_get_group(obs_sceneitem_t *item)
+--- @param item obs_sceneitem_t*
+--- @return obs_sceneitem_t*
+function obslua.obs_sceneitem_get_group(item) end
+
+--- :return: The unique numeric identifier of the scene item.
+--- 
+--- C definition: int64_t obs_sceneitem_get_id(const obs_sceneitem_t *item)
+--- @param item obs_sceneitem_t*
+--- @return int64_t
+function obslua.obs_sceneitem_get_id(item) end
+
 --- Sets/gets the transform information of the scene item.
+--- 
+--- C definition: void obs_sceneitem_get_info(const obs_sceneitem_t *item, struct obs_transform_info *info)
 --- @param item obs_sceneitem_t*
 --- @param info obs_transform_info*
-obslua.obs_sceneitem_set_info = function(item, info) end
+function obslua.obs_sceneitem_get_info(item, info) end
 
---- bool obs_sceneitem_set_locked(obs_sceneitem_t *item, bool locked)
----            bool obs_sceneitem_locked(const obs_sceneitem_t *item)
---- Sets/gets the locked/unlocked state of the scene item.
---- @param item obs_sceneitem_t*
---- @param locked bool
---- @return bool
-obslua.obs_sceneitem_set_locked = function(item, locked) end
-
---- void obs_sceneitem_set_order(obs_sceneitem_t *item, enum obs_order_movement movement)
---- Changes the scene item's order relative to the other scene items
---- within the scene.
---- :param movement: | Can be one of the following:
----                  | OBS_ORDER_MOVE_UP
----                  | OBS_ORDER_MOVE_DOWN
----                  | OBS_ORDER_MOVE_TOP
----                  | OBS_ORDER_MOVE_BOTTOM
---- @param item obs_sceneitem_t*
---- @param movement obs_order_movement
-obslua.obs_sceneitem_set_order = function(item, movement) end
-
---- void obs_sceneitem_set_order_position(obs_sceneitem_t *item, int position)
---- Changes the scene item's order index.
---- @param item obs_sceneitem_t*
---- @param position int
-obslua.obs_sceneitem_set_order_position = function(item, position) end
-
---- void obs_sceneitem_set_pos(obs_sceneitem_t *item, const struct vec2 *pos)
----            void obs_sceneitem_get_pos(const obs_sceneitem_t *item, struct vec2 *pos)
 --- Sets/gets the position of a scene item.
+--- 
+--- C definition: void obs_sceneitem_get_pos(const obs_sceneitem_t *item, struct vec2 *pos)
 --- @param item obs_sceneitem_t*
 --- @param pos vec2*
-obslua.obs_sceneitem_set_pos = function(item, pos) end
+function obslua.obs_sceneitem_get_pos(item, pos) end
 
---- void obs_sceneitem_set_rot(obs_sceneitem_t *item, float rot_deg)
----            float obs_sceneitem_get_rot(const obs_sceneitem_t *item)
---- Sets/gets the rotation of a scene item.
+--- :return: An incremented reference to the private settings of the
+---          scene item.  Allows the front-end to set custom information
+---          which is saved with the scene item
+--- 
+--- C definition: obs_data_t *obs_sceneitem_get_private_settings(obs_sceneitem_t *item)
 --- @param item obs_sceneitem_t*
---- @param rot_deg float
-obslua.obs_sceneitem_set_rot = function(item, rot_deg) end
+--- @return obs_data_t*
+function obslua.obs_sceneitem_get_private_settings(item) end
 
---- void obs_sceneitem_set_scale(obs_sceneitem_t *item, const struct vec2 *scale)
----            void obs_sceneitem_get_scale(const obs_sceneitem_t *item, struct vec2 *scale)
+--- Sets/gets the rotation of a scene item.
+--- 
+--- C definition: float obs_sceneitem_get_rot(const obs_sceneitem_t *item)
+--- @param item obs_sceneitem_t*
+--- @return float
+function obslua.obs_sceneitem_get_rot(item) end
+
 --- Sets/gets the scaling of the scene item.
+--- 
+--- C definition: void obs_sceneitem_get_scale(const obs_sceneitem_t *item, struct vec2 *scale)
 --- @param item obs_sceneitem_t*
 --- @param scale vec2*
-obslua.obs_sceneitem_set_scale = function(item, scale) end
+function obslua.obs_sceneitem_get_scale(item, scale) end
 
---- void obs_sceneitem_set_scale_filter(obs_sceneitem_t *item, enum obs_scale_type filter)
----            enum obs_scale_type obs_sceneitem_get_scale_filter( obs_sceneitem_t *item)
 --- Sets/gets the scale filter used for the scene item.
+--- 
 --- :param filter: | Can be one of the following values:
 ---                | OBS_SCALE_DISABLE
 ---                | OBS_SCALE_POINT
 ---                | OBS_SCALE_BICUBIC
 ---                | OBS_SCALE_BILINEAR
 ---                | OBS_SCALE_LANCZOS
+--- 
+--- C definition: enum obs_scale_type obs_sceneitem_get_scale_filter( obs_sceneitem_t *item)
+--- @param item obs_sceneitem_t*
+--- @return obs_scale_type
+function obslua.obs_sceneitem_get_scale_filter(item) end
+
+--- :return: The scene associated with the scene item.  Does not
+---          increment the reference
+--- 
+--- C definition: obs_scene_t *obs_sceneitem_get_scene(const obs_sceneitem_t *item)
+--- @param item obs_sceneitem_t*
+--- @return obs_scene_t*
+function obslua.obs_sceneitem_get_scene(item) end
+
+--- :return: The source associated with the scene item.  Does not
+---          increment the reference
+--- 
+--- C definition: obs_source_t *obs_sceneitem_get_source(const obs_sceneitem_t *item)
+--- @param item obs_sceneitem_t*
+--- @return obs_source_t*
+function obslua.obs_sceneitem_get_source(item) end
+
+--- Adds a scene item to a group.
+--- 
+--- C definition: void obs_sceneitem_group_add_item(obs_sceneitem_t *group, obs_sceneitem_t *item)
+--- @param group obs_sceneitem_t*
+--- @param item obs_sceneitem_t*
+function obslua.obs_sceneitem_group_add_item(group, item) end
+
+--- Enumerates scene items within a group.
+--- 
+--- C definition: void obs_sceneitem_group_enum_items(obs_sceneitem_t *group, bool (*callback)(obs_scene_t*, obs_sceneitem_t*, void*), void *param)
+--- @param group obs_sceneitem_t*
+--- @param ( bool
+--- @param param void*
+function obslua.obs_sceneitem_group_enum_items(group, (, param) end
+
+--- :param group: Group scene item
+--- :return:      Scene of the group, or *NULL* if not a group
+--- 
+--- C definition: obs_scene_t *obs_sceneitem_group_get_scene(const obs_sceneitem_t *group)
+--- @param group obs_sceneitem_t*
+--- @return obs_scene_t*
+function obslua.obs_sceneitem_group_get_scene(group) end
+
+--- Removes a scene item from a group.  The item will be placed before
+--- the group in the main scene.
+--- 
+--- C definition: void obs_sceneitem_group_remove_item(obs_sceneitem_t *item)
+--- @param item obs_sceneitem_t*
+function obslua.obs_sceneitem_group_remove_item(item) end
+
+--- Ungroups the specified group.  Scene items within the group will be
+--- placed where the group was.  Does not signal the scene with the
+--- *refresh* signal.
+--- 
+--- C definition: void obs_sceneitem_group_ungroup(obs_sceneitem_t *group)
+--- @param group obs_sceneitem_t*
+function obslua.obs_sceneitem_group_ungroup(group) end
+
+--- Ungroups the specified group.  Scene items within the group will be
+--- placed where the group was.
+--- 
+--- :param group: Group scene item
+--- :param signal: If *true*, signals the scene with the *refresh*
+---                signal
+--- 
+--- C definition: void obs_sceneitem_group_ungroup2(obs_sceneitem_t *group, bool signal)
+--- @param group obs_sceneitem_t*
+--- @param signal bool
+function obslua.obs_sceneitem_group_ungroup2(group, signal) end
+
+--- :param item: Scene item
+--- :return:     *true* if scene item is a group, *false* otherwise
+--- 
+--- C definition: bool obs_sceneitem_is_group(obs_sceneitem_t *item)
+--- @param item obs_sceneitem_t*
+--- @return bool
+function obslua.obs_sceneitem_is_group(item) end
+
+--- Sets/gets the locked/unlocked state of the scene item.
+--- 
+--- C definition: bool obs_sceneitem_locked(const obs_sceneitem_t *item)
+--- @param item obs_sceneitem_t*
+--- @return bool
+function obslua.obs_sceneitem_locked(item) end
+
+--- Adds/releases a reference to a scene item.
+--- 
+--- C definition: void obs_sceneitem_release(obs_sceneitem_t *item)
+--- @param item obs_sceneitem_t*
+function obslua.obs_sceneitem_release(item) end
+
+--- Removes the scene item from the scene.
+--- 
+--- C definition: void obs_sceneitem_remove(obs_sceneitem_t *item)
+--- @param item obs_sceneitem_t*
+function obslua.obs_sceneitem_remove(item) end
+
+--- obs_sceneitem_select not documented
+obslua.obs_sceneitem_select = function() end
+
+--- obs_sceneitem_selected not documented
+obslua.obs_sceneitem_selected = function() end
+
+--- Sets/gets the alignment of the scene item relative to its position.
+--- 
+--- :param alignment: | Can be any bitwise OR combination of:
+---                   | OBS_ALIGN_CENTER
+---                   | OBS_ALIGN_LEFT
+---                   | OBS_ALIGN_RIGHT
+---                   | OBS_ALIGN_TOP
+---                   | OBS_ALIGN_BOTTOM
+--- 
+--- C definition: void obs_sceneitem_set_alignment(obs_sceneitem_t *item, uint32_t alignment)
+--- @param item obs_sceneitem_t*
+--- @param alignment uint32_t
+function obslua.obs_sceneitem_set_alignment(item, alignment) end
+
+--- Sets/gets the bounding box width/height of the scene item.
+--- 
+--- C definition: void obs_sceneitem_set_bounds(obs_sceneitem_t *item, const struct vec2 *bounds)
+--- @param item obs_sceneitem_t*
+--- @param bounds vec2*
+function obslua.obs_sceneitem_set_bounds(item, bounds) end
+
+--- Sets/gets the alignment of the source within the bounding box.
+--- 
+--- :param alignment: | Can be any bitwise OR combination of:
+---                   | OBS_ALIGN_CENTER
+---                   | OBS_ALIGN_LEFT
+---                   | OBS_ALIGN_RIGHT
+---                   | OBS_ALIGN_TOP
+---                   | OBS_ALIGN_BOTTOM
+--- 
+--- C definition: void obs_sceneitem_set_bounds_alignment(obs_sceneitem_t *item, uint32_t alignment)
+--- @param item obs_sceneitem_t*
+--- @param alignment uint32_t
+function obslua.obs_sceneitem_set_bounds_alignment(item, alignment) end
+
+--- Sets/gets the bounding box type of a scene item.  Bounding boxes are
+--- used to stretch/position the source relative to a specific bounding
+--- box of a specific size.
+--- 
+--- :param type: | Can be one of the following values:
+---              | OBS_BOUNDS_NONE            - No bounding box
+---              | OBS_BOUNDS_STRETCH         - Stretch to the bounding box without preserving aspect ratio
+---              | OBS_BOUNDS_SCALE_INNER     - Scales with aspect ratio to inner bounding box rectangle
+---              | OBS_BOUNDS_SCALE_OUTER     - Scales with aspect ratio to outer bounding box rectangle
+---              | OBS_BOUNDS_SCALE_TO_WIDTH  - Scales with aspect ratio to the bounding box width
+---              | OBS_BOUNDS_SCALE_TO_HEIGHT - Scales with aspect ratio to the bounding box height
+---              | OBS_BOUNDS_MAX_ONLY        - Scales with aspect ratio, but only to the size of the source maximum
+--- 
+--- C definition: void obs_sceneitem_set_bounds_type(obs_sceneitem_t *item, enum obs_bounds_type type)
+--- @param item obs_sceneitem_t*
+--- @param type obs_bounds_type
+function obslua.obs_sceneitem_set_bounds_type(item, type) end
+
+--- Sets/gets the cropping of the scene item.
+--- 
+--- C definition: void obs_sceneitem_set_crop(obs_sceneitem_t *item, const struct obs_sceneitem_crop *crop)
+--- @param item obs_sceneitem_t*
+--- @param crop obs_sceneitem_crop*
+function obslua.obs_sceneitem_set_crop(item, crop) end
+
+--- Sets/gets the transform information of the scene item.
+--- 
+--- C definition: void obs_sceneitem_set_info(obs_sceneitem_t *item, const struct obs_transform_info *info)
+--- @param item obs_sceneitem_t*
+--- @param info obs_transform_info*
+function obslua.obs_sceneitem_set_info(item, info) end
+
+--- Sets/gets the locked/unlocked state of the scene item.
+--- 
+--- C definition: bool obs_sceneitem_set_locked(obs_sceneitem_t *item, bool locked)
+--- @param item obs_sceneitem_t*
+--- @param locked bool
+--- @return bool
+function obslua.obs_sceneitem_set_locked(item, locked) end
+
+--- Changes the scene item's order relative to the other scene items
+--- within the scene.
+--- 
+--- :param movement: | Can be one of the following:
+---                  | OBS_ORDER_MOVE_UP
+---                  | OBS_ORDER_MOVE_DOWN
+---                  | OBS_ORDER_MOVE_TOP
+---                  | OBS_ORDER_MOVE_BOTTOM
+--- 
+--- C definition: void obs_sceneitem_set_order(obs_sceneitem_t *item, enum obs_order_movement movement)
+--- @param item obs_sceneitem_t*
+--- @param movement obs_order_movement
+function obslua.obs_sceneitem_set_order(item, movement) end
+
+--- Changes the scene item's order index.
+--- 
+--- C definition: void obs_sceneitem_set_order_position(obs_sceneitem_t *item, int position)
+--- @param item obs_sceneitem_t*
+--- @param position int
+function obslua.obs_sceneitem_set_order_position(item, position) end
+
+--- Sets/gets the position of a scene item.
+--- 
+--- C definition: void obs_sceneitem_set_pos(obs_sceneitem_t *item, const struct vec2 *pos)
+--- @param item obs_sceneitem_t*
+--- @param pos vec2*
+function obslua.obs_sceneitem_set_pos(item, pos) end
+
+--- Sets/gets the rotation of a scene item.
+--- 
+--- C definition: void obs_sceneitem_set_rot(obs_sceneitem_t *item, float rot_deg)
+--- @param item obs_sceneitem_t*
+--- @param rot_deg float
+function obslua.obs_sceneitem_set_rot(item, rot_deg) end
+
+--- Sets/gets the scaling of the scene item.
+--- 
+--- C definition: void obs_sceneitem_set_scale(obs_sceneitem_t *item, const struct vec2 *scale)
+--- @param item obs_sceneitem_t*
+--- @param scale vec2*
+function obslua.obs_sceneitem_set_scale(item, scale) end
+
+--- Sets/gets the scale filter used for the scene item.
+--- 
+--- :param filter: | Can be one of the following values:
+---                | OBS_SCALE_DISABLE
+---                | OBS_SCALE_POINT
+---                | OBS_SCALE_BICUBIC
+---                | OBS_SCALE_BILINEAR
+---                | OBS_SCALE_LANCZOS
+--- 
+--- C definition: void obs_sceneitem_set_scale_filter(obs_sceneitem_t *item, enum obs_scale_type filter)
 --- @param item obs_sceneitem_t*
 --- @param filter obs_scale_type
-obslua.obs_sceneitem_set_scale_filter = function(item, filter) end
+function obslua.obs_sceneitem_set_scale_filter(item, filter) end
 
---- bool obs_sceneitem_set_visible(obs_sceneitem_t *item, bool visible)
----            bool obs_sceneitem_visible(const obs_sceneitem_t *item)
 --- Sets/gets the visibility state of the scene item.
+--- 
+--- C definition: bool obs_sceneitem_set_visible(obs_sceneitem_t *item, bool visible)
 --- @param item obs_sceneitem_t*
 --- @param visible bool
 --- @return bool
-obslua.obs_sceneitem_set_visible = function(item, visible) end
+function obslua.obs_sceneitem_set_visible(item, visible) end
 
---- obs_sceneitem_visible not documented
-obslua.obs_sceneitem_visible = function() end
+--- Sets/gets the visibility state of the scene item.
+--- 
+--- C definition: bool obs_sceneitem_visible(const obs_sceneitem_t *item)
+--- @param item obs_sceneitem_t*
+--- @return bool
+function obslua.obs_sceneitem_visible(item) end
 
---- void obs_service_addref(obs_service_t *service)
----            void obs_service_release(obs_service_t *service)
 --- Adds/releases a reference to a service.  When the last reference is
 --- released, the service is destroyed.
+--- 
+--- C definition: void obs_service_addref(obs_service_t *service)
 --- @param service obs_service_t*
-obslua.obs_service_addref = function(service) end
+function obslua.obs_service_addref(service) end
 
---- void obs_service_apply_encoder_settings(obs_service_t *service, obs_data_t *video_encoder_settings, obs_data_t *audio_encoder_settings)
 --- Applies service-specific video encoder settings.
+--- 
 --- :param  video_encoder_settings: Video encoder settings.  Can be *NULL*
 --- :param  audio_encoder_settings: Audio encoder settings.  Can be *NULL*
+--- 
+--- .. ---------------------------------------------------------------------------
+--- 
 --- .. _libobs/obs-service.h: https://github.com/jp9000/obs-studio/blob/master/libobs/obs-service.h
+--- C definition: void obs_service_apply_encoder_settings(obs_service_t *service, obs_data_t *video_encoder_settings, obs_data_t *audio_encoder_settings)
 --- @param service obs_service_t*
 --- @param video_encoder_settings obs_data_t*
 --- @param audio_encoder_settings obs_data_t*
-obslua.obs_service_apply_encoder_settings = function(service, video_encoder_settings, audio_encoder_settings) end
+function obslua.obs_service_apply_encoder_settings(service, video_encoder_settings, audio_encoder_settings) end
 
---- obs_service_t* obs_service_create(const char *id, const char *name, obs_data_t *settings, obs_data_t *hotkey_data)
 --- Creates a service with the specified settings.
+--- 
 --- The "service" context is used for encoding video/audio data.  Use
 --- obs_service_release to release it.
+--- 
 --- :param   id:             The service type string identifier
 --- :param   name:           The desired name of the service.  If this is
 ---                          not unique, it will be made to be unique
@@ -5889,48 +7354,72 @@ obslua.obs_service_apply_encoder_settings = function(service, video_encoder_sett
 ---                          if none
 --- :return:                 A reference to the newly created service, or
 ---                          *NULL* if failed
+--- 
+--- C definition: obs_service_t *obs_service_create(const char *id, const char *name, obs_data_t *settings, obs_data_t *hotkey_data)
 --- @param id char*
 --- @param name char*
 --- @param settings obs_data_t*
 --- @param hotkey_data obs_data_t*
 --- @return obs_service_t*
-obslua.obs_service_create = function(id, name, settings, hotkey_data) end
+function obslua.obs_service_create(id, name, settings, hotkey_data) end
 
 --- obs_service_create_private not documented
 obslua.obs_service_create_private = function() end
 
---- obs_data_t* obs_service_defaults(const char *id)
 --- :return: An incremented reference to the service's default settings
+--- 
+--- C definition: obs_data_t *obs_service_defaults(const char *id)
 --- @param id char*
 --- @return obs_data_t*
-obslua.obs_service_defaults = function(id) end
+function obslua.obs_service_defaults(id) end
 
---- obs_service_get_display_name not documented
-obslua.obs_service_get_display_name = function() end
+--- Calls the :c:member:`obs_service_info.get_name` callback to get the
+--- translated display name of a service type.
+--- 
+--- :param    id:            The service type string identifier
+--- :return:                 The translated display name of a service type
+--- 
+--- C definition: const char *obs_service_get_display_name(const char *id)
+--- @param id char*
+--- @return char*
+function obslua.obs_service_get_display_name(id) end
 
 --- obs_service_get_id not documented
 obslua.obs_service_get_id = function() end
 
---- obs_service_get_key not documented
-obslua.obs_service_get_key = function() end
+---   :return: Stream key (if any) currently used for this service
+--- 
+--- C definition: const char *obs_service_get_key(const obs_service_t *service)
+--- @param service obs_service_t*
+--- @return char*
+function obslua.obs_service_get_key(service) end
 
---- obs_service_get_name not documented
-obslua.obs_service_get_name = function() end
+--- :return: The name of the service
+--- 
+--- C definition: const char *obs_service_get_name(const obs_service_t *service)
+--- @param service obs_service_t*
+--- @return char*
+function obslua.obs_service_get_name(service) end
 
 --- obs_service_get_output_type not documented
 obslua.obs_service_get_output_type = function() end
 
---- obs_service_get_password not documented
-obslua.obs_service_get_password = function() end
+--- :return: Password (if any) currently used for this service
+--- 
+--- C definition: const char *obs_service_get_password(const obs_service_t *service)
+--- @param service obs_service_t*
+--- @return char*
+function obslua.obs_service_get_password(service) end
 
 --- obs_service_get_ref not documented
 obslua.obs_service_get_ref = function() end
 
---- obs_data_t* obs_service_get_settings(const obs_service_t *service)
 --- :return: An incremented reference to the service's settings
+--- 
+--- C definition: obs_data_t *obs_service_get_settings(const obs_service_t *service)
 --- @param service obs_service_t*
 --- @return obs_data_t*
-obslua.obs_service_get_settings = function(service) end
+function obslua.obs_service_get_settings(service) end
 
 --- obs_service_get_type not documented
 obslua.obs_service_get_type = function() end
@@ -5938,69 +7427,88 @@ obslua.obs_service_get_type = function() end
 --- obs_service_get_type_data not documented
 obslua.obs_service_get_type_data = function() end
 
---- obs_service_get_url not documented
-obslua.obs_service_get_url = function() end
+---   :return: The URL currently used for this service
+--- 
+--- C definition: const char *obs_service_get_url(const obs_service_t *service)
+--- @param service obs_service_t*
+--- @return char*
+function obslua.obs_service_get_url(service) end
 
---- obs_service_get_username not documented
-obslua.obs_service_get_username = function() end
+--- :return: User name (if any) currently used for this service
+--- 
+--- C definition: const char *obs_service_get_username(const obs_service_t *service)
+--- @param service obs_service_t*
+--- @return char*
+function obslua.obs_service_get_username(service) end
 
---- obs_weak_service_t* obs_service_get_weak_service(obs_service_t *service)
----            obs_service_t *obs_weak_service_get_service(obs_weak_service_t *weak)
 --- These functions are used to get a weak reference from a strong service
 --- reference, or a strong service reference from a weak reference.  If
 --- the service is destroyed, *obs_weak_service_get_service* will return
 --- *NULL*.
+--- 
+--- C definition: obs_weak_service_t *obs_service_get_weak_service(obs_service_t *service)
 --- @param service obs_service_t*
 --- @return obs_weak_service_t*
-obslua.obs_service_get_weak_service = function(service) end
+function obslua.obs_service_get_weak_service(service) end
 
---- obs_properties_t* obs_service_properties(const obs_service_t *service)
----            obs_properties_t *obs_get_service_properties(const char *id)
 --- Use these functions to get the properties of a service or service
 --- type.  Properties are optionally used (if desired) to automatically
 --- generate user interface widgets to allow users to update settings.
+--- 
 --- :return: The properties list for a specific existing service.  Free
 ---          with :c:func:`obs_properties_destroy()`
+--- 
+--- C definition: obs_properties_t *obs_service_properties(const obs_service_t *service)
 --- @param service obs_service_t*
 --- @return obs_properties_t*
-obslua.obs_service_properties = function(service) end
+function obslua.obs_service_properties(service) end
 
---- obs_service_release not documented
-obslua.obs_service_release = function() end
+--- Adds/releases a reference to a service.  When the last reference is
+--- released, the service is destroyed.
+--- 
+--- C definition: void obs_service_release(obs_service_t *service)
+--- @param service obs_service_t*
+function obslua.obs_service_release(service) end
 
---- void obs_service_update(obs_service_t *service, obs_data_t *settings)
 --- Updates the settings for this service context.
+--- 
+--- C definition: void obs_service_update(obs_service_t *service, obs_data_t *settings)
 --- @param service obs_service_t*
 --- @param settings obs_data_t*
-obslua.obs_service_update = function(service, settings) end
+function obslua.obs_service_update(service, settings) end
 
---- bool obs_set_audio_monitoring_device(const char *name, const char *id)
 --- Sets the current audio device for audio monitoring.
+--- 
+--- C definition: bool obs_set_audio_monitoring_device(const char *name, const char *id)
 --- @param name char*
 --- @param id char*
 --- @return bool
-obslua.obs_set_audio_monitoring_device = function(name, id) end
+function obslua.obs_set_audio_monitoring_device(name, id) end
 
 --- obs_set_cmdline_args not documented
 obslua.obs_set_cmdline_args = function() end
 
---- void obs_set_locale(const char *locale)
 --- Sets a new locale to use for modules.  This will call
 --- obs_module_set_locale for each module with the new locale.
+--- 
 --- :param  locale: The locale to use for modules
+--- 
+--- C definition: void obs_set_locale(const char *locale)
 --- @param locale char*
-obslua.obs_set_locale = function(locale) end
+function obslua.obs_set_locale(locale) end
 
---- void obs_set_master_volume(float volume)
 --- Sets the master user volume.
+--- 
+--- C definition: void obs_set_master_volume(float volume)
 --- @param volume float
-obslua.obs_set_master_volume = function(volume) end
+function obslua.obs_set_master_volume(volume) end
 
---- void obs_set_output_source(uint32_t channel, obs_source_t *source)
 --- Sets the primary output source for a channel.
+--- 
+--- C definition: void obs_set_output_source(uint32_t channel, obs_source_t *source)
 --- @param channel uint32_t
 --- @param source obs_source_t*
-obslua.obs_set_output_source = function(channel, source) end
+function obslua.obs_set_output_source(channel, source) end
 
 --- obs_set_private_data not documented
 obslua.obs_set_private_data = function() end
@@ -6008,46 +7516,53 @@ obslua.obs_set_private_data = function() end
 --- obs_set_ui_task_handler not documented
 obslua.obs_set_ui_task_handler = function() end
 
---- void obs_shutdown(void)
 --- Releases all data associated with OBS and terminates the OBS context.
-obslua.obs_shutdown = function() end
+--- 
+--- C definition: void obs_shutdown(void)
+function obslua.obs_shutdown() end
 
---- bool obs_source_active(const obs_source_t *source)
 --- :return: *true* if active, *false* if not.  A source is only
 ---          considered active if it's being shown on the final mix
+--- 
+--- C definition: bool obs_source_active(const obs_source_t *source)
 --- @param source obs_source_t*
 --- @return bool
-obslua.obs_source_active = function(source) end
+function obslua.obs_source_active(source) end
 
---- bool obs_source_add_active_child(obs_source_t *parent, obs_source_t *child)
 --- Adds an active child source.  Must be called by parent sources on child
 --- sources when the child is added and active.  This ensures that the source is
 --- properly activated if the parent is active.
+--- 
 --- :return: *true* if source can be added, *false* if it causes recursion
+--- 
+--- C definition: bool obs_source_add_active_child(obs_source_t *parent, obs_source_t *child)
 --- @param parent obs_source_t*
 --- @param child obs_source_t*
 --- @return bool
-obslua.obs_source_add_active_child = function(parent, child) end
+function obslua.obs_source_add_active_child(parent, child) end
 
---- void obs_source_add_audio_capture_callback(obs_source_t *source, obs_source_audio_capture_t callback, void *param)
----            void obs_source_remove_audio_capture_callback(obs_source_t *source, obs_source_audio_capture_t callback, void *param)
 --- Adds/removes an audio capture callback for a source.  This allows the
 --- ability to get the raw audio data of a source as it comes in.
+--- 
 --- Relevant data types used with this function:
+--- 
 --- .. code:: cpp
+--- 
 --- typedef void (*obs_source_audio_capture_t)(void *param, obs_source_t *source,
 ---                 const struct audio_data *audio_data, bool muted);
+--- 
+--- C definition: void obs_source_add_audio_capture_callback(obs_source_t *source, obs_source_audio_capture_t callback, void *param)
 --- @param source obs_source_t*
 --- @param callback obs_source_audio_capture_t
 --- @param param void*
-obslua.obs_source_add_audio_capture_callback = function(source, callback, param) end
+function obslua.obs_source_add_audio_capture_callback(source, callback, param) end
 
---- void obs_source_addref(obs_source_t *source)
----            void obs_source_release(obs_source_t *source)
 --- Adds/releases a reference to a source.  When the last reference is
 --- released, the source is destroyed.
+--- 
+--- C definition: void obs_source_addref(obs_source_t *source)
 --- @param source obs_source_t*
-obslua.obs_source_addref = function(source) end
+function obslua.obs_source_addref(source) end
 
 --- obs_source_async_decoupled not documented
 obslua.obs_source_async_decoupled = function() end
@@ -6061,26 +7576,28 @@ obslua.obs_source_audio_active = function() end
 --- obs_source_audio_pending not documented
 obslua.obs_source_audio_pending = function() end
 
---- bool obs_source_configurable(const obs_source_t *source)
----            bool obs_is_source_configurable(const char *id)
 --- :return: *true* if the the source has custom properties, *false*
 ---          otherwise
+--- 
+--- C definition: bool obs_source_configurable(const obs_source_t *source)
 --- @param source obs_source_t*
 --- @return bool
-obslua.obs_source_configurable = function(source) end
+function obslua.obs_source_configurable(source) end
 
---- void obs_source_copy_filters(obs_source_t *dst, obs_source_t *src)
 --- Copies filters from the source to the destination.  If filters by the
 --- same name already exist in the destination source, the newer filters
 --- will be given unique names.
+--- 
+--- C definition: void obs_source_copy_filters(obs_source_t *dst, obs_source_t *src)
 --- @param dst obs_source_t*
 --- @param src obs_source_t*
-obslua.obs_source_copy_filters = function(dst, src) end
+function obslua.obs_source_copy_filters(dst, src) end
 
---- obs_source_t* obs_source_create(const char *id, const char *name, obs_data_t *settings, obs_data_t *hotkey_data)
 --- Creates a source of the specified type with the specified settings.
+--- 
 --- The "source" context is used for anything related to presenting
 --- or modifying video/audio.  Use obs_source_release to release it.
+--- 
 --- :param   id:             The source type string identifier
 --- :param   name:           The desired name of the source.  If this is
 ---                          not unique, it will be made to be unique
@@ -6090,21 +7607,24 @@ obslua.obs_source_copy_filters = function(dst, src) end
 ---                          if none
 --- :return:                 A reference to the newly created source, or
 ---                          *NULL* if failed
+--- 
+--- C definition: obs_source_t *obs_source_create(const char *id, const char *name, obs_data_t *settings, obs_data_t *hotkey_data)
 --- @param id char*
 --- @param name char*
 --- @param settings obs_data_t*
 --- @param hotkey_data obs_data_t*
 --- @return obs_source_t*
-obslua.obs_source_create = function(id, name, settings, hotkey_data) end
+function obslua.obs_source_create(id, name, settings, hotkey_data) end
 
---- obs_source_t* obs_source_create_private(const char *id, const char *name, obs_data_t *settings)
 --- Creates a 'private' source which is not enumerated by
 --- :c:func:`obs_enum_sources()`, and is not saved by
 --- :c:func:`obs_save_sources()`.
+--- 
 --- Author's Note: The existence of this function is a result of design
 --- flaw: the front-end should control saving/loading of sources, and
 --- functions like :c:func:`obs_enum_sources()` and
 --- :c:func:`obs_save_sources()` should not exist in the back-end.
+--- 
 --- :param   id:             The source type string identifier
 --- :param   name:           The desired name of the source.  For private
 ---                          sources, this does not have to be unique,
@@ -6113,26 +7633,33 @@ obslua.obs_source_create = function(id, name, settings, hotkey_data) end
 ---                          none
 --- :return:                 A reference to the newly created source, or
 ---                          *NULL* if failed
+--- 
+--- C definition: obs_source_t *obs_source_create_private(const char *id, const char *name, obs_data_t *settings)
 --- @param id char*
 --- @param name char*
 --- @param settings obs_data_t*
 --- @return obs_source_t*
-obslua.obs_source_create_private = function(id, name, settings) end
+function obslua.obs_source_create_private(id, name, settings) end
 
 --- obs_source_dec_active not documented
 obslua.obs_source_dec_active = function() end
 
---- obs_source_dec_showing not documented
-obslua.obs_source_dec_showing = function() end
+--- Increments/decrements a source's "showing" state.  Typically used
+--- when drawing a source on a display manually.
+--- 
+--- C definition: void obs_source_dec_showing(obs_source_t *source)
+--- @param source obs_source_t*
+function obslua.obs_source_dec_showing(source) end
 
---- void obs_source_default_render(obs_source_t *source)
 --- Can be used by filters to directly render a non-async parent source
 --- without any filter processing.
+--- 
+--- C definition: void obs_source_default_render(obs_source_t *source)
 --- @param source obs_source_t*
-obslua.obs_source_default_render = function(source) end
+function obslua.obs_source_default_render(source) end
 
---- void obs_source_draw(gs_texture_t *image, int x, int y, uint32_t cx, uint32_t cy, bool flip)
 --- Helper function to draw sprites for a source (synchronous video).
+--- 
 --- :param  image:  The sprite texture to draw.  Assigns to the 'image' variable
 ---                 of the current effect.
 --- :param  x:      X position of the sprite.
@@ -6140,17 +7667,19 @@ obslua.obs_source_default_render = function(source) end
 --- :param  cx:     Width of the sprite.  If 0, uses the texture width.
 --- :param  cy:     Height of the sprite.  If 0, uses the texture height.
 --- :param  flip:   Specifies whether to flip the image vertically.
+--- 
+--- C definition: void obs_source_draw(gs_texture_t *image, int x, int y, uint32_t cx, uint32_t cy, bool flip)
 --- @param image gs_texture_t*
 --- @param x int
 --- @param y int
 --- @param cx uint32_t
 --- @param cy uint32_t
 --- @param flip bool
-obslua.obs_source_draw = function(image, x, y, cx, cy, flip) end
+function obslua.obs_source_draw(image, x, y, cx, cy, flip) end
 
---- void obs_source_draw_set_color_matrix(const struct matrix4 *color_matrix, const struct vec3 *color_range_min, const struct vec3 *color_range_max)
 --- Helper function to set the color matrix information when drawing the
 --- source.
+--- 
 --- :param  color_matrix:    The color matrix.  Assigns to the 'color_matrix'
 ---                          effect variable.
 --- :param  color_range_min: The minimum color range.  Assigns to the
@@ -6159,15 +7688,17 @@ obslua.obs_source_draw = function(image, x, y, cx, cy, flip) end
 --- :param  color_range_max: The maximum color range.  Assigns to the
 ---                          'color_range_max' effect variable.  If NULL,
 ---                          {1.0f, 1.0f, 1.0f} is used.
+--- 
+--- C definition: void obs_source_draw_set_color_matrix(const struct matrix4 *color_matrix, const struct vec3 *color_range_min, const struct vec3 *color_range_max)
 --- @param color_matrix matrix4*
 --- @param color_range_min vec3*
 --- @param color_range_max vec3*
-obslua.obs_source_draw_set_color_matrix = function(color_matrix, color_range_min, color_range_max) end
+function obslua.obs_source_draw_set_color_matrix(color_matrix, color_range_min, color_range_max) end
 
---- obs_source_t* obs_source_duplicate(obs_source_t *source, const char *desired_name, bool create_private)
 --- Duplicates a source.  If the source has the
 --- OBS_SOURCE_DO_NOT_DUPLICATE output flag set, this only returns a
 --- new reference to the same source.
+--- 
 --- :param source:         The source to duplicate
 --- :param desired_name:   The desired name of the new source.  If this is
 ---                        not a private source and the name is not unique,
@@ -6175,73 +7706,107 @@ obslua.obs_source_draw_set_color_matrix = function(color_matrix, color_range_min
 --- :param create_private: If *true*, the new source will be a private
 ---                        source if fully duplicated
 --- :return:               A new source reference
+--- 
+--- C definition: obs_source_t *obs_source_duplicate(obs_source_t *source, const char *desired_name, bool create_private)
 --- @param source obs_source_t*
 --- @param desired_name char*
 --- @param create_private bool
 --- @return obs_source_t*
-obslua.obs_source_duplicate = function(source, desired_name, create_private) end
+function obslua.obs_source_duplicate(source, desired_name, create_private) end
 
---- obs_source_enable_push_to_mute not documented
-obslua.obs_source_enable_push_to_mute = function() end
+--- Sets/gets whether push-to-mute is enabled.
+--- 
+--- C definition: void obs_source_enable_push_to_mute(obs_source_t *source, bool enabled)
+--- @param source obs_source_t*
+--- @param enabled bool
+function obslua.obs_source_enable_push_to_mute(source, enabled) end
 
---- obs_source_enable_push_to_talk not documented
-obslua.obs_source_enable_push_to_talk = function() end
+--- Sets/gets whether push-to-talk is enabled.
+--- 
+--- C definition: void obs_source_enable_push_to_talk(obs_source_t *source, bool enabled)
+--- @param source obs_source_t*
+--- @param enabled bool
+function obslua.obs_source_enable_push_to_talk(source, enabled) end
 
---- bool obs_source_enabled(const obs_source_t *source)
----            void obs_source_set_enabled(obs_source_t *source, bool enabled)
 --- Enables/disables a source, or returns the enabled state.
+--- 
+--- C definition: bool obs_source_enabled(const obs_source_t *source)
 --- @param source obs_source_t*
 --- @return bool
-obslua.obs_source_enabled = function(source) end
+function obslua.obs_source_enabled(source) end
 
---- void obs_source_enum_active_sources(obs_source_t *source, obs_source_enum_proc_t enum_callback, void *param)
----            void obs_source_enum_active_tree(obs_source_t *source, obs_source_enum_proc_t enum_callback, void *param)
 --- Enumerates active child sources or source tree used by this source.
+--- 
 --- Relevant data types used with this function:
+--- 
 --- .. code:: cpp
+--- 
 --- typedef void (*obs_source_enum_proc_t)(obs_source_t *parent,
 ---                 obs_source_t *child, void *param);
+--- 
+--- C definition: void obs_source_enum_active_sources(obs_source_t *source, obs_source_enum_proc_t enum_callback, void *param)
 --- @param source obs_source_t*
 --- @param enum_callback obs_source_enum_proc_t
 --- @param param void*
-obslua.obs_source_enum_active_sources = function(source, enum_callback, param) end
+function obslua.obs_source_enum_active_sources(source, enum_callback, param) end
 
---- obs_source_enum_active_tree not documented
-obslua.obs_source_enum_active_tree = function() end
-
---- void obs_source_enum_filters(obs_source_t *source, obs_source_enum_proc_t callback, void *param)
---- Enumerates active filters on a source.
+--- Enumerates active child sources or source tree used by this source.
+--- 
 --- Relevant data types used with this function:
+--- 
 --- .. code:: cpp
+--- 
 --- typedef void (*obs_source_enum_proc_t)(obs_source_t *parent,
 ---                 obs_source_t *child, void *param);
+--- 
+--- C definition: void obs_source_enum_active_tree(obs_source_t *source, obs_source_enum_proc_t enum_callback, void *param)
+--- @param source obs_source_t*
+--- @param enum_callback obs_source_enum_proc_t
+--- @param param void*
+function obslua.obs_source_enum_active_tree(source, enum_callback, param) end
+
+--- Enumerates active filters on a source.
+--- 
+--- Relevant data types used with this function:
+--- 
+--- .. code:: cpp
+--- 
+--- typedef void (*obs_source_enum_proc_t)(obs_source_t *parent,
+---                 obs_source_t *child, void *param);
+--- 
+--- C definition: void obs_source_enum_filters(obs_source_t *source, obs_source_enum_proc_t callback, void *param)
 --- @param source obs_source_t*
 --- @param callback obs_source_enum_proc_t
 --- @param param void*
-obslua.obs_source_enum_filters = function(source, callback, param) end
+function obslua.obs_source_enum_filters(source, callback, param) end
 
---- void obs_source_filter_add(obs_source_t *source, obs_source_t *filter)
----            void obs_source_filter_remove(obs_source_t *source, obs_source_t *filter)
 --- Adds/removes a filter to/from a source.
+--- 
+--- C definition: void obs_source_filter_add(obs_source_t *source, obs_source_t *filter)
 --- @param source obs_source_t*
 --- @param filter obs_source_t*
-obslua.obs_source_filter_add = function(source, filter) end
+function obslua.obs_source_filter_add(source, filter) end
 
---- obs_source_filter_remove not documented
-obslua.obs_source_filter_remove = function() end
+--- Adds/removes a filter to/from a source.
+--- 
+--- C definition: void obs_source_filter_remove(obs_source_t *source, obs_source_t *filter)
+--- @param source obs_source_t*
+--- @param filter obs_source_t*
+function obslua.obs_source_filter_remove(source, filter) end
 
---- void obs_source_filter_set_order(obs_source_t *source, obs_source_t *filter, enum obs_order_movement movement)
 --- Modifies the order of a specific filter.
+--- 
 --- :param movement: | Can be one of the following:
 ---                  | OBS_ORDER_MOVE_UP
 ---                  | OBS_ORDER_MOVE_DOWN
 ---                  | OBS_ORDER_MOVE_TOP
 ---                  | OBS_ORDER_MOVE_BOTTOM
---- Functions used by filters
+--- 
+--- C definition: void obs_source_filter_set_order(obs_source_t *source, obs_source_t *filter, enum obs_order_movement movement)
 --- @param source obs_source_t*
 --- @param filter obs_source_t*
 --- @param movement obs_order_movement
-obslua.obs_source_filter_set_order = function(source, filter, movement) end
+function obslua.obs_source_filter_set_order(source, filter, movement) end
 
 --- obs_source_frame_copy not documented
 obslua.obs_source_frame_copy = function() end
@@ -6261,8 +7826,18 @@ obslua.obs_source_frame_init = function() end
 --- obs_source_get_audio_mix not documented
 obslua.obs_source_get_audio_mix = function() end
 
---- obs_source_get_audio_mixers not documented
-obslua.obs_source_get_audio_mixers = function() end
+--- Sets/gets the audio mixer channels that a source outputs to
+--- (depending on what bits are set).  Audio mixers allow filtering
+--- specific using multiple audio encoders to mix different sources
+--- together depending on what mixer channel they're set to.
+--- 
+--- For example, to output to mixer 1 and 3, you would perform a bitwise
+--- OR on bits 0 and 2:  (1<<0) | (1<<2), or 0x5.
+--- 
+--- C definition: uint32_t obs_source_get_audio_mixers(const obs_source_t *source)
+--- @param source obs_source_t*
+--- @return uint32_t
+function obslua.obs_source_get_audio_mixers(source) end
 
 --- obs_source_get_audio_timestamp not documented
 obslua.obs_source_get_audio_timestamp = function() end
@@ -6276,37 +7851,87 @@ obslua.obs_source_get_base_height = function() end
 --- obs_source_get_base_width not documented
 obslua.obs_source_get_base_width = function() end
 
---- obs_source_get_deinterlace_field_order not documented
-obslua.obs_source_get_deinterlace_field_order = function() end
+--- Sets/gets the deinterlace field order.
+--- 
+--- :param order: | OBS_DEINTERLACE_FIELD_ORDER_TOP - Start from top
+---               | OBS_DEINTERLACE_FIELD_ORDER_BOTTOM - Start from bottom
+--- 
+--- C definition: enum obs_deinterlace_field_order obs_source_get_deinterlace_field_order(const obs_source_t *source)
+--- @param source obs_source_t*
+--- @return obs_deinterlace_field_order
+function obslua.obs_source_get_deinterlace_field_order(source) end
 
---- obs_source_get_deinterlace_mode not documented
-obslua.obs_source_get_deinterlace_mode = function() end
+--- Sets/gets the deinterlace mode.
+--- 
+--- :param mode:   | OBS_DEINTERLACE_MODE_DISABLE    - Disables deinterlacing
+---                | OBS_DEINTERLACE_MODE_DISCARD    - Discard
+---                | OBS_DEINTERLACE_MODE_RETRO      - Retro
+---                | OBS_DEINTERLACE_MODE_BLEND      - Blend
+---                | OBS_DEINTERLACE_MODE_BLEND_2X   - Blend 2x
+---                | OBS_DEINTERLACE_MODE_LINEAR     - Linear
+---                | OBS_DEINTERLACE_MODE_LINEAR_2X  - Linear 2x
+---                | OBS_DEINTERLACE_MODE_YADIF      - Yadif
+---                | OBS_DEINTERLACE_MODE_YADIF_2X   - Yadif 2x
+--- 
+--- C definition: enum obs_deinterlace_mode obs_source_get_deinterlace_mode(const obs_source_t *source)
+--- @param source obs_source_t*
+--- @return obs_deinterlace_mode
+function obslua.obs_source_get_deinterlace_mode(source) end
 
---- obs_source_get_display_name not documented
-obslua.obs_source_get_display_name = function() end
+--- Calls the :c:member:`obs_source_info.get_name` callback to get the
+--- translated display name of a source type.
+--- 
+--- :param    id:            The source type string identifier
+--- :return:                 The translated display name of a source type
+--- 
+--- C definition: const char *obs_source_get_display_name(const char *id)
+--- @param id char*
+--- @return char*
+function obslua.obs_source_get_display_name(id) end
 
---- obs_source_t* obs_source_get_filter_by_name(obs_source_t *source, const char *name)
 --- :return: The desired filter, or *NULL* if not found.  The reference
 ---          of the filter is incremented
+--- 
+--- C definition: obs_source_t *obs_source_get_filter_by_name(obs_source_t *source, const char *name)
 --- @param source obs_source_t*
 --- @param name char*
 --- @return obs_source_t*
-obslua.obs_source_get_filter_by_name = function(source, name) end
+function obslua.obs_source_get_filter_by_name(source, name) end
 
---- obs_source_get_flags not documented
-obslua.obs_source_get_flags = function() end
+--- :param flags: OBS_SOURCE_FLAG_FORCE_MONO Forces audio to mono
+--- 
+--- C definition: uint32_t obs_source_get_flags(const obs_source_t *source)
+--- @param source obs_source_t*
+--- @return uint32_t
+function obslua.obs_source_get_flags(source) end
 
 --- obs_source_get_frame not documented
 obslua.obs_source_get_frame = function() end
 
---- obs_source_get_height not documented
-obslua.obs_source_get_height = function() end
+--- Calls the :c:member:`obs_source_info.get_width` or
+--- :c:member:`obs_source_info.get_height` of the source to get its width
+--- and/or height.
+--- 
+--- Author's Note: These functions should be consolidated in to a single
+--- function/callback rather than having a function for both width and
+--- height.
+--- 
+--- :return: The width or height of the source
+--- 
+--- C definition: uint32_t obs_source_get_height(obs_source_t *source)
+--- @param source obs_source_t*
+--- @return uint32_t
+function obslua.obs_source_get_height(source) end
 
 --- obs_source_get_icon_type not documented
 obslua.obs_source_get_icon_type = function() end
 
---- obs_source_get_id not documented
-obslua.obs_source_get_id = function() end
+--- :return: The source's type identifier string
+--- 
+--- C definition: const char *obs_source_get_id(const obs_source_t *source)
+--- @param source obs_source_t*
+--- @return char*
+function obslua.obs_source_get_id(source) end
 
 --- obs_source_get_last_obs_version not documented
 obslua.obs_source_get_last_obs_version = function() end
@@ -6314,74 +7939,97 @@ obslua.obs_source_get_last_obs_version = function() end
 --- obs_source_get_monitoring_type not documented
 obslua.obs_source_get_monitoring_type = function() end
 
---- obs_source_get_name not documented
-obslua.obs_source_get_name = function() end
+--- :return: The name of the source
+--- 
+--- C definition: const char *obs_source_get_name(const obs_source_t *source)
+--- @param source obs_source_t*
+--- @return char*
+function obslua.obs_source_get_name(source) end
 
---- uint32_t obs_source_get_output_flags(const obs_source_t *source)
----            uint32_t obs_get_source_output_flags(const char *id)
 --- :return: Capability flags of a source
+--- 
 --- Author's Note: "Output flags" is poor wording in retrospect; this
 --- should have been named "Capability flags", and the OBS_SOURCE_*
 --- macros should really be OBS_SOURCE_CAP_* macros instead.
+--- 
 --- See :c:member:`obs_source_info.output_flags` for more information.
+--- 
+--- C definition: uint32_t obs_source_get_output_flags(const obs_source_t *source)
 --- @param source obs_source_t*
 --- @return uint32_t
-obslua.obs_source_get_output_flags = function(source) end
+function obslua.obs_source_get_output_flags(source) end
 
---- obs_data_t* obs_source_get_private_settings(obs_source_t *item)
 --- Gets private front-end settings data.  This data is saved/loaded
 --- automatically.  Returns an incremented reference.
+--- 
+--- C definition: obs_data_t *obs_source_get_private_settings(obs_source_t *item)
 --- @param item obs_source_t*
 --- @return obs_data_t*
-obslua.obs_source_get_private_settings = function(item) end
+function obslua.obs_source_get_private_settings(item) end
 
---- proc_handler_t* obs_source_get_proc_handler(const obs_source_t *source)
 --- :return: The procedure handler for a source
+--- 
+--- C definition: proc_handler_t *obs_source_get_proc_handler(const obs_source_t *source)
 --- @param source obs_source_t*
 --- @return proc_handler_t*
-obslua.obs_source_get_proc_handler = function(source) end
+function obslua.obs_source_get_proc_handler(source) end
 
---- uint64_t obs_source_get_push_to_mute_delay(const obs_source_t *source)
----            void obs_source_set_push_to_mute_delay(obs_source_t *source, uint64_t delay)
 --- Sets/gets the push-to-mute delay.
+--- 
+--- C definition: uint64_t obs_source_get_push_to_mute_delay(const obs_source_t *source)
 --- @param source obs_source_t*
 --- @return uint64_t
-obslua.obs_source_get_push_to_mute_delay = function(source) end
+function obslua.obs_source_get_push_to_mute_delay(source) end
 
---- uint64_t obs_source_get_push_to_talk_delay(const obs_source_t *source)
----            void obs_source_set_push_to_talk_delay(obs_source_t *source, uint64_t delay)
 --- Sets/gets the push-to-talk delay.
+--- 
+--- C definition: uint64_t obs_source_get_push_to_talk_delay(const obs_source_t *source)
 --- @param source obs_source_t*
 --- @return uint64_t
-obslua.obs_source_get_push_to_talk_delay = function(source) end
+function obslua.obs_source_get_push_to_talk_delay(source) end
 
 --- obs_source_get_ref not documented
 obslua.obs_source_get_ref = function() end
 
---- obs_data_t* obs_source_get_settings(const obs_source_t *source)
 --- :return: The settings string for a source.  The reference counter of the
 ---          returned settings data is incremented, so
 ---          :c:func:`obs_data_release()` must be called when the
 ---          settings are no longer used
+--- 
+--- C definition: obs_data_t *obs_source_get_settings(const obs_source_t *source)
 --- @param source obs_source_t*
 --- @return obs_data_t*
-obslua.obs_source_get_settings = function(source) end
+function obslua.obs_source_get_settings(source) end
 
----  :return: The source's signal handler
--- See the :ref:`source_signal_handler_reference` for more information
--- on signals that are available for sources.
--- @param source obs_source_t*
--- @return signal_handler_t*
-obslua.obs_source_get_signal_handler = function(source) end
+--- :return: The source's signal handler
+--- 
+--- See the :ref:`source_signal_handler_reference` for more information
+--- on signals that are available for sources.
+--- 
+--- C definition: signal_handler_t *obs_source_get_signal_handler(const obs_source_t *source)
+--- @param source obs_source_t*
+--- @return signal_handler_t*
+function obslua.obs_source_get_signal_handler(source) end
 
 --- obs_source_get_speaker_layout not documented
 obslua.obs_source_get_speaker_layout = function() end
 
---- obs_source_get_sync_offset not documented
-obslua.obs_source_get_sync_offset = function() end
+--- Sets/gets the audio sync offset (in nanoseconds) for a source.
+--- 
+--- C definition: int64_t obs_source_get_sync_offset(const obs_source_t *source)
+--- @param source obs_source_t*
+--- @return int64_t
+function obslua.obs_source_get_sync_offset(source) end
 
---- obs_source_get_type not documented
-obslua.obs_source_get_type = function() end
+--- :return: | OBS_SOURCE_TYPE_INPUT for inputs
+---          | OBS_SOURCE_TYPE_FILTER for filters
+---          | OBS_SOURCE_TYPE_TRANSITION for transitions
+---          | OBS_SOURCE_TYPE_SCENE for scenes
+--- 
+--- C definition: enum obs_source_type obs_source_get_type(const obs_source_t *source)
+--- @param source obs_source_t*
+--- @return obs_source_type
+function obslua.obs_source_get_type(source) end
 
 --- obs_source_get_type_data not documented
 obslua.obs_source_get_type_data = function() end
@@ -6389,41 +8037,47 @@ obslua.obs_source_get_type_data = function() end
 --- obs_source_get_unversioned_id not documented
 obslua.obs_source_get_unversioned_id = function() end
 
---- obs_source_get_volume not documented
-obslua.obs_source_get_volume = function() end
+--- Sets/gets the user volume for a source that has audio output.
+--- 
+--- C definition: float obs_source_get_volume(const obs_source_t *source)
+--- @param source obs_source_t*
+--- @return float
+function obslua.obs_source_get_volume(source) end
 
---- obs_weak_source_t* obs_source_get_weak_source(obs_source_t *source)
----            obs_source_t *obs_weak_source_get_source(obs_weak_source_t *weak)
 --- These functions are used to get a weak reference from a strong source
 --- reference, or a strong source reference from a weak reference.  If
 --- the source is destroyed, *obs_weak_source_get_source* will return
 --- *NULL*.
+--- 
+--- C definition: obs_weak_source_t *obs_source_get_weak_source(obs_source_t *source)
 --- @param source obs_source_t*
 --- @return obs_weak_source_t*
-obslua.obs_source_get_weak_source = function(source) end
+function obslua.obs_source_get_weak_source(source) end
 
---- uint32_t obs_source_get_width(obs_source_t *source)
----            uint32_t obs_source_get_height(obs_source_t *source)
 --- Calls the :c:member:`obs_source_info.get_width` or
 --- :c:member:`obs_source_info.get_height` of the source to get its width
 --- and/or height.
+--- 
 --- Author's Note: These functions should be consolidated in to a single
 --- function/callback rather than having a function for both width and
 --- height.
+--- 
 --- :return: The width or height of the source
+--- 
+--- C definition: uint32_t obs_source_get_width(obs_source_t *source)
 --- @param source obs_source_t*
 --- @return uint32_t
-obslua.obs_source_get_width = function(source) end
+function obslua.obs_source_get_width(source) end
 
 --- obs_source_inc_active not documented
 obslua.obs_source_inc_active = function() end
 
---- void obs_source_inc_showing(obs_source_t *source)
----            void obs_source_dec_showing(obs_source_t *source)
 --- Increments/decrements a source's "showing" state.  Typically used
 --- when drawing a source on a display manually.
+--- 
+--- C definition: void obs_source_inc_showing(obs_source_t *source)
 --- @param source obs_source_t*
-obslua.obs_source_inc_showing = function(source) end
+function obslua.obs_source_inc_showing(source) end
 
 --- obs_source_is_group not documented
 obslua.obs_source_is_group = function() end
@@ -6464,216 +8118,262 @@ obslua.obs_source_media_started = function() end
 --- obs_source_media_stop not documented
 obslua.obs_source_media_stop = function() end
 
---- bool obs_source_muted(const obs_source_t *source)
----            void obs_source_set_muted(obs_source_t *source, bool muted)
 --- Sets/gets whether the source's audio is muted.
+--- 
+--- C definition: bool obs_source_muted(const obs_source_t *source)
 --- @param source obs_source_t*
 --- @return bool
-obslua.obs_source_muted = function(source) end
+function obslua.obs_source_muted(source) end
 
---- void obs_source_output_audio(obs_source_t *source, const struct obs_source_audio *audio)
 --- Outputs audio data.
+--- 
+--- C definition: void obs_source_output_audio(obs_source_t *source, const struct obs_source_audio *audio)
 --- @param source obs_source_t*
 --- @param audio obs_source_audio*
-obslua.obs_source_output_audio = function(source, audio) end
+function obslua.obs_source_output_audio(source, audio) end
 
---- void obs_source_output_video(obs_source_t *source, const struct obs_source_frame *frame)
 --- Outputs asynchronous video data.  Set to NULL to deactivate the texture.
+--- 
 --- Relevant data types used with this function:
+--- 
 --- .. code:: cpp
+--- 
 --- enum video_format {
 ---         VIDEO_FORMAT_NONE,
+--- 
 ---         /* planar 420 format */
 ---         VIDEO_FORMAT_I420, /* three-plane */
 ---         VIDEO_FORMAT_NV12, /* two-plane, luma and packed chroma */
+--- 
 ---         /* packed 422 formats */
 ---         VIDEO_FORMAT_YVYU,
 ---         VIDEO_FORMAT_YUY2, /* YUYV */
 ---         VIDEO_FORMAT_UYVY,
+--- 
 ---         /* packed uncompressed formats */
 ---         VIDEO_FORMAT_RGBA,
 ---         VIDEO_FORMAT_BGRA,
 ---         VIDEO_FORMAT_BGRX,
 ---         VIDEO_FORMAT_Y800, /* grayscale */
+--- 
 ---         /* planar 4:4:4 */
 ---         VIDEO_FORMAT_I444,
+--- };
+--- 
 --- struct obs_source_frame {
 ---         uint8_t             *data[MAX_AV_PLANES];
 ---         uint32_t            linesize[MAX_AV_PLANES];
 ---         uint32_t            width;
 ---         uint32_t            height;
 ---         uint64_t            timestamp;
+--- 
 ---         enum video_format   format;
 ---         float               color_matrix[16];
 ---         bool                full_range;
 ---         float               color_range_min[3];
 ---         float               color_range_max[3];
 ---         bool                flip;
+--- };
+--- 
+--- C definition: void obs_source_output_video(obs_source_t *source, const struct obs_source_frame *frame)
 --- @param source obs_source_t*
 --- @param frame obs_source_frame*
-obslua.obs_source_output_video = function(source, frame) end
+function obslua.obs_source_output_video(source, frame) end
 
 --- obs_source_output_video2 not documented
 obslua.obs_source_output_video2 = function() end
 
---- void obs_source_preload_video(obs_source_t *source, const struct obs_source_frame *frame)
 --- Preloads a video frame to ensure a frame is ready for playback as
 --- soon as video playback starts.
+--- 
+--- C definition: void obs_source_preload_video(obs_source_t *source, const struct obs_source_frame *frame)
 --- @param source obs_source_t*
 --- @param frame obs_source_frame*
-obslua.obs_source_preload_video = function(source, frame) end
+function obslua.obs_source_preload_video(source, frame) end
 
 --- obs_source_preload_video2 not documented
 obslua.obs_source_preload_video2 = function() end
 
---- bool obs_source_process_filter_begin(obs_source_t *filter, enum gs_color_format format, enum obs_allow_direct_render allow_direct)
 --- Default RGB filter handler for generic effect filters.  Processes the
 --- filter chain and renders them to texture if needed, then the filter is
 --- drawn with.
+--- 
 --- After calling this, set your parameters for the effect, then call
 --- obs_source_process_filter_end to draw the filter.
+--- 
 --- :return: *true* if filtering should continue, *false* if the filter
 ---          is bypassed for whatever reason
+--- 
+--- C definition: bool obs_source_process_filter_begin(obs_source_t *filter, enum gs_color_format format, enum obs_allow_direct_render allow_direct)
 --- @param filter obs_source_t*
 --- @param format gs_color_format
 --- @param allow_direct obs_allow_direct_render
 --- @return bool
-obslua.obs_source_process_filter_begin = function(filter, format, allow_direct) end
+function obslua.obs_source_process_filter_begin(filter, format, allow_direct) end
 
---- void obs_source_process_filter_end(obs_source_t *filter, gs_effect_t *effect, uint32_t width, uint32_t height)
 --- Draws the filter using the effect's "Draw" technique.
+--- 
 --- Before calling this function, first call obs_source_process_filter_begin and
 --- then set the effect parameters, and then call this function to finalize the
 --- filter.
+--- 
+--- C definition: void obs_source_process_filter_end(obs_source_t *filter, gs_effect_t *effect, uint32_t width, uint32_t height)
 --- @param filter obs_source_t*
 --- @param effect gs_effect_t*
 --- @param width uint32_t
 --- @param height uint32_t
-obslua.obs_source_process_filter_end = function(filter, effect, width, height) end
+function obslua.obs_source_process_filter_end(filter, effect, width, height) end
 
---- void obs_source_process_filter_tech_end(obs_source_t *filter, gs_effect_t *effect, uint32_t width, uint32_t height, const char *tech_name)
 --- Draws the filter with a specific technique in the effect.
+--- 
 --- Before calling this function, first call obs_source_process_filter_begin and
 --- then set the effect parameters, and then call this function to finalize the
 --- filter.
+--- 
+--- C definition: void obs_source_process_filter_tech_end(obs_source_t *filter, gs_effect_t *effect, uint32_t width, uint32_t height, const char *tech_name)
 --- @param filter obs_source_t*
 --- @param effect gs_effect_t*
 --- @param width uint32_t
 --- @param height uint32_t
 --- @param tech_name char*
-obslua.obs_source_process_filter_tech_end = function(filter, effect, width, height, tech_name) end
+function obslua.obs_source_process_filter_tech_end(filter, effect, width, height, tech_name) end
 
---- obs_properties_t* obs_source_properties(const obs_source_t *source)
----            obs_properties_t *obs_get_source_properties(const char *id)
 --- Use these functions to get the properties of a source or source type.
 --- Properties are optionally used (if desired) to automatically generate
 --- user interface widgets to allow users to update settings.
+--- 
 --- :return: The properties list for a specific existing source.  Free with
 ---          :c:func:`obs_properties_destroy()`
+--- 
+--- C definition: obs_properties_t *obs_source_properties(const obs_source_t *source)
 --- @param source obs_source_t*
 --- @return obs_properties_t*
-obslua.obs_source_properties = function(source) end
+function obslua.obs_source_properties(source) end
 
---- bool obs_source_push_to_mute_enabled(const obs_source_t *source)
----            void obs_source_enable_push_to_mute(obs_source_t *source, bool enabled)
 --- Sets/gets whether push-to-mute is enabled.
+--- 
+--- C definition: bool obs_source_push_to_mute_enabled(const obs_source_t *source)
 --- @param source obs_source_t*
 --- @return bool
-obslua.obs_source_push_to_mute_enabled = function(source) end
+function obslua.obs_source_push_to_mute_enabled(source) end
 
---- bool obs_source_push_to_talk_enabled(const obs_source_t *source)
----            void obs_source_enable_push_to_talk(obs_source_t *source, bool enabled)
 --- Sets/gets whether push-to-talk is enabled.
+--- 
+--- C definition: bool obs_source_push_to_talk_enabled(const obs_source_t *source)
 --- @param source obs_source_t*
 --- @return bool
-obslua.obs_source_push_to_talk_enabled = function(source) end
+function obslua.obs_source_push_to_talk_enabled(source) end
 
---- obs_source_release not documented
-obslua.obs_source_release = function() end
+--- Adds/releases a reference to a source.  When the last reference is
+--- released, the source is destroyed.
+--- 
+--- C definition: void obs_source_release(obs_source_t *source)
+--- @param source obs_source_t*
+function obslua.obs_source_release(source) end
 
 --- obs_source_release_frame not documented
 obslua.obs_source_release_frame = function() end
 
---- void obs_source_remove(obs_source_t *source)
 --- Notifies all reference holders of the source (via
 --- :c:func:`obs_source_removed()`) that the source should be released.
+--- 
+--- C definition: void obs_source_remove(obs_source_t *source)
 --- @param source obs_source_t*
-obslua.obs_source_remove = function(source) end
+function obslua.obs_source_remove(source) end
 
---- void obs_source_remove_active_child(obs_source_t *parent, obs_source_t *child)
 --- Removes an active child source.  Must be called by parent sources on child
 --- sources when the child is removed or inactive.  This ensures that the source
 --- is properly deactivated if the parent is no longer active.
---- Filters
+--- 
+--- C definition: void obs_source_remove_active_child(obs_source_t *parent, obs_source_t *child)
 --- @param parent obs_source_t*
 --- @param child obs_source_t*
-obslua.obs_source_remove_active_child = function(parent, child) end
+function obslua.obs_source_remove_active_child(parent, child) end
 
---- obs_source_remove_audio_capture_callback not documented
-obslua.obs_source_remove_audio_capture_callback = function() end
+--- Adds/removes an audio capture callback for a source.  This allows the
+--- ability to get the raw audio data of a source as it comes in.
+--- 
+--- Relevant data types used with this function:
+--- 
+--- .. code:: cpp
+--- 
+--- typedef void (*obs_source_audio_capture_t)(void *param, obs_source_t *source,
+---                 const struct audio_data *audio_data, bool muted);
+--- 
+--- C definition: void obs_source_remove_audio_capture_callback(obs_source_t *source, obs_source_audio_capture_t callback, void *param)
+--- @param source obs_source_t*
+--- @param callback obs_source_audio_capture_t
+--- @param param void*
+function obslua.obs_source_remove_audio_capture_callback(source, callback, param) end
 
---- bool obs_source_removed(const obs_source_t *source)
 --- :return: *true* if the source should be released
+--- 
+--- C definition: bool obs_source_removed(const obs_source_t *source)
 --- @param source obs_source_t*
 --- @return bool
-obslua.obs_source_removed = function(source) end
+function obslua.obs_source_removed(source) end
 
 --- obs_source_save not documented
 obslua.obs_source_save = function() end
 
---- void obs_source_send_focus(obs_source_t *source, bool focus)
 --- Used for interacting with sources:  sends a got-focus or lost-focus
 --- event to a source.
+--- 
+--- C definition: void obs_source_send_focus(obs_source_t *source, bool focus)
 --- @param source obs_source_t*
 --- @param focus bool
-obslua.obs_source_send_focus = function(source, focus) end
+function obslua.obs_source_send_focus(source, focus) end
 
---- void obs_source_send_key_click(obs_source_t *source, const struct obs_key_event *event, bool key_up)
 --- Used for interacting with sources:  sends a key up/down event to a
 --- source.
---- Functions used by sources
+--- 
+--- C definition: void obs_source_send_key_click(obs_source_t *source, const struct obs_key_event *event, bool key_up)
 --- @param source obs_source_t*
 --- @param event obs_key_event*
 --- @param key_up bool
-obslua.obs_source_send_key_click = function(source, event, key_up) end
+function obslua.obs_source_send_key_click(source, event, key_up) end
 
---- void obs_source_send_mouse_click(obs_source_t *source, const struct obs_mouse_event *event, int32_t type, bool mouse_up, uint32_t click_count)
 --- Used for interacting with sources: sends a mouse down/up event to a
 --- source.
+--- 
+--- C definition: void obs_source_send_mouse_click(obs_source_t *source, const struct obs_mouse_event *event, int32_t type, bool mouse_up, uint32_t click_count)
 --- @param source obs_source_t*
 --- @param event obs_mouse_event*
 --- @param type int32_t
 --- @param mouse_up bool
 --- @param click_count uint32_t
-obslua.obs_source_send_mouse_click = function(source, event, type, mouse_up, click_count) end
+function obslua.obs_source_send_mouse_click(source, event, type, mouse_up, click_count) end
 
---- void obs_source_send_mouse_move(obs_source_t *source, const struct obs_mouse_event *event, bool mouse_leave)
 --- Used for interacting with sources: sends a mouse move event to a
 --- source.
+--- 
+--- C definition: void obs_source_send_mouse_move(obs_source_t *source, const struct obs_mouse_event *event, bool mouse_leave)
 --- @param source obs_source_t*
 --- @param event obs_mouse_event*
 --- @param mouse_leave bool
-obslua.obs_source_send_mouse_move = function(source, event, mouse_leave) end
+function obslua.obs_source_send_mouse_move(source, event, mouse_leave) end
 
---- void obs_source_send_mouse_wheel(obs_source_t *source, const struct obs_mouse_event *event, int x_delta, int y_delta)
 --- Used for interacting with sources:  sends a mouse wheel event to a
 --- source.
+--- 
+--- C definition: void obs_source_send_mouse_wheel(obs_source_t *source, const struct obs_mouse_event *event, int x_delta, int y_delta)
 --- @param source obs_source_t*
 --- @param event obs_mouse_event*
 --- @param x_delta int
 --- @param y_delta int
-obslua.obs_source_send_mouse_wheel = function(source, event, x_delta, y_delta) end
+function obslua.obs_source_send_mouse_wheel(source, event, x_delta, y_delta) end
 
 --- obs_source_set_async_decoupled not documented
 obslua.obs_source_set_async_decoupled = function() end
 
---- void obs_source_set_async_rotation(obs_source_t *source, long rotation)
 --- Allows the ability to set rotation (0, 90, 180, -90, 270) for an
 --- async video source.  The rotation will be automatically applied to
 --- the source.
+--- 
+--- C definition: void obs_source_set_async_rotation(obs_source_t *source, long rotation)
 --- @param source obs_source_t*
 --- @param rotation long
-obslua.obs_source_set_async_rotation = function(source, rotation) end
+function obslua.obs_source_set_async_rotation(source, rotation) end
 
 --- obs_source_set_async_unbuffered not documented
 obslua.obs_source_set_async_unbuffered = function() end
@@ -6681,17 +8381,18 @@ obslua.obs_source_set_async_unbuffered = function() end
 --- obs_source_set_audio_active not documented
 obslua.obs_source_set_audio_active = function() end
 
---- void obs_source_set_audio_mixers(obs_source_t *source, uint32_t mixers)
----            uint32_t obs_source_get_audio_mixers(const obs_source_t *source)
 --- Sets/gets the audio mixer channels that a source outputs to
 --- (depending on what bits are set).  Audio mixers allow filtering
 --- specific using multiple audio encoders to mix different sources
 --- together depending on what mixer channel they're set to.
+--- 
 --- For example, to output to mixer 1 and 3, you would perform a bitwise
 --- OR on bits 0 and 2:  (1<<0) | (1<<2), or 0x5.
+--- 
+--- C definition: void obs_source_set_audio_mixers(obs_source_t *source, uint32_t mixers)
 --- @param source obs_source_t*
 --- @param mixers uint32_t
-obslua.obs_source_set_audio_mixers = function(source, mixers) end
+function obslua.obs_source_set_audio_mixers(source, mixers) end
 
 --- obs_source_set_balance_value not documented
 obslua.obs_source_set_balance_value = function() end
@@ -6699,18 +8400,18 @@ obslua.obs_source_set_balance_value = function() end
 --- obs_source_set_default_flags not documented
 obslua.obs_source_set_default_flags = function() end
 
---- void obs_source_set_deinterlace_field_order(obs_source_t *source, enum obs_deinterlace_field_order order)
----            enum obs_deinterlace_field_order obs_source_get_deinterlace_field_order(const obs_source_t *source)
 --- Sets/gets the deinterlace field order.
+--- 
 --- :param order: | OBS_DEINTERLACE_FIELD_ORDER_TOP - Start from top
 ---               | OBS_DEINTERLACE_FIELD_ORDER_BOTTOM - Start from bottom
+--- 
+--- C definition: void obs_source_set_deinterlace_field_order(obs_source_t *source, enum obs_deinterlace_field_order order)
 --- @param source obs_source_t*
 --- @param order obs_deinterlace_field_order
-obslua.obs_source_set_deinterlace_field_order = function(source, order) end
+function obslua.obs_source_set_deinterlace_field_order(source, order) end
 
---- void obs_source_set_deinterlace_mode(obs_source_t *source, enum obs_deinterlace_mode mode)
----            enum obs_deinterlace_mode obs_source_get_deinterlace_mode(const obs_source_t *source)
 --- Sets/gets the deinterlace mode.
+--- 
 --- :param mode:   | OBS_DEINTERLACE_MODE_DISABLE    - Disables deinterlacing
 ---                | OBS_DEINTERLACE_MODE_DISCARD    - Discard
 ---                | OBS_DEINTERLACE_MODE_RETRO      - Retro
@@ -6720,45 +8421,64 @@ obslua.obs_source_set_deinterlace_field_order = function(source, order) end
 ---                | OBS_DEINTERLACE_MODE_LINEAR_2X  - Linear 2x
 ---                | OBS_DEINTERLACE_MODE_YADIF      - Yadif
 ---                | OBS_DEINTERLACE_MODE_YADIF_2X   - Yadif 2x
+--- 
+--- C definition: void obs_source_set_deinterlace_mode(obs_source_t *source, enum obs_deinterlace_mode mode)
 --- @param source obs_source_t*
 --- @param mode obs_deinterlace_mode
-obslua.obs_source_set_deinterlace_mode = function(source, mode) end
+function obslua.obs_source_set_deinterlace_mode(source, mode) end
 
---- obs_source_set_enabled not documented
-obslua.obs_source_set_enabled = function() end
+--- Enables/disables a source, or returns the enabled state.
+--- 
+--- C definition: void obs_source_set_enabled(obs_source_t *source, bool enabled)
+--- @param source obs_source_t*
+--- @param enabled bool
+function obslua.obs_source_set_enabled(source, enabled) end
 
---- void obs_source_set_flags(obs_source_t *source, uint32_t flags)
----            uint32_t obs_source_get_flags(const obs_source_t *source)
 --- :param flags: OBS_SOURCE_FLAG_FORCE_MONO Forces audio to mono
+--- 
+--- C definition: void obs_source_set_flags(obs_source_t *source, uint32_t flags)
 --- @param source obs_source_t*
 --- @param flags uint32_t
-obslua.obs_source_set_flags = function(source, flags) end
+function obslua.obs_source_set_flags(source, flags) end
 
 --- obs_source_set_monitoring_type not documented
 obslua.obs_source_set_monitoring_type = function() end
 
---- obs_source_set_muted not documented
-obslua.obs_source_set_muted = function() end
+--- Sets/gets whether the source's audio is muted.
+--- 
+--- C definition: void obs_source_set_muted(obs_source_t *source, bool muted)
+--- @param source obs_source_t*
+--- @param muted bool
+function obslua.obs_source_set_muted(source, muted) end
 
---- void obs_source_set_name(obs_source_t *source, const char *name)
 --- Sets the name of a source.  If the source is not private and the name
 --- is not unique, it will automatically be given a unique name.
+--- 
+--- C definition: void obs_source_set_name(obs_source_t *source, const char *name)
 --- @param source obs_source_t*
 --- @param name char*
-obslua.obs_source_set_name = function(source, name) end
+function obslua.obs_source_set_name(source, name) end
 
---- obs_source_set_push_to_mute_delay not documented
-obslua.obs_source_set_push_to_mute_delay = function() end
+--- Sets/gets the push-to-mute delay.
+--- 
+--- C definition: void obs_source_set_push_to_mute_delay(obs_source_t *source, uint64_t delay)
+--- @param source obs_source_t*
+--- @param delay uint64_t
+function obslua.obs_source_set_push_to_mute_delay(source, delay) end
 
---- obs_source_set_push_to_talk_delay not documented
-obslua.obs_source_set_push_to_talk_delay = function() end
+--- Sets/gets the push-to-talk delay.
+--- 
+--- C definition: void obs_source_set_push_to_talk_delay(obs_source_t *source, uint64_t delay)
+--- @param source obs_source_t*
+--- @param delay uint64_t
+function obslua.obs_source_set_push_to_talk_delay(source, delay) end
 
---- void obs_source_set_sync_offset(obs_source_t *source, int64_t offset)
----            int64_t obs_source_get_sync_offset(const obs_source_t *source)
 --- Sets/gets the audio sync offset (in nanoseconds) for a source.
+--- 
+--- C definition: void obs_source_set_sync_offset(obs_source_t *source, int64_t offset)
 --- @param source obs_source_t*
 --- @param offset int64_t
-obslua.obs_source_set_sync_offset = function(source, offset) end
+function obslua.obs_source_set_sync_offset(source, offset) end
 
 --- obs_source_set_video_frame not documented
 obslua.obs_source_set_video_frame = function() end
@@ -6766,56 +8486,60 @@ obslua.obs_source_set_video_frame = function() end
 --- obs_source_set_video_frame2 not documented
 obslua.obs_source_set_video_frame2 = function() end
 
---- void obs_source_set_volume(obs_source_t *source, float volume)
----            float obs_source_get_volume(const obs_source_t *source)
 --- Sets/gets the user volume for a source that has audio output.
+--- 
+--- C definition: void obs_source_set_volume(obs_source_t *source, float volume)
 --- @param source obs_source_t*
 --- @param volume float
-obslua.obs_source_set_volume = function(source, volume) end
+function obslua.obs_source_set_volume(source, volume) end
 
---- void obs_source_show_preloaded_video(obs_source_t *source)
 --- Shows any preloaded video frame.
+--- 
+--- C definition: void obs_source_show_preloaded_video(obs_source_t *source)
 --- @param source obs_source_t*
-obslua.obs_source_show_preloaded_video = function(source) end
+function obslua.obs_source_show_preloaded_video(source) end
 
---- bool obs_source_showing(const obs_source_t *source)
 --- :return: *true* if showing, *false* if not.  A source is considered
 ---          showing if it's being displayed anywhere at all, whether on
 ---          a display context or on the final output
+--- 
+--- C definition: bool obs_source_showing(const obs_source_t *source)
 --- @param source obs_source_t*
 --- @return bool
-obslua.obs_source_showing = function(source) end
+function obslua.obs_source_showing(source) end
 
---- void obs_source_skip_video_filter(obs_source_t *filter)
 --- Skips the filter if the filter is invalid and cannot be rendered.
---- .. _transitions:
---- Transitions
+--- 
+--- C definition: void obs_source_skip_video_filter(obs_source_t *filter)
 --- @param filter obs_source_t*
-obslua.obs_source_skip_video_filter = function(filter) end
+function obslua.obs_source_skip_video_filter(filter) end
 
---- void obs_source_update(obs_source_t *source, obs_data_t *settings)
 --- Updates the settings for a source and calls the
 --- :c:member:`obs_source_info.update` callback of the source.  If the
 --- source is a video source, the :c:member:`obs_source_info.update` will
 --- be not be called immediately; instead, it will be deferred to the
 --- video thread to prevent threading issues.
+--- 
+--- C definition: void obs_source_update(obs_source_t *source, obs_data_t *settings)
 --- @param source obs_source_t*
 --- @param settings obs_data_t*
-obslua.obs_source_update = function(source, settings) end
+function obslua.obs_source_update(source, settings) end
 
---- void obs_source_update_properties(obs_source_t *source)
 --- Signal an update to any currently used properties.
+--- 
+--- C definition: void obs_source_update_properties(obs_source_t *source)
 --- @param source obs_source_t*
-obslua.obs_source_update_properties = function(source) end
+function obslua.obs_source_update_properties(source) end
 
---- void obs_source_video_render(obs_source_t *source)
 --- Renders a video source.  This will call the
 --- :c:member:`obs_source_info.video_render` callback of the source.
+--- 
+--- C definition: void obs_source_video_render(obs_source_t *source)
 --- @param source obs_source_t*
-obslua.obs_source_video_render = function(source) end
+function obslua.obs_source_video_render(source) end
 
---- bool obs_startup(const char *locale, const char *module_config_path, profiler_name_store_t *store)
 --- Initializes the OBS core context.
+--- 
 --- :param  locale:             The locale to use for modules
 ---                             (E.G. "en-US")
 --- :param  module_config_path: Path to module config storage directory
@@ -6823,86 +8547,144 @@ obslua.obs_source_video_render = function(source) end
 --- :param  store:              The profiler name store for OBS to use or NULL
 --- :return:                    *false* if already initialized or failed
 ---                             to initialize
+--- 
+--- C definition: bool obs_startup(const char *locale, const char *module_config_path, profiler_name_store_t *store)
 --- @param locale char*
 --- @param module_config_path char*
 --- @param store profiler_name_store_t*
 --- @return bool
-obslua.obs_startup = function(locale, module_config_path, store) end
+function obslua.obs_startup(locale, module_config_path, store) end
 
---- obs_transition_audio_render not documented
-obslua.obs_transition_audio_render = function() end
-
---- void obs_transition_clear(obs_source_t *transition)
---- Clears the transition.
+--- Helper function used for transitioning audio.  Typically you'd call
+--- this in the obs_source_info.audio_render callback with its
+--- parameters, and use the mix_a_callback and mix_b_callback to
+--- determine the the audio fading of source A and source B.
+--- 
+--- Relevant data types used with this function:
+--- 
+--- .. code:: cpp
+--- 
+--- typedef float (*obs_transition_audio_mix_callback_t)(void *data, float t);
+--- 
+--- C definition: bool obs_transition_audio_render(obs_source_t *transition, uint64_t *ts_out, struct obs_source_audio_mix *audio, uint32_t mixers, size_t channels, size_t sample_rate, obs_transition_audio_mix_callback_t mix_a_callback, obs_transition_audio_mix_callback_t mix_b_callback)
 --- @param transition obs_source_t*
-obslua.obs_transition_clear = function(transition) end
+--- @param ts_out uint64_t*
+--- @param audio obs_source_audio_mix*
+--- @param mixers uint32_t
+--- @param channels size_t
+--- @param sample_rate size_t
+--- @param mix_a_callback obs_transition_audio_mix_callback_t
+--- @param mix_b_callback obs_transition_audio_mix_callback_t
+--- @return bool
+function obslua.obs_transition_audio_render(transition, ts_out, audio, mixers, channels, sample_rate, mix_a_callback, mix_b_callback) end
 
---- void obs_transition_enable_fixed(obs_source_t *transition, bool enable, uint32_t duration_ms)
----            bool obs_transition_fixed(obs_source_t *transition)
+--- Clears the transition.
+--- 
+--- C definition: void obs_transition_clear(obs_source_t *transition)
+--- @param transition obs_source_t*
+function obslua.obs_transition_clear(transition) end
+
 --- Sets/gets whether the transition uses a fixed duration.  Useful for
 --- certain types of transitions such as stingers.  If this is set, the 
 --- *duration_ms* parameter of :c:func:`obs_transition_start()` has no
 --- effect.
+--- 
+--- C definition: void obs_transition_enable_fixed(obs_source_t *transition, bool enable, uint32_t duration_ms)
 --- @param transition obs_source_t*
 --- @param enable bool
 --- @param duration_ms uint32_t
-obslua.obs_transition_enable_fixed = function(transition, enable, duration_ms) end
+function obslua.obs_transition_enable_fixed(transition, enable, duration_ms) end
 
---- obs_transition_fixed not documented
-obslua.obs_transition_fixed = function() end
+--- Sets/gets whether the transition uses a fixed duration.  Useful for
+--- certain types of transitions such as stingers.  If this is set, the 
+--- *duration_ms* parameter of :c:func:`obs_transition_start()` has no
+--- effect.
+--- 
+--- C definition: bool obs_transition_fixed(obs_source_t *transition)
+--- @param transition obs_source_t*
+--- @return bool
+function obslua.obs_transition_fixed(transition) end
 
 --- obs_transition_force_stop not documented
 obslua.obs_transition_force_stop = function() end
 
---- obs_source_t* obs_transition_get_active_source(obs_source_t *transition)
 --- :return: An incremented reference to the currently active source of
 ---          the transition
+--- 
+--- C definition: obs_source_t *obs_transition_get_active_source(obs_source_t *transition)
 --- @param transition obs_source_t*
 --- @return obs_source_t*
-obslua.obs_transition_get_active_source = function(transition) end
+function obslua.obs_transition_get_active_source(transition) end
 
---- obs_transition_get_alignment not documented
-obslua.obs_transition_get_alignment = function() end
-
---- obs_transition_get_scale_type not documented
-obslua.obs_transition_get_scale_type = function() end
-
---- obs_transition_get_size not documented
-obslua.obs_transition_get_size = function() end
-
---- obs_source_t* obs_transition_get_source(obs_source_t *transition, enum obs_transition_target target)
---- :param target: | OBS_TRANSITION_SOURCE_A - Source being transitioned from, or the current source if not transitioning
----                | OBS_TRANSITION_SOURCE_B - Source being transitioned to
---- :return:       An incremented reference to the source or destination
----                sources of the transition
---- @param transition obs_source_t*
---- @param target obs_transition_target
---- @return obs_source_t*
-obslua.obs_transition_get_source = function(transition, target) end
-
---- float obs_transition_get_time(obs_source_t *transition)
---- :return: The current transition time value (0.0f..1.0f)
---- @param transition obs_source_t*
---- @return float
-obslua.obs_transition_get_time = function(transition) end
-
---- obs_transition_set not documented
-obslua.obs_transition_set = function() end
-
---- void obs_transition_set_alignment(obs_source_t *transition, uint32_t alignment)
----            uint32_t obs_transition_get_alignment(const obs_source_t *transition)
 --- Sets/gets the alignment used to draw the two sources within
 --- transition the transition.
+--- 
 --- :param alignment: | Can be any bitwise OR combination of:
 ---                   | OBS_ALIGN_CENTER
 ---                   | OBS_ALIGN_LEFT
 ---                   | OBS_ALIGN_RIGHT
 ---                   | OBS_ALIGN_TOP
 ---                   | OBS_ALIGN_BOTTOM
---- Functions used by transitions
+--- 
+--- C definition: uint32_t obs_transition_get_alignment(const obs_source_t *transition)
+--- @param transition obs_source_t*
+--- @return uint32_t
+function obslua.obs_transition_get_alignment(transition) end
+
+--- Sets/gets the scale type for sources within the transition.
+--- 
+--- :param type: | OBS_TRANSITION_SCALE_MAX_ONLY - Scale to aspect ratio, but only to the maximum size of each source
+---              | OBS_TRANSITION_SCALE_ASPECT   - Always scale the sources, but keep aspect ratio
+---              | OBS_TRANSITION_SCALE_STRETCH  - Scale and stretch the sources to the size of the transition
+--- 
+--- C definition: enum obs_transition_scale_type obs_transition_get_scale_type( const obs_source_t *transition)
+--- @param transition obs_source_t*
+--- @return obs_transition_scale_type
+function obslua.obs_transition_get_scale_type(transition) end
+
+--- Sets/gets the dimensions of the transition.
+--- 
+--- C definition: void obs_transition_get_size(const obs_source_t *transition, uint32_t *cx, uint32_t *cy)
+--- @param transition obs_source_t*
+--- @param cx uint32_t*
+--- @param cy uint32_t*
+function obslua.obs_transition_get_size(transition, cx, cy) end
+
+--- :param target: | OBS_TRANSITION_SOURCE_A - Source being transitioned from, or the current source if not transitioning
+---                | OBS_TRANSITION_SOURCE_B - Source being transitioned to
+--- :return:       An incremented reference to the source or destination
+---                sources of the transition
+--- 
+--- C definition: obs_source_t *obs_transition_get_source(obs_source_t *transition, enum obs_transition_target target)
+--- @param transition obs_source_t*
+--- @param target obs_transition_target
+--- @return obs_source_t*
+function obslua.obs_transition_get_source(transition, target) end
+
+--- :return: The current transition time value (0.0f..1.0f)
+--- 
+--- C definition: float obs_transition_get_time(obs_source_t *transition)
+--- @param transition obs_source_t*
+--- @return float
+function obslua.obs_transition_get_time(transition) end
+
+--- obs_transition_set not documented
+obslua.obs_transition_set = function() end
+
+--- Sets/gets the alignment used to draw the two sources within
+--- transition the transition.
+--- 
+--- :param alignment: | Can be any bitwise OR combination of:
+---                   | OBS_ALIGN_CENTER
+---                   | OBS_ALIGN_LEFT
+---                   | OBS_ALIGN_RIGHT
+---                   | OBS_ALIGN_TOP
+---                   | OBS_ALIGN_BOTTOM
+--- 
+--- C definition: void obs_transition_set_alignment(obs_source_t *transition, uint32_t alignment)
 --- @param transition obs_source_t*
 --- @param alignment uint32_t
-obslua.obs_transition_set_alignment = function(transition, alignment) end
+function obslua.obs_transition_set_alignment(transition, alignment) end
 
 --- obs_transition_set_manual_time not documented
 obslua.obs_transition_set_manual_time = function() end
@@ -6910,74 +8692,100 @@ obslua.obs_transition_set_manual_time = function() end
 --- obs_transition_set_manual_torque not documented
 obslua.obs_transition_set_manual_torque = function() end
 
---- void obs_transition_set_scale_type(obs_source_t *transition, enum obs_transition_scale_type type)
----            enum obs_transition_scale_type obs_transition_get_scale_type( const obs_source_t *transition)
 --- Sets/gets the scale type for sources within the transition.
+--- 
 --- :param type: | OBS_TRANSITION_SCALE_MAX_ONLY - Scale to aspect ratio, but only to the maximum size of each source
 ---              | OBS_TRANSITION_SCALE_ASPECT   - Always scale the sources, but keep aspect ratio
 ---              | OBS_TRANSITION_SCALE_STRETCH  - Scale and stretch the sources to the size of the transition
+--- 
+--- C definition: void obs_transition_set_scale_type(obs_source_t *transition, enum obs_transition_scale_type type)
 --- @param transition obs_source_t*
 --- @param type obs_transition_scale_type
-obslua.obs_transition_set_scale_type = function(transition, type) end
+function obslua.obs_transition_set_scale_type(transition, type) end
 
---- void obs_transition_set_size(obs_source_t *transition, uint32_t cx, uint32_t cy)
----            void obs_transition_get_size(const obs_source_t *transition, uint32_t *cx, uint32_t *cy)
 --- Sets/gets the dimensions of the transition.
+--- 
+--- C definition: void obs_transition_set_size(obs_source_t *transition, uint32_t cx, uint32_t cy)
 --- @param transition obs_source_t*
 --- @param cx uint32_t
 --- @param cy uint32_t
-obslua.obs_transition_set_size = function(transition, cx, cy) end
+function obslua.obs_transition_set_size(transition, cx, cy) end
 
---- bool obs_transition_start(obs_source_t *transition, enum obs_transition_mode mode, uint32_t duration_ms, obs_source_t *dest)
 --- Starts the transition with the desired destination source.
+--- 
 --- :param mode:        Currently only OBS_TRANSITION_MODE_AUTO
 --- :param duration_ms: Duration in milliseconds.  If the transition has
 ---                     a fixed duration set by
 ---                     :c:func:`obs_transition_enable_fixed`, this
 ---                     parameter will have no effect
 --- :param dest:        The destination source to transition to
+--- 
+--- C definition: bool obs_transition_start(obs_source_t *transition, enum obs_transition_mode mode, uint32_t duration_ms, obs_source_t *dest)
 --- @param transition obs_source_t*
 --- @param mode obs_transition_mode
 --- @param duration_ms uint32_t
 --- @param dest obs_source_t*
 --- @return bool
-obslua.obs_transition_start = function(transition, mode, duration_ms, dest) end
+function obslua.obs_transition_start(transition, mode, duration_ms, dest) end
 
---- void obs_transition_swap_begin(obs_source_t *tr_dest, obs_source_t *tr_source)
----            void obs_transition_swap_end(obs_source_t *tr_dest, obs_source_t *tr_source)
 --- Swaps two transitions.  Call obs_transition_swap_begin, swap the
 --- source, then call obs_transition_swap_end when complete.  This allows
 --- the ability to seamlessly swap two different transitions without it
 --- affecting the output.
+--- 
 --- For example, if a transition is assigned to output channel 0, you'd
 --- call obs_transition_swap_begin, then you'd call obs_set_output_source
 --- with the new transition, then call
 --- :c:func:`obs_transition_swap_begin()`.
+--- 
+--- .. ---------------------------------------------------------------------------
+--- 
 --- .. _libobs/obs-source.h: https://github.com/jp9000/obs-studio/blob/master/libobs/obs-source.h
+--- C definition: void obs_transition_swap_begin(obs_source_t *tr_dest, obs_source_t *tr_source)
 --- @param tr_dest obs_source_t*
 --- @param tr_source obs_source_t*
-obslua.obs_transition_swap_begin = function(tr_dest, tr_source) end
+function obslua.obs_transition_swap_begin(tr_dest, tr_source) end
 
---- obs_transition_swap_end not documented
-obslua.obs_transition_swap_end = function() end
+--- Swaps two transitions.  Call obs_transition_swap_begin, swap the
+--- source, then call obs_transition_swap_end when complete.  This allows
+--- the ability to seamlessly swap two different transitions without it
+--- affecting the output.
+--- 
+--- For example, if a transition is assigned to output channel 0, you'd
+--- call obs_transition_swap_begin, then you'd call obs_set_output_source
+--- with the new transition, then call
+--- :c:func:`obs_transition_swap_begin()`.
+--- 
+--- .. ---------------------------------------------------------------------------
+--- 
+--- .. _libobs/obs-source.h: https://github.com/jp9000/obs-studio/blob/master/libobs/obs-source.h
+--- C definition: void obs_transition_swap_end(obs_source_t *tr_dest, obs_source_t *tr_source)
+--- @param tr_dest obs_source_t*
+--- @param tr_source obs_source_t*
+function obslua.obs_transition_swap_end(tr_dest, tr_source) end
 
---- void obs_transition_video_render(obs_source_t *transition, obs_transition_video_render_callback_t callback)
 --- Helper function used for rendering transitions.  This function will
 --- render two distinct textures for source A and source B of the
 --- transition, allowing the ability to blend them together with a pixel
 --- shader in a desired manner.
+--- 
 --- The *a* and *b* parameters of *callback* are automatically rendered
 --- textures of source A and source B, *t* is the time value
 --- (0.0f..1.0f), *cx* and *cy* are the current dimensions of the
 --- transition, and *data* is the implementation's private data.
+--- 
 --- Relevant data types used with this function:
+--- 
 --- .. code:: cpp
+--- 
 --- typedef void (*obs_transition_video_render_callback_t)(void *data,
 ---                 gs_texture_t *a, gs_texture_t *b, float t,
 ---                 uint32_t cx, uint32_t cy);
+--- 
+--- C definition: void obs_transition_video_render(obs_source_t *transition, obs_transition_video_render_callback_t callback)
 --- @param transition obs_source_t*
 --- @param callback obs_transition_video_render_callback_t
-obslua.obs_transition_video_render = function(transition, callback) end
+function obslua.obs_transition_video_render(transition, callback) end
 
 --- obs_transition_video_render_direct not documented
 obslua.obs_transition_video_render_direct = function() end
@@ -6985,10 +8793,11 @@ obslua.obs_transition_video_render_direct = function() end
 --- obs_video_active not documented
 obslua.obs_video_active = function() end
 
---- obs_encoder_t* obs_video_encoder_create(const char *id, const char *name, obs_data_t *settings, obs_data_t *hotkey_data)
 --- Creates a video encoder with the specified settings.
+--- 
 --- The "encoder" context is used for encoding video/audio data.  Use
 --- obs_encoder_release to release it.
+--- 
 --- :param   id:             The encoder type string identifier
 --- :param   name:           The desired name of the encoder.  If this is
 ---                          not unique, it will be made to be unique
@@ -6998,12 +8807,14 @@ obslua.obs_video_active = function() end
 ---                          if none
 --- :return:                 A reference to the newly created encoder, or
 ---                          *NULL* if failed
+--- 
+--- C definition: obs_encoder_t *obs_video_encoder_create(const char *id, const char *name, obs_data_t *settings, obs_data_t *hotkey_data)
 --- @param id char*
 --- @param name char*
 --- @param settings obs_data_t*
 --- @param hotkey_data obs_data_t*
 --- @return obs_encoder_t*
-obslua.obs_video_encoder_create = function(id, name, settings, hotkey_data) end
+function obslua.obs_video_encoder_create(id, name, settings, hotkey_data) end
 
 --- obs_view_create not documented
 obslua.obs_view_create = function() end
@@ -7020,350 +8831,407 @@ obslua.obs_view_render = function() end
 --- obs_view_set_source not documented
 obslua.obs_view_set_source = function() end
 
---- void obs_weak_encoder_addref(obs_weak_encoder_t *weak)
----            void obs_weak_encoder_release(obs_weak_encoder_t *weak)
 --- Adds/releases a weak reference to an encoder.
+--- 
+--- C definition: void obs_weak_encoder_addref(obs_weak_encoder_t *weak)
 --- @param weak obs_weak_encoder_t*
-obslua.obs_weak_encoder_addref = function(weak) end
+function obslua.obs_weak_encoder_addref(weak) end
 
---- obs_weak_encoder_get_encoder not documented
-obslua.obs_weak_encoder_get_encoder = function() end
+--- These functions are used to get a weak reference from a strong encoder
+--- reference, or a strong encoder reference from a weak reference.  If
+--- the encoder is destroyed, *obs_weak_encoder_get_encoder* will return
+--- *NULL*.
+--- 
+--- C definition: obs_encoder_t *obs_weak_encoder_get_encoder(obs_weak_encoder_t *weak)
+--- @param weak obs_weak_encoder_t*
+--- @return obs_encoder_t*
+function obslua.obs_weak_encoder_get_encoder(weak) end
 
 --- obs_weak_encoder_references_encoder not documented
 obslua.obs_weak_encoder_references_encoder = function() end
 
---- obs_weak_encoder_release not documented
-obslua.obs_weak_encoder_release = function() end
+--- Adds/releases a weak reference to an encoder.
+--- 
+--- C definition: void obs_weak_encoder_release(obs_weak_encoder_t *weak)
+--- @param weak obs_weak_encoder_t*
+function obslua.obs_weak_encoder_release(weak) end
 
---- void obs_weak_output_addref(obs_weak_output_t *weak)
----            void obs_weak_output_release(obs_weak_output_t *weak)
 --- Adds/releases a weak reference to an output.
+--- 
+--- C definition: void obs_weak_output_addref(obs_weak_output_t *weak)
 --- @param weak obs_weak_output_t*
-obslua.obs_weak_output_addref = function(weak) end
+function obslua.obs_weak_output_addref(weak) end
 
---- obs_weak_output_get_output not documented
-obslua.obs_weak_output_get_output = function() end
+--- These functions are used to get a weak reference from a strong output
+--- reference, or a strong output reference from a weak reference.  If
+--- the output is destroyed, *obs_weak_output_get_output* will return
+--- *NULL*.
+--- 
+--- C definition: obs_output_t *obs_weak_output_get_output(obs_weak_output_t *weak)
+--- @param weak obs_weak_output_t*
+--- @return obs_output_t*
+function obslua.obs_weak_output_get_output(weak) end
 
 --- obs_weak_output_references_output not documented
 obslua.obs_weak_output_references_output = function() end
 
---- obs_weak_output_release not documented
-obslua.obs_weak_output_release = function() end
+--- Adds/releases a weak reference to an output.
+--- 
+--- C definition: void obs_weak_output_release(obs_weak_output_t *weak)
+--- @param weak obs_weak_output_t*
+function obslua.obs_weak_output_release(weak) end
 
---- void obs_weak_service_addref(obs_weak_service_t *weak)
----            void obs_weak_service_release(obs_weak_service_t *weak)
 --- Adds/releases a weak reference to a service.
+--- 
+--- C definition: void obs_weak_service_addref(obs_weak_service_t *weak)
 --- @param weak obs_weak_service_t*
-obslua.obs_weak_service_addref = function(weak) end
+function obslua.obs_weak_service_addref(weak) end
 
---- obs_weak_service_get_service not documented
-obslua.obs_weak_service_get_service = function() end
+--- These functions are used to get a weak reference from a strong service
+--- reference, or a strong service reference from a weak reference.  If
+--- the service is destroyed, *obs_weak_service_get_service* will return
+--- *NULL*.
+--- 
+--- C definition: obs_service_t *obs_weak_service_get_service(obs_weak_service_t *weak)
+--- @param weak obs_weak_service_t*
+--- @return obs_service_t*
+function obslua.obs_weak_service_get_service(weak) end
 
 --- obs_weak_service_references_service not documented
 obslua.obs_weak_service_references_service = function() end
 
---- obs_weak_service_release not documented
-obslua.obs_weak_service_release = function() end
+--- Adds/releases a weak reference to a service.
+--- 
+--- C definition: void obs_weak_service_release(obs_weak_service_t *weak)
+--- @param weak obs_weak_service_t*
+function obslua.obs_weak_service_release(weak) end
 
---- void obs_weak_source_addref(obs_weak_source_t *weak)
----            void obs_weak_source_release(obs_weak_source_t *weak)
 --- Adds/releases a weak reference to a source.
+--- 
+--- C definition: void obs_weak_source_addref(obs_weak_source_t *weak)
 --- @param weak obs_weak_source_t*
-obslua.obs_weak_source_addref = function(weak) end
+function obslua.obs_weak_source_addref(weak) end
 
---- obs_weak_source_get_source not documented
-obslua.obs_weak_source_get_source = function() end
+--- These functions are used to get a weak reference from a strong source
+--- reference, or a strong source reference from a weak reference.  If
+--- the source is destroyed, *obs_weak_source_get_source* will return
+--- *NULL*.
+--- 
+--- C definition: obs_source_t *obs_weak_source_get_source(obs_weak_source_t *weak)
+--- @param weak obs_weak_source_t*
+--- @return obs_source_t*
+function obslua.obs_weak_source_get_source(weak) end
 
 --- obs_weak_source_references_source not documented
 obslua.obs_weak_source_references_source = function() end
 
---- obs_weak_source_release not documented
-obslua.obs_weak_source_release = function() end
+--- Adds/releases a weak reference to a source.
+--- 
+--- C definition: void obs_weak_source_release(obs_weak_source_t *weak)
+--- @param weak obs_weak_source_t*
+function obslua.obs_weak_source_release(weak) end
 
---- void os_breakpoint(void)
 --- Triggers a debugger breakpoint (or crashes the program if no debugger
 --- present).
-obslua.os_breakpoint = function() end
+--- 
+--- C definition: void os_breakpoint(void)
+function obslua.os_breakpoint() end
 
---- int os_chdir(const char *path)
 --- Changes the current working directory.
+--- 
+--- C definition: int os_chdir(const char *path)
 --- @param path char*
 --- @return int
-obslua.os_chdir = function(path) end
+function obslua.os_chdir(path) end
 
---- void os_closedir(os_dir_t *dir)
 --- Closes a directory object.
---- .. type:: struct os_globent
---- A glob entry.
---- .. member:: char *os_globent.path
---- The full path to the glob entry.
---- .. member:: bool os_globent.directory
---- *true* if the glob entry is a directory, *false* otherwise.
---- .. type:: struct os_glob_info
---- A glob object.
---- .. member:: size_t             os_glob_info.gl_pathc
---- Number of glob entries.
---- .. member:: struct os_globent *os_glob_info.gl_pathv
---- Array of glob entries.
---- .. type:: typedef struct os_glob_info os_glob_t
+--- 
+--- C definition: void os_closedir(os_dir_t *dir)
 --- @param dir os_dir_t*
-obslua.os_closedir = function(dir) end
+function obslua.os_closedir(dir) end
 
---- int os_copyfile(const char *file_in, const char *file_out)
 --- Copies a file.
+--- 
+--- C definition: int os_copyfile(const char *file_in, const char *file_out)
 --- @param file_in char*
 --- @param file_out char*
 --- @return int
-obslua.os_copyfile = function(file_in, file_out) end
+function obslua.os_copyfile(file_in, file_out) end
 
---- void os_cpu_usage_info_destroy(os_cpu_usage_info_t *info)
 --- Destroys a CPU usage information object.
---- Sleep/Time Functions
+--- 
+--- C definition: void                os_cpu_usage_info_destroy(os_cpu_usage_info_t *info)
 --- @param info os_cpu_usage_info_t*
-obslua.os_cpu_usage_info_destroy = function(info) end
+--- @return 
+function obslua.os_cpu_usage_info_destroy(info) end
 
---- double os_cpu_usage_info_query(os_cpu_usage_info_t *info)
 --- Queries the current CPU usage.
+--- 
+--- C definition: double              os_cpu_usage_info_query(os_cpu_usage_info_t *info)
 --- @param info os_cpu_usage_info_t*
---- @return double
-obslua.os_cpu_usage_info_query = function(info) end
+--- @return 
+function obslua.os_cpu_usage_info_query(info) end
 
---- os_cpu_usage_info_t* os_cpu_usage_info_start(void)
 --- Creates a CPU usage information object.
+--- 
+--- C definition: os_cpu_usage_info_t *os_cpu_usage_info_start(void)
 --- @return os_cpu_usage_info_t*
-obslua.os_cpu_usage_info_start = function() end
+function obslua.os_cpu_usage_info_start() end
 
---- void os_dlclose(void *module)
 --- Closes a dynamic library.
---- CPU Usage Functions
+--- 
+--- C definition: void os_dlclose(void *module)
 --- @param module void*
-obslua.os_dlclose = function(module) end
+function obslua.os_dlclose(module) end
 
---- void* os_dlopen(const char *path)
 --- Opens a dynamic library.
+--- 
+--- C definition: void *os_dlopen(const char *path)
 --- @param path char*
 --- @return void*
-obslua.os_dlopen = function(path) end
+function obslua.os_dlopen(path) end
 
---- void* os_dlsym(void *module, const char *func)
 --- Returns a symbol from a dynamic library.
+--- 
+--- C definition: void *os_dlsym(void *module, const char *func)
 --- @param module void*
 --- @param func char*
 --- @return void*
-obslua.os_dlsym = function(module, func) end
+function obslua.os_dlsym(module, func) end
 
---- int os_dtostr(double value, char *dst, size_t size)
 --- Converts a double to a string.
---- Dynamic Link Library Functions
---- These functions are roughly equivalent to dlopen/dlsym/dlclose.
+--- 
+--- C definition: int os_dtostr(double value, char *dst, size_t size)
 --- @param value double
 --- @param dst char*
 --- @param size size_t
 --- @return int
-obslua.os_dtostr = function(value, dst, size) end
+function obslua.os_dtostr(value, dst, size) end
 
 --- os_end_high_performance not documented
 obslua.os_end_high_performance = function() end
 
---- int64_t os_fgetsize(FILE *file)
 --- Returns a file's size.
+--- 
+--- C definition: int64_t os_fgetsize(FILE *file)
 --- @param file FILE*
 --- @return int64_t
-obslua.os_fgetsize = function(file) end
+function obslua.os_fgetsize(file) end
 
---- bool os_file_exists(const char *path)
 --- Returns true if a file/directory exists, false otherwise.
+--- 
+--- C definition: bool os_file_exists(const char *path)
 --- @param path char*
 --- @return bool
-obslua.os_file_exists = function(path) end
+function obslua.os_file_exists(path) end
 
---- FILE* os_fopen(const char *path, const char *mode)
 --- Opens a file with a UTF8 string path.
+--- 
+--- C definition: FILE *os_fopen(const char *path, const char *mode)
 --- @param path char*
 --- @param mode char*
 --- @return FILE*
-obslua.os_fopen = function(path, mode) end
+function obslua.os_fopen(path, mode) end
 
 --- os_fread_mbs not documented
 obslua.os_fread_mbs = function() end
 
---- size_t os_fread_utf8(FILE *file, char **pstr)
 --- Reads a UTF8 encoded file and allocates a pointer to the UTF8 string.
+--- 
+--- C definition: size_t os_fread_utf8(FILE *file, char **pstr)
 --- @param file FILE*
 --- @param pstr char**
 --- @return size_t
-obslua.os_fread_utf8 = function(file, pstr) end
+function obslua.os_fread_utf8(file, pstr) end
 
---- int os_fseeki64(FILE *file, int64_t offset, int origin)
 --- Equivalent to fseek.
+--- 
+--- C definition: int os_fseeki64(FILE *file, int64_t offset, int origin)
 --- @param file FILE*
 --- @param offset int64_t
 --- @param origin int
 --- @return int
-obslua.os_fseeki64 = function(file, offset, origin) end
+function obslua.os_fseeki64(file, offset, origin) end
 
---- int64_t os_ftelli64(FILE *file)
 --- Gets the current file position.
+--- 
+--- C definition: int64_t os_ftelli64(FILE *file)
 --- @param file FILE*
 --- @return int64_t
-obslua.os_ftelli64 = function(file) end
+function obslua.os_ftelli64(file) end
 
---- char* os_generate_formatted_filename(const char *extension, bool space, const char *format)
 --- Returns a new bmalloc-allocated filename generated from specific
 --- formatting.
---- Sleep-Inhibition Functions
---- These functions/types are used to inhibit the computer from going to
---- sleep.
---- .. type:: struct os_inhibit_info
---- .. type:: typedef struct os_inhibit_info os_inhibit_t
+--- 
+--- C definition: char *os_generate_formatted_filename(const char *extension, bool space, const char *format)
 --- @param extension char*
 --- @param space bool
 --- @param format char*
 --- @return char*
-obslua.os_generate_formatted_filename = function(extension, space, format) end
+function obslua.os_generate_formatted_filename(extension, space, format) end
 
---- size_t os_get_abs_path(const char *path, char *abspath, size_t size)
----            char *os_get_abs_path_ptr(const char *path)
 --- Converts a relative path to an absolute path.
+--- 
+--- C definition: size_t os_get_abs_path(const char *path, char *abspath, size_t size)
 --- @param path char*
 --- @param abspath char*
 --- @param size size_t
 --- @return size_t
-obslua.os_get_abs_path = function(path, abspath, size) end
+function obslua.os_get_abs_path(path, abspath, size) end
 
---- os_get_abs_path_ptr not documented
-obslua.os_get_abs_path_ptr = function() end
+--- Converts a relative path to an absolute path.
+--- 
+--- C definition: char *os_get_abs_path_ptr(const char *path)
+--- @param path char*
+--- @return char*
+function obslua.os_get_abs_path_ptr(path) end
 
---- int os_get_config_path(char *dst, size_t size, const char *name)
----            char *os_get_config_path_ptr(const char *name)
 --- Gets the user-specific application configuration data path.
+--- 
+--- C definition: int os_get_config_path(char *dst, size_t size, const char *name)
 --- @param dst char*
 --- @param size size_t
 --- @param name char*
 --- @return int
-obslua.os_get_config_path = function(dst, size, name) end
+function obslua.os_get_config_path(dst, size, name) end
 
---- os_get_config_path_ptr not documented
-obslua.os_get_config_path_ptr = function() end
+--- Gets the user-specific application configuration data path.
+--- 
+--- C definition: char *os_get_config_path_ptr(const char *name)
+--- @param name char*
+--- @return char*
+function obslua.os_get_config_path_ptr(name) end
 
 --- os_get_executable_path_ptr not documented
 obslua.os_get_executable_path_ptr = function() end
 
---- int64_t os_get_file_size(const char *path)
 --- Gets a file's size.
+--- 
+--- C definition: int64_t os_get_file_size(const char *path)
 --- @param path char*
 --- @return int64_t
-obslua.os_get_file_size = function(path) end
+function obslua.os_get_file_size(path) end
 
 --- os_get_free_disk_space not documented
 obslua.os_get_free_disk_space = function() end
 
---- int64_t os_get_free_space(const char *path)
 --- Gets free space of a specific file path.
---- String Conversion Functions
+--- 
+--- C definition: int64_t os_get_free_space(const char *path)
 --- @param path char*
 --- @return int64_t
-obslua.os_get_free_space = function(path) end
+function obslua.os_get_free_space(path) end
 
---- int os_get_logical_cores(void)
 --- Returns the number of logical cores available.
+--- 
+--- C definition: int os_get_logical_cores(void)
 --- @return int
-obslua.os_get_logical_cores = function() end
+function obslua.os_get_logical_cores() end
 
---- os_get_path_extension not documented
-obslua.os_get_path_extension = function() end
+--- Returns the extension portion of a path string.
+--- 
+--- C definition: const char *os_get_path_extension(const char *path)
+--- @param path char*
+--- @return char*
+function obslua.os_get_path_extension(path) end
 
---- int os_get_physical_cores(void)
 --- Returns the number of physical cores available.
+--- 
+--- C definition: int os_get_physical_cores(void)
 --- @return int
-obslua.os_get_physical_cores = function() end
+function obslua.os_get_physical_cores() end
 
---- bool os_get_proc_memory_usage(os_proc_memory_usage_t *usage)
 --- Gets memory usage of the current process.
+--- 
+--- C definition: bool os_get_proc_memory_usage(os_proc_memory_usage_t *usage)
 --- @param usage os_proc_memory_usage_t*
 --- @return bool
-obslua.os_get_proc_memory_usage = function(usage) end
+function obslua.os_get_proc_memory_usage(usage) end
 
---- uint64_t os_get_proc_resident_size(void)
 --- Returns the resident memory size of the current process.
+--- 
+--- C definition: uint64_t os_get_proc_resident_size(void)
 --- @return uint64_t
-obslua.os_get_proc_resident_size = function() end
+function obslua.os_get_proc_resident_size() end
 
---- uint64_t os_get_proc_virtual_size(void)
 --- Returns the virtual memory size of the current process.
+--- C definition: uint64_t os_get_proc_virtual_size(void)
 --- @return uint64_t
-obslua.os_get_proc_virtual_size = function() end
+function obslua.os_get_proc_virtual_size() end
 
---- int os_get_program_data_path(char *dst, size_t size, const char *name)
----            char *os_get_program_data_path_ptr(const char *name)
 --- Gets the application configuration data path.
+--- 
+--- C definition: int os_get_program_data_path(char *dst, size_t size, const char *name)
 --- @param dst char*
 --- @param size size_t
 --- @param name char*
 --- @return int
-obslua.os_get_program_data_path = function(dst, size, name) end
+function obslua.os_get_program_data_path(dst, size, name) end
 
---- os_get_program_data_path_ptr not documented
-obslua.os_get_program_data_path_ptr = function() end
+--- Gets the application configuration data path.
+--- 
+--- C definition: char *os_get_program_data_path_ptr(const char *name)
+--- @param name char*
+--- @return char*
+function obslua.os_get_program_data_path_ptr(name) end
 
---- uint64_t os_get_sys_free_size(void)
 --- Returns the amount of memory available.
---- .. type:: struct os_proc_memory_usage
---- Memory usage structure.
---- .. member:: uint64_t os_proc_memory_usage.resident_size
---- Resident size.
---- .. member:: uint64_t os_proc_memory_usage.virtual_size
---- Virtual size.
---- .. type:: typedef struct os_proc_memory_usage os_proc_memory_usage_t
+--- 
+--- C definition: uint64_t os_get_sys_free_size(void)
 --- @return uint64_t
-obslua.os_get_sys_free_size = function() end
+function obslua.os_get_sys_free_size() end
 
---- char* os_getcwd(char *path, size_t size)
 --- Returns a new bmalloc-allocated path to the current working
 --- directory.
+--- 
+--- C definition: char *os_getcwd(char *path, size_t size)
 --- @param path char*
 --- @param size size_t
 --- @return char*
-obslua.os_getcwd = function(path, size) end
+function obslua.os_getcwd(path, size) end
 
---- uint64_t os_gettime_ns(void)
 --- Gets the current high-precision system time, in nanoseconds.
---- Other Path/File Functions
+--- 
+--- C definition: uint64_t os_gettime_ns(void)
 --- @return uint64_t
-obslua.os_gettime_ns = function() end
+function obslua.os_gettime_ns() end
 
---- int os_glob(const char *pattern, int flags, os_glob_t **pglob)
 --- Enumerates files based upon a glob string.
+--- 
+--- C definition: int os_glob(const char *pattern, int flags, os_glob_t **pglob)
 --- @param pattern char*
 --- @param flags int
 --- @param pglob os_glob_t**
 --- @return int
-obslua.os_glob = function(pattern, flags, pglob) end
+function obslua.os_glob(pattern, flags, pglob) end
 
---- void os_globfree(os_glob_t *pglob)
 --- Frees a glob object.
+--- 
+--- C definition: void os_globfree(os_glob_t *pglob)
 --- @param pglob os_glob_t*
-obslua.os_globfree = function(pglob) end
+function obslua.os_globfree(pglob) end
 
---- os_inhibit_t* os_inhibit_sleep_create(const char *reason)
 --- Creates a sleep inhibition object.
+--- 
+--- C definition: os_inhibit_t *os_inhibit_sleep_create(const char *reason)
 --- @param reason char*
 --- @return os_inhibit_t*
-obslua.os_inhibit_sleep_create = function(reason) end
+function obslua.os_inhibit_sleep_create(reason) end
 
---- void os_inhibit_sleep_destroy(os_inhibit_t *info)
 --- Destroys a sleep inhibition object.  If the sleep inhibition object
 --- was active, it will be deactivated.
---- Other Functions
+--- 
+--- C definition: void os_inhibit_sleep_destroy(os_inhibit_t *info)
 --- @param info os_inhibit_t*
-obslua.os_inhibit_sleep_destroy = function(info) end
+function obslua.os_inhibit_sleep_destroy(info) end
 
---- bool os_inhibit_sleep_set_active(os_inhibit_t *info, bool active)
 --- Activates/deactivates a sleep inhibition object.
+--- 
+--- C definition: bool os_inhibit_sleep_set_active(os_inhibit_t *info, bool active)
 --- @param info os_inhibit_t*
 --- @param active bool
 --- @return bool
-obslua.os_inhibit_sleep_set_active = function(info, active) end
+function obslua.os_inhibit_sleep_set_active(info, active) end
 
 --- os_mbs_to_utf8_ptr not documented
 obslua.os_mbs_to_utf8_ptr = function() end
@@ -7374,48 +9242,54 @@ obslua.os_mbs_to_wcs = function() end
 --- os_mbs_to_wcs_ptr not documented
 obslua.os_mbs_to_wcs_ptr = function() end
 
---- int os_mkdir(const char *path)
 --- Creates a directory.
+--- 
+--- C definition: int os_mkdir(const char *path)
 --- @param path char*
 --- @return int
-obslua.os_mkdir = function(path) end
+function obslua.os_mkdir(path) end
 
---- int os_mkdirs(const char *path)
 --- Creates a full directory path if it doesn't exist.
+--- 
+--- C definition: int os_mkdirs(const char *path)
 --- @param path char*
 --- @return int
-obslua.os_mkdirs = function(path) end
+function obslua.os_mkdirs(path) end
 
---- os_dir_t* os_opendir(const char *path)
 --- Opens a directory object to enumerate files within the directory.
+--- 
+--- C definition: os_dir_t *os_opendir(const char *path)
 --- @param path char*
 --- @return os_dir_t*
-obslua.os_opendir = function(path) end
+function obslua.os_opendir(path) end
 
 --- os_quick_read_mbs_file not documented
 obslua.os_quick_read_mbs_file = function() end
 
---- char* os_quick_read_utf8_file(const char *path)
 --- Reads a UTF8 encoded file and returns an allocated pointer to the
 --- string.
+--- 
+--- C definition: char *os_quick_read_utf8_file(const char *path)
 --- @param path char*
 --- @return char*
-obslua.os_quick_read_utf8_file = function(path) end
+function obslua.os_quick_read_utf8_file(path) end
 
 --- os_quick_write_mbs_file not documented
 obslua.os_quick_write_mbs_file = function() end
 
---- bool os_quick_write_utf8_file(const char *path, const char *str, size_t len, bool marker)
 --- Writes a UTF8 encoded file.
+--- 
+--- C definition: bool os_quick_write_utf8_file(const char *path, const char *str, size_t len, bool marker)
 --- @param path char*
 --- @param str char*
 --- @param len size_t
 --- @param marker bool
 --- @return bool
-obslua.os_quick_write_utf8_file = function(path, str, len, marker) end
+function obslua.os_quick_write_utf8_file(path, str, len, marker) end
 
---- bool os_quick_write_utf8_file_safe(const char *path, const char *str, size_t len, bool marker, const char *temp_ext, const char *backup_ext)
 --- Writes a UTF8 encoded file with overwrite corruption prevention.
+--- 
+--- C definition: bool os_quick_write_utf8_file_safe(const char *path, const char *str, size_t len, bool marker, const char *temp_ext, const char *backup_ext)
 --- @param path char*
 --- @param str char*
 --- @param len size_t
@@ -7423,77 +9297,90 @@ obslua.os_quick_write_utf8_file = function(path, str, len, marker) end
 --- @param temp_ext char*
 --- @param backup_ext char*
 --- @return bool
-obslua.os_quick_write_utf8_file_safe = function(path, str, len, marker, temp_ext, backup_ext) end
+function obslua.os_quick_write_utf8_file_safe(path, str, len, marker, temp_ext, backup_ext) end
 
---- os_readdir not documented
-obslua.os_readdir = function() end
+--- Returns the linked list of directory entries.
+--- 
+--- C definition: struct os_dirent *os_readdir(os_dir_t *dir)
+--- @param dir os_dir_t*
+--- @return os_dirent*
+function obslua.os_readdir(dir) end
 
---- int os_rename(const char *old_path, const char *new_path)
 --- Renames a file.
+--- 
+--- C definition: int os_rename(const char *old_path, const char *new_path)
 --- @param old_path char*
 --- @param new_path char*
 --- @return int
-obslua.os_rename = function(old_path, new_path) end
+function obslua.os_rename(old_path, new_path) end
 
 --- os_request_high_performance not documented
 obslua.os_request_high_performance = function() end
 
---- int os_rmdir(const char *path)
 --- Deletes a directory.
+--- 
+--- C definition: int os_rmdir(const char *path)
 --- @param path char*
 --- @return int
-obslua.os_rmdir = function(path) end
+function obslua.os_rmdir(path) end
 
---- int os_safe_replace(const char *target_path, const char *from_path, const char *backup_path)
 --- Safely replaces a file.
+--- 
+--- C definition: int os_safe_replace(const char *target_path, const char *from_path, const char *backup_path)
 --- @param target_path char*
 --- @param from_path char*
 --- @param backup_path char*
 --- @return int
-obslua.os_safe_replace = function(target_path, from_path, backup_path) end
+function obslua.os_safe_replace(target_path, from_path, backup_path) end
 
---- void os_sleep_ms(uint32_t duration)
 --- Sleeps for a specific number of milliseconds.
+--- 
+--- C definition: void os_sleep_ms(uint32_t duration)
 --- @param duration uint32_t
-obslua.os_sleep_ms = function(duration) end
+function obslua.os_sleep_ms(duration) end
 
---- bool os_sleepto_ns(uint64_t time_target)
 --- Sleeps to a specific time with high precision, in nanoseconds.
+--- 
+--- C definition: bool os_sleepto_ns(uint64_t time_target)
 --- @param time_target uint64_t
 --- @return bool
-obslua.os_sleepto_ns = function(time_target) end
+function obslua.os_sleepto_ns(time_target) end
 
---- double os_strtod(const char *str)
 --- Converts a string to a double.
+--- 
+--- C definition: double os_strtod(const char *str)
 --- @param str char*
 --- @return double
-obslua.os_strtod = function(str) end
+function obslua.os_strtod(str) end
 
---- int os_unlink(const char *path)
 --- Deletes a file.
+--- 
+--- C definition: int os_unlink(const char *path)
 --- @param path char*
 --- @return int
-obslua.os_unlink = function(path) end
+function obslua.os_unlink(path) end
 
 --- os_utf8_to_mbs_ptr not documented
 obslua.os_utf8_to_mbs_ptr = function() end
 
---- size_t os_utf8_to_wcs(const char *str, size_t len, wchar_t *dst, size_t dst_size)
 --- Converts a UTF8 string to a wide string.
+--- 
+--- C definition: size_t os_utf8_to_wcs(const char *str, size_t len, wchar_t *dst, size_t dst_size)
 --- @param str char*
 --- @param len size_t
 --- @param dst wchar_t*
 --- @param dst_size size_t
 --- @return size_t
-obslua.os_utf8_to_wcs = function(str, len, dst, dst_size) end
+function obslua.os_utf8_to_wcs(str, len, dst, dst_size) end
 
---- size_t os_utf8_to_wcs_ptr(const char *str, size_t len, wchar_t **pstr)
 --- Gets an bmalloc-allocated wide string converted from a UTF8 string.
+--- 
+--- C definition: size_t os_utf8_to_wcs_ptr(const char *str, size_t len, wchar_t **pstr)
 --- @param str char*
 --- @param len size_t
 --- @param pstr wchar_t**
 --- @return size_t
-obslua.os_utf8_to_wcs_ptr = function(str, len, pstr) end
+function obslua.os_utf8_to_wcs_ptr(str, len, pstr) end
 
 --- os_wcs_to_mbs not documented
 obslua.os_wcs_to_mbs = function() end
@@ -7501,234 +9388,274 @@ obslua.os_wcs_to_mbs = function() end
 --- os_wcs_to_mbs_ptr not documented
 obslua.os_wcs_to_mbs_ptr = function() end
 
---- size_t os_wcs_to_utf8(const wchar_t *str, size_t len, char *dst, size_t dst_size)
 --- Converts a wide string to a UTF8 string.
+--- 
+--- C definition: size_t os_wcs_to_utf8(const wchar_t *str, size_t len, char *dst, size_t dst_size)
 --- @param str wchar_t*
 --- @param len size_t
 --- @param dst char*
 --- @param dst_size size_t
 --- @return size_t
-obslua.os_wcs_to_utf8 = function(str, len, dst, dst_size) end
+function obslua.os_wcs_to_utf8(str, len, dst, dst_size) end
 
---- size_t os_wcs_to_utf8_ptr(const wchar_t *str, size_t len, char **pstr)
 --- Gets an bmalloc-allocated UTF8 string converted from a wide string.
---- Number/String Conversion Functions
+--- 
+--- C definition: size_t os_wcs_to_utf8_ptr(const wchar_t *str, size_t len, char **pstr)
 --- @param str wchar_t*
 --- @param len size_t
 --- @param pstr char**
 --- @return size_t
-obslua.os_wcs_to_utf8_ptr = function(str, len, pstr) end
+function obslua.os_wcs_to_utf8_ptr(str, len, pstr) end
 
---- FILE* os_wfopen(const wchar_t *path, const char *mode)
 --- Opens a file with a wide string path.
+--- 
+--- C definition: FILE *os_wfopen(const wchar_t *path, const char *mode)
 --- @param path wchar_t*
 --- @param mode char*
 --- @return FILE*
-obslua.os_wfopen = function(path, mode) end
+function obslua.os_wfopen(path, mode) end
 
---- void proc_handler_add(proc_handler_t *handler, const char *decl_string, proc_handler_proc_t proc, void *data)
 --- Adds a procedure to a procedure handler.
+--- 
 --- :param handler:     Procedure handler object
 --- :param decl_string: Procedure declaration string
 --- :param proc:        Procedure callback
 --- :param data:        Private data to pass to the callback
+--- 
+--- C definition: void proc_handler_add(proc_handler_t *handler, const char *decl_string, proc_handler_proc_t proc, void *data)
 --- @param handler proc_handler_t*
 --- @param decl_string char*
 --- @param proc proc_handler_proc_t
 --- @param data void*
-obslua.proc_handler_add = function(handler, decl_string, proc, data) end
+function obslua.proc_handler_add(handler, decl_string, proc, data) end
 
---- bool proc_handler_call(proc_handler_t *handler, const char *name, calldata_t *params)
 --- Calls a procedure within the procedure handler.
+--- 
 --- :param handler: Procedure handler object
 --- :param name:    Name of procedure to call
 --- :param params:  Calldata structure to pass to the procedure
+--- C definition: bool proc_handler_call(proc_handler_t *handler, const char *name, calldata_t *params)
 --- @param handler proc_handler_t*
 --- @param name char*
 --- @param params calldata_t*
 --- @return bool
-obslua.proc_handler_call = function(handler, name, params) end
+function obslua.proc_handler_call(handler, name, params) end
 
---- proc_handler_t* proc_handler_create(void)
 --- Creates a new procedure handler.
+--- 
 --- :return: A new procedure handler object
+--- 
+--- C definition: proc_handler_t *proc_handler_create(void)
 --- @return proc_handler_t*
-obslua.proc_handler_create = function() end
+function obslua.proc_handler_create() end
 
---- void proc_handler_destroy(proc_handler_t *handler)
 --- Destroys a procedure handler object.
+--- 
 --- :param handler: Procedure handler object
+--- 
+--- C definition: void proc_handler_destroy(proc_handler_t *handler)
 --- @param handler proc_handler_t*
-obslua.proc_handler_destroy = function(handler) end
+function obslua.proc_handler_destroy(handler) end
 
---- void quat_add(struct quat *dst, const struct quat *v1, const struct quat *v2)
 --- Adds two quaternions
+--- 
 --- :param dst: Destination
 --- :param v1:  Quaternion 1
 --- :param v2:  Quaternion 2
+--- 
+--- C definition: void quat_add(struct quat *dst, const struct quat *v1, const struct quat *v2)
 --- @param dst quat*
 --- @param v1 quat*
 --- @param v2 quat*
-obslua.quat_add = function(dst, v1, v2) end
+function obslua.quat_add(dst, v1, v2) end
 
---- void quat_addf(struct quat *dst, const struct quat *v, float f)
 --- Adds a floating point to all components
+--- 
 --- :param dst: Destination
 --- :param dst: Quaternion
 --- :param f:   Floating point
+--- 
+--- C definition: void quat_addf(struct quat *dst, const struct quat *v, float f)
 --- @param dst quat*
 --- @param v quat*
 --- @param f float
-obslua.quat_addf = function(dst, v, f) end
+function obslua.quat_addf(dst, v, f) end
 
 --- quat_close not documented
 obslua.quat_close = function() end
 
---- void quat_copy(struct quat *dst, const struct quat *v)
 --- Copies a quaternion
+--- 
 --- :param dst: Destination
 --- :param v:   Quaternion to copy
+--- 
+--- C definition: void quat_copy(struct quat *dst, const struct quat *v)
 --- @param dst quat*
 --- @param v quat*
-obslua.quat_copy = function(dst, v) end
+function obslua.quat_copy(dst, v) end
 
---- float quat_dist(const struct quat *v1, const struct quat *v2)
 --- Gets the distance between two quaternions
+--- 
 --- :param v1: Quaternion 1
 --- :param v2: Quaternion 2
 --- :return:   Distance between the two quaternions
+--- 
+--- C definition: float quat_dist(const struct quat *v1, const struct quat *v2)
 --- @param v1 quat*
 --- @param v2 quat*
 --- @return float
-obslua.quat_dist = function(v1, v2) end
+function obslua.quat_dist(v1, v2) end
 
 --- quat_divf not documented
 obslua.quat_divf = function() end
 
---- float quat_dot(const struct quat *v1, const struct quat *v2)
 --- Performs a dot product between two quaternions
+--- 
 --- :param v1: Quaternion 1
 --- :param v2: Quaternion 2
 --- :return:   Result of the dot product
+--- 
+--- C definition: float quat_dot(const struct quat *v1, const struct quat *v2)
 --- @param v1 quat*
 --- @param v2 quat*
 --- @return float
-obslua.quat_dot = function(v1, v2) end
+function obslua.quat_dot(v1, v2) end
 
 --- quat_exp not documented
 obslua.quat_exp = function() end
 
---- void quat_from_axisang(struct quat *dst, const struct axisang *aa)
 --- Converts an axis angle to a quaternion
+--- 
 --- :param dst: Destination quaternion
 --- :param aa:  Axis angle
+--- 
+--- C definition: void quat_from_axisang(struct quat *dst, const struct axisang *aa)
 --- @param dst quat*
 --- @param aa axisang*
-obslua.quat_from_axisang = function(dst, aa) end
+function obslua.quat_from_axisang(dst, aa) end
 
 --- quat_from_matrix3 not documented
 obslua.quat_from_matrix3 = function() end
 
---- void quat_from_matrix4(struct quat *dst, const struct matrix4 *m)
 --- Converts the rotational properties of a matrix to a quaternion
+--- 
 --- :param dst: Destination quaternion
 --- :param m:   Matrix to convert
+--- 
+--- C definition: void quat_from_matrix4(struct quat *dst, const struct matrix4 *m)
 --- @param dst quat*
 --- @param m matrix4*
-obslua.quat_from_matrix4 = function(dst, m) end
+function obslua.quat_from_matrix4(dst, m) end
 
---- void quat_get_dir(struct vec3 *dst, const struct quat *q)
 --- Converts a quaternion to a directional vector
+--- 
 --- :param dst: Destination 3-component vector
 --- :param q:   Quaternion
+--- 
+--- C definition: void quat_get_dir(struct vec3 *dst, const struct quat *q)
 --- @param dst vec3*
 --- @param q quat*
-obslua.quat_get_dir = function(dst, q) end
+function obslua.quat_get_dir(dst, q) end
 
---- void quat_get_tangent(struct quat *dst, const struct quat *prev, const struct quat *q, const struct quat *next)
 --- Gets a tangent value for the center of three rotational values
+--- 
 --- :param dst:  Destination quaternion
 --- :param prev: Previous rotation
 --- :param q:    Rotation to get tangent for
 --- :param next: Next rotation
+--- 
+--- C definition: void quat_get_tangent(struct quat *dst, const struct quat *prev, const struct quat *q, const struct quat *next)
 --- @param dst quat*
 --- @param prev quat*
 --- @param q quat*
 --- @param next quat*
-obslua.quat_get_tangent = function(dst, prev, q, next) end
+function obslua.quat_get_tangent(dst, prev, q, next) end
 
---- void quat_identity(struct quat *dst)
 --- Sets a quaternion to {0.0f, 0.0f, 0.0f, 1.0f}.
+--- 
 --- :param dst: Destination
+--- 
+--- C definition: void quat_identity(struct quat *dst)
 --- @param dst quat*
-obslua.quat_identity = function(dst) end
+function obslua.quat_identity(dst) end
 
---- void quat_interpolate(struct quat *dst, const struct quat *q1, const struct quat *q2, float t)
 --- Linearly interpolates two quaternions
+--- 
 --- :param dst: Destination quaternion
 --- :param q1:  Quaternion 1
 --- :param q2:  Quaternion 2
 --- :param t:   Time value (0.0f..1.0f)
+--- 
+--- C definition: void quat_interpolate(struct quat *dst, const struct quat *q1, const struct quat *q2, float t)
 --- @param dst quat*
 --- @param q1 quat*
 --- @param q2 quat*
 --- @param t float
-obslua.quat_interpolate = function(dst, q1, q2, t) end
+function obslua.quat_interpolate(dst, q1, q2, t) end
 
---- void quat_interpolate_cubic(struct quat *dst, const struct quat *q1, const struct quat *q2, const struct quat *m1, const struct quat *m2, float t)
 --- Performs cubic interpolation between two quaternions
+--- 
 --- :param dst: Destination quaternion
 --- :param q1:  Quaternion 1
 --- :param q2:  Quaternion 2
 --- :param m1:  Tangent 1
 --- :param m2:  Tangent 2
 --- :param t:   Time value (0.0f..1.0f)
+--- C definition: void quat_interpolate_cubic(struct quat *dst, const struct quat *q1, const struct quat *q2, const struct quat *m1, const struct quat *m2, float t)
 --- @param dst quat*
 --- @param q1 quat*
 --- @param q2 quat*
 --- @param m1 quat*
 --- @param m2 quat*
 --- @param t float
-obslua.quat_interpolate_cubic = function(dst, q1, q2, m1, m2, t) end
+function obslua.quat_interpolate_cubic(dst, q1, q2, m1, m2, t) end
 
---- void quat_inv(struct quat *dst, const struct quat *v)
 --- Inverts a quaternion
+--- 
 --- :param dst: Destination
 --- :param v:   Quaternion to invert
+--- 
+--- C definition: void quat_inv(struct quat *dst, const struct quat *v)
 --- @param dst quat*
 --- @param v quat*
-obslua.quat_inv = function(dst, v) end
+function obslua.quat_inv(dst, v) end
 
---- float quat_len(const struct quat *v)
 --- Gets the length of a quaternion
+--- 
 --- :param v: Quaternion
 --- :return:  The quaternion's length
+--- 
+--- C definition: float quat_len(const struct quat *v)
 --- @param v quat*
 --- @return float
-obslua.quat_len = function(v) end
+function obslua.quat_len(v) end
 
 --- quat_log not documented
 obslua.quat_log = function() end
 
---- void quat_mul(struct quat *dst, const struct quat *v1, const struct quat *v2)
 --- Multiplies two quaternions
+--- 
 --- :param dst: Destination
 --- :param v1:  Quaternion 1
 --- :param v2:  Quaternion 2
+--- 
+--- C definition: void quat_mul(struct quat *dst, const struct quat *v1, const struct quat *v2)
 --- @param dst quat*
 --- @param v1 quat*
 --- @param v2 quat*
-obslua.quat_mul = function(dst, v1, v2) end
+function obslua.quat_mul(dst, v1, v2) end
 
---- void quat_mulf(struct quat *dst, const struct quat *v, float f)
 --- Multiplies a floating point with all components
+--- 
 --- :param dst: Destination
 --- :param dst: Quaternion
 --- :param f:   Floating point
+--- 
+--- C definition: void quat_mulf(struct quat *dst, const struct quat *v, float f)
 --- @param dst quat*
 --- @param v quat*
 --- @param f float
-obslua.quat_mulf = function(dst, v, f) end
+function obslua.quat_mulf(dst, v, f) end
 
 --- quat_neg not documented
 obslua.quat_neg = function() end
@@ -7736,45 +9663,53 @@ obslua.quat_neg = function() end
 --- quat_norm not documented
 obslua.quat_norm = function() end
 
---- void quat_set(struct quat *dst, float x, float y)
 --- Sets the individual components of a quaternion.
+--- 
 --- :param dst: Destination
 --- :param x:   X component
 --- :param y:   Y component
 --- :param y:   Z component
 --- :param w:   W component
+--- 
+--- C definition: void quat_set(struct quat *dst, float x, float y)
 --- @param dst quat*
 --- @param x float
 --- @param y float
-obslua.quat_set = function(dst, x, y) end
+function obslua.quat_set(dst, x, y) end
 
---- void quat_set_look_dir(struct quat *dst, const struct vec3 *dir)
 --- Creates a quaternion from a specific "look" direction
+--- 
 --- :param dst: Destination quaternion
 --- :param dir: 3-component vector representing the look direction
+--- 
+--- C definition: void quat_set_look_dir(struct quat *dst, const struct vec3 *dir)
 --- @param dst quat*
 --- @param dir vec3*
-obslua.quat_set_look_dir = function(dst, dir) end
+function obslua.quat_set_look_dir(dst, dir) end
 
---- void quat_sub(struct quat *dst, const struct quat *v1, const struct quat *v2)
 --- Subtracts two quaternions
+--- 
 --- :param dst: Destination
 --- :param v1:  Quaternion being subtracted from
 --- :param v2:  Quaternion being subtracted
+--- 
+--- C definition: void quat_sub(struct quat *dst, const struct quat *v1, const struct quat *v2)
 --- @param dst quat*
 --- @param v1 quat*
 --- @param v2 quat*
-obslua.quat_sub = function(dst, v1, v2) end
+function obslua.quat_sub(dst, v1, v2) end
 
---- void quat_subf(struct quat *dst, const struct quat *v, float f)
 --- Subtracts a floating point from all components
+--- 
 --- :param dst: Destination
 --- :param v:   Quaternion being subtracted from
 --- :param f:   Floating point being subtracted
+--- 
+--- C definition: void quat_subf(struct quat *dst, const struct quat *v, float f)
 --- @param dst quat*
 --- @param v quat*
 --- @param f float
-obslua.quat_subf = function(dst, v, f) end
+function obslua.quat_subf(dst, v, f) end
 
 --- remove_current_callback not documented
 obslua.remove_current_callback = function() end
@@ -7785,97 +9720,103 @@ obslua.sceneitem_list_release = function() end
 --- script_log not documented
 obslua.script_log = function() end
 
---- bool signal_handler_add(signal_handler_t *handler, const char *signal_decl)
 --- Adds a signal to a signal handler.
+--- 
 --- :param handler:     Signal handler object
 --- :param signal_decl: Signal declaration string
+--- 
+--- C definition: bool signal_handler_add(signal_handler_t *handler, const char *signal_decl)
 --- @param handler signal_handler_t*
 --- @param signal_decl char*
 --- @return bool
-obslua.signal_handler_add = function(handler, signal_decl) end
+function obslua.signal_handler_add(handler, signal_decl) end
 
---- bool signal_handler_add_array(signal_handler_t *handler, const char **signal_decls)
 --- Adds multiple signals to a signal handler.
+--- 
 --- :param handler:      Signal handler object
 --- :param signal_decls: An array of signal declaration strings,
 ---                      terminated by *NULL*
+--- 
+--- C definition: bool signal_handler_add_array(signal_handler_t *handler, const char **signal_decls)
 --- @param handler signal_handler_t*
 --- @param signal_decls char**
 --- @return bool
-obslua.signal_handler_add_array = function(handler, signal_decls) end
+function obslua.signal_handler_add_array(handler, signal_decls) end
 
---- void signal_handler_connect(signal_handler_t *handler, const char *signal, signal_callback_t callback, void *data)
 --- Connect a callback to a signal on a signal handler.
+--- 
 --- :param handler:  Signal handler object
 --- :param callback: Signal callback
 --- :param data:     Private data passed the callback
+--- 
+--- C definition: void signal_handler_connect(signal_handler_t *handler, const char *signal, signal_callback_t callback, void *data)
 --- @param handler signal_handler_t*
 --- @param signal char*
 --- @param callback signal_callback_t
 --- @param data void*
-obslua.signal_handler_connect = function(handler, signal, callback, data) end
+function obslua.signal_handler_connect(handler, signal, callback, data) end
 
 --- signal_handler_connect_global not documented
 obslua.signal_handler_connect_global = function() end
 
---- void signal_handler_connect_ref(signal_handler_t *handler, const char *signal, signal_callback_t callback, void *data)
 --- Connect a callback to a signal on a signal handler, and increments
 --- the handler's internal reference counter, preventing it from being
 --- destroyed until the signal has been disconnected.
+--- 
 --- :param handler:  Signal handler object
 --- :param callback: Signal callback
 --- :param data:     Private data passed the callback
+--- 
+--- C definition: void signal_handler_connect_ref(signal_handler_t *handler, const char *signal, signal_callback_t callback, void *data)
 --- @param handler signal_handler_t*
 --- @param signal char*
 --- @param callback signal_callback_t
 --- @param data void*
-obslua.signal_handler_connect_ref = function(handler, signal, callback, data) end
+function obslua.signal_handler_connect_ref(handler, signal, callback, data) end
 
---- signal_handler_t* signal_handler_create(void)
 --- Creates a new signal handler object.
+--- 
 --- :return: A new signal handler object
+--- 
+--- C definition: signal_handler_t *signal_handler_create(void)
 --- @return signal_handler_t*
-obslua.signal_handler_create = function() end
+function obslua.signal_handler_create() end
 
---- void signal_handler_destroy(signal_handler_t *handler)
 --- Destroys a signal handler.
+--- 
 --- :param handler: Signal handler object
+--- 
+--- C definition: void signal_handler_destroy(signal_handler_t *handler)
 --- @param handler signal_handler_t*
-obslua.signal_handler_destroy = function(handler) end
+function obslua.signal_handler_destroy(handler) end
 
---- void signal_handler_disconnect(signal_handler_t *handler, const char *signal, signal_callback_t callback, void *data)
 --- Disconnects a callback from a signal on a signal handler.
+--- 
 --- :param handler:  Signal handler object
 --- :param callback: Signal callback
 --- :param data:     Private data passed the callback
+--- 
+--- C definition: void signal_handler_disconnect(signal_handler_t *handler, const char *signal, signal_callback_t callback, void *data)
 --- @param handler signal_handler_t*
 --- @param signal char*
 --- @param callback signal_callback_t
 --- @param data void*
-obslua.signal_handler_disconnect = function(handler, signal, callback, data) end
+function obslua.signal_handler_disconnect(handler, signal, callback, data) end
 
 --- signal_handler_disconnect_global not documented
 obslua.signal_handler_disconnect_global = function() end
 
---- void signal_handler_signal(signal_handler_t *handler, const char *signal, calldata_t *params)
 --- Triggers a signal, calling all connected callbacks.
+--- 
 --- :param handler: Signal handler object
 --- :param signal:  Name of signal to trigger
 --- :param params:  Parameters to pass to the signal
---- Procedure Handlers
---- Procedure handlers are used to call functions without having to have
---- direct access to declarations or callback pointers.
---- .. code:: cpp
---- #include <callback/proc.h>
---- .. type:: proc_handler_t
---- .. type:: typedef void (*proc_handler_proc_t)(void *data, calldata_t *cd)
---- Procedure handler callback.
---- :param data: Private data passed to this callback
---- :param cd:   Calldata object
+--- 
+--- C definition: void signal_handler_signal(signal_handler_t *handler, const char *signal, calldata_t *params)
 --- @param handler signal_handler_t*
 --- @param signal char*
 --- @param params calldata_t*
-obslua.signal_handler_signal = function(handler, signal, params) end
+function obslua.signal_handler_signal(handler, signal, params) end
 
 --- source_list_release not documented
 obslua.source_list_release = function() end
@@ -7886,397 +9827,480 @@ obslua.timer_add = function() end
 --- timer_remove not documented
 obslua.timer_remove = function() end
 
---- void vec2_abs(struct vec2 *dst, const struct vec2 *v)
 --- Gets the absolute values of each component
+--- 
 --- :param dst: Destination
 --- :param v:   Vector
+--- 
+--- C definition: void vec2_abs(struct vec2 *dst, const struct vec2 *v)
 --- @param dst vec2*
 --- @param v vec2*
-obslua.vec2_abs = function(dst, v) end
+function obslua.vec2_abs(dst, v) end
 
---- void vec2_add(struct vec2 *dst, const struct vec2 *v1, const struct vec2 *v2)
 --- Adds two vectors
+--- 
 --- :param dst: Destination
 --- :param v1:  Vector 1
 --- :param v2:  Vector 2
+--- 
+--- C definition: void vec2_add(struct vec2 *dst, const struct vec2 *v1, const struct vec2 *v2)
 --- @param dst vec2*
 --- @param v1 vec2*
 --- @param v2 vec2*
-obslua.vec2_add = function(dst, v1, v2) end
+function obslua.vec2_add(dst, v1, v2) end
 
---- void vec2_addf(struct vec2 *dst, const struct vec2 *v, float f)
 --- Adds a floating point to all components
+--- 
 --- :param dst: Destination
 --- :param dst: Vector
 --- :param f:   Floating point
+--- 
+--- C definition: void vec2_addf(struct vec2 *dst, const struct vec2 *v, float f)
 --- @param dst vec2*
 --- @param v vec2*
 --- @param f float
-obslua.vec2_addf = function(dst, v, f) end
+function obslua.vec2_addf(dst, v, f) end
 
---- void vec2_ceil(struct vec2 *dst, const struct vec2 *v)
 --- Gets the ceiling values of each component
+--- 
 --- :param dst: Destination
 --- :param v:   Vector
+--- 
+--- C definition: void vec2_ceil(struct vec2 *dst, const struct vec2 *v)
 --- @param dst vec2*
 --- @param v vec2*
-obslua.vec2_ceil = function(dst, v) end
+function obslua.vec2_ceil(dst, v) end
 
---- int vec2_close(const struct vec2 *v1, const struct vec2 *v2, float epsilon)
 --- Compares two vectors
+--- 
 --- :param v1:      Vector 1
 --- :param v2:      Vector 2
 --- :param epsilon: Maximum precision for comparison
+--- 
+--- C definition: int vec2_close(const struct vec2 *v1, const struct vec2 *v2, float epsilon)
 --- @param v1 vec2*
 --- @param v2 vec2*
 --- @param epsilon float
 --- @return int
-obslua.vec2_close = function(v1, v2, epsilon) end
+function obslua.vec2_close(v1, v2, epsilon) end
 
---- void vec2_copy(struct vec2 *dst, const struct vec2 *v)
 --- Copies a vector
+--- 
 --- :param dst: Destination
 --- :param v:   Vector to copy
+--- 
+--- C definition: void vec2_copy(struct vec2 *dst, const struct vec2 *v)
 --- @param dst vec2*
 --- @param v vec2*
-obslua.vec2_copy = function(dst, v) end
+function obslua.vec2_copy(dst, v) end
 
---- float vec2_dist(const struct vec2 *v1, const struct vec2 *v2)
 --- Gets the distance between two vectors
+--- 
 --- :param v1: Vector 1
 --- :param v2: Vector 2
 --- :return:   Distance between the two vectors
+--- 
+--- C definition: float vec2_dist(const struct vec2 *v1, const struct vec2 *v2)
 --- @param v1 vec2*
 --- @param v2 vec2*
 --- @return float
-obslua.vec2_dist = function(v1, v2) end
+function obslua.vec2_dist(v1, v2) end
 
---- void vec2_div(struct vec2 *dst, const struct vec2 *v1, const struct vec2 *v2)
 --- Divides two vectors
+--- 
 --- :param dst: Destination
 --- :param v1:  Dividend
 --- :param v2:  Divisor
+--- 
+--- C definition: void vec2_div(struct vec2 *dst, const struct vec2 *v1, const struct vec2 *v2)
 --- @param dst vec2*
 --- @param v1 vec2*
 --- @param v2 vec2*
-obslua.vec2_div = function(dst, v1, v2) end
+function obslua.vec2_div(dst, v1, v2) end
 
---- void vec2_divf(struct vec2 *dst, const struct vec2 *v, float f)
 --- Divides a floating point from all components
+--- 
 --- :param dst: Destination
 --- :param v:   Vector (dividend)
 --- :param f:   Floating point (divisor)
+--- 
+--- C definition: void vec2_divf(struct vec2 *dst, const struct vec2 *v, float f)
 --- @param dst vec2*
 --- @param v vec2*
 --- @param f float
-obslua.vec2_divf = function(dst, v, f) end
+function obslua.vec2_divf(dst, v, f) end
 
---- float vec2_dot(const struct vec2 *v1, const struct vec2 *v2)
 --- Performs a dot product between two vectors
+--- 
 --- :param v1: Vector 1
 --- :param v2: Vector 2
 --- :return:   Result of the dot product
+--- 
+--- C definition: float vec2_dot(const struct vec2 *v1, const struct vec2 *v2)
 --- @param v1 vec2*
 --- @param v2 vec2*
 --- @return float
-obslua.vec2_dot = function(v1, v2) end
+function obslua.vec2_dot(v1, v2) end
 
---- void vec2_floor(struct vec2 *dst, const struct vec2 *v)
 --- Gets the floor values of each component
+--- 
 --- :param dst: Destination
 --- :param v:   Vector
+--- 
+--- C definition: void vec2_floor(struct vec2 *dst, const struct vec2 *v)
 --- @param dst vec2*
 --- @param v vec2*
-obslua.vec2_floor = function(dst, v) end
+function obslua.vec2_floor(dst, v) end
 
---- float vec2_len(const struct vec2 *v)
 --- Gets the length of a vector
+--- 
 --- :param v: Vector
 --- :return:  The vector's length
+--- 
+--- C definition: float vec2_len(const struct vec2 *v)
 --- @param v vec2*
 --- @return float
-obslua.vec2_len = function(v) end
+function obslua.vec2_len(v) end
 
---- void vec2_max(struct vec2 *dst, const struct vec2 *v, const struct vec2 *max_v)
 --- Gets the maximum values between two vectors
+--- 
 --- :param dst:   Destination
 --- :param v:     Vector 1
 --- :param max_v: Vector 2
+--- 
+--- C definition: void vec2_max(struct vec2 *dst, const struct vec2 *v, const struct vec2 *max_v)
 --- @param dst vec2*
 --- @param v vec2*
 --- @param max_v vec2*
-obslua.vec2_max = function(dst, v, max_v) end
+function obslua.vec2_max(dst, v, max_v) end
 
---- void vec2_maxf(struct vec2 *dst, const struct vec2 *v, float val)
 --- Gets the maximum values between a vector's components and a floating point
+--- 
 --- :param dst: Destination
 --- :param v:   Vector
 --- :param val: Floating point
+--- 
+--- C definition: void vec2_maxf(struct vec2 *dst, const struct vec2 *v, float val)
 --- @param dst vec2*
 --- @param v vec2*
 --- @param val float
-obslua.vec2_maxf = function(dst, v, val) end
+function obslua.vec2_maxf(dst, v, val) end
 
---- void vec2_min(struct vec2 *dst, const struct vec2 *v, const struct vec2 *min_v)
 --- Gets the minimum values between two vectors
+--- 
 --- :param dst:   Destination
 --- :param v:     Vector 1
 --- :param min_v: Vector 2
+--- 
+--- C definition: void vec2_min(struct vec2 *dst, const struct vec2 *v, const struct vec2 *min_v)
 --- @param dst vec2*
 --- @param v vec2*
 --- @param min_v vec2*
-obslua.vec2_min = function(dst, v, min_v) end
+function obslua.vec2_min(dst, v, min_v) end
 
---- void vec2_minf(struct vec2 *dst, const struct vec2 *v, float val)
 --- Gets the minimum values between a vector's components and a floating point
+--- 
 --- :param dst: Destination
 --- :param v:   Vector
 --- :param val: Floating point
+--- 
+--- C definition: void vec2_minf(struct vec2 *dst, const struct vec2 *v, float val)
 --- @param dst vec2*
 --- @param v vec2*
 --- @param val float
-obslua.vec2_minf = function(dst, v, val) end
+function obslua.vec2_minf(dst, v, val) end
 
---- void vec2_mul(struct vec2 *dst, const struct vec2 *v1, const struct vec2 *v2)
 --- Multiplies two vectors
+--- 
 --- :param dst: Destination
 --- :param v1:  Vector 1
 --- :param v2:  Vector 2
+--- 
+--- C definition: void vec2_mul(struct vec2 *dst, const struct vec2 *v1, const struct vec2 *v2)
 --- @param dst vec2*
 --- @param v1 vec2*
 --- @param v2 vec2*
-obslua.vec2_mul = function(dst, v1, v2) end
+function obslua.vec2_mul(dst, v1, v2) end
 
---- void vec2_mulf(struct vec2 *dst, const struct vec2 *v, float f)
 --- Multiplies a floating point with all components
+--- 
 --- :param dst: Destination
 --- :param dst: Vector
 --- :param f:   Floating point
+--- 
+--- C definition: void vec2_mulf(struct vec2 *dst, const struct vec2 *v, float f)
 --- @param dst vec2*
 --- @param v vec2*
 --- @param f float
-obslua.vec2_mulf = function(dst, v, f) end
+function obslua.vec2_mulf(dst, v, f) end
 
---- void vec2_neg(struct vec2 *dst, const struct vec2 *v)
 --- Negates a vector
+--- 
 --- :param dst: Destination
 --- :param v:   Vector to negate
+--- 
+--- C definition: void vec2_neg(struct vec2 *dst, const struct vec2 *v)
 --- @param dst vec2*
 --- @param v vec2*
-obslua.vec2_neg = function(dst, v) end
+function obslua.vec2_neg(dst, v) end
 
---- void vec2_norm(struct vec2 *dst, const struct vec2 *v)
 --- Normalizes a vector
+--- 
 --- :param dst: Destination
 --- :param v:   Vector to normalize
+--- C definition: void vec2_norm(struct vec2 *dst, const struct vec2 *v)
 --- @param dst vec2*
 --- @param v vec2*
-obslua.vec2_norm = function(dst, v) end
+function obslua.vec2_norm(dst, v) end
 
---- void vec2_set(struct vec2 *dst, float x, float y)
 --- Sets the individual components of a 2-component vector.
+--- 
 --- :param dst: Destination
 --- :param x:   X component
 --- :param y:   Y component
+--- 
+--- C definition: void vec2_set(struct vec2 *dst, float x, float y)
 --- @param dst vec2*
 --- @param x float
 --- @param y float
-obslua.vec2_set = function(dst, x, y) end
+function obslua.vec2_set(dst, x, y) end
 
---- void vec2_sub(struct vec2 *dst, const struct vec2 *v1, const struct vec2 *v2)
 --- Subtracts two vectors
+--- 
 --- :param dst: Destination
 --- :param v1:  Vector being subtracted from
 --- :param v2:  Vector being subtracted
+--- 
+--- C definition: void vec2_sub(struct vec2 *dst, const struct vec2 *v1, const struct vec2 *v2)
 --- @param dst vec2*
 --- @param v1 vec2*
 --- @param v2 vec2*
-obslua.vec2_sub = function(dst, v1, v2) end
+function obslua.vec2_sub(dst, v1, v2) end
 
---- void vec2_subf(struct vec2 *dst, const struct vec2 *v, float f)
 --- Subtracts a floating point from all components
+--- 
 --- :param dst: Destination
 --- :param v:   Vector being subtracted from
 --- :param f:   Floating point being subtracted
+--- 
+--- C definition: void vec2_subf(struct vec2 *dst, const struct vec2 *v, float f)
 --- @param dst vec2*
 --- @param v vec2*
 --- @param f float
-obslua.vec2_subf = function(dst, v, f) end
+function obslua.vec2_subf(dst, v, f) end
 
---- void vec2_zero(struct vec2 *dst)
 --- Zeroes a vector
+--- 
 --- :param dst: Destination
+--- 
+--- C definition: void vec2_zero(struct vec2 *dst)
 --- @param dst vec2*
-obslua.vec2_zero = function(dst) end
+function obslua.vec2_zero(dst) end
 
---- void vec3_abs(struct vec3 *dst, const struct vec3 *v)
 --- Gets the absolute values of each component
+--- 
 --- :param dst: Destination
 --- :param v:   Vector
+--- 
+--- C definition: void vec3_abs(struct vec3 *dst, const struct vec3 *v)
 --- @param dst vec3*
 --- @param v vec3*
-obslua.vec3_abs = function(dst, v) end
+function obslua.vec3_abs(dst, v) end
 
---- void vec3_add(struct vec3 *dst, const struct vec3 *v1, const struct vec3 *v2)
 --- Adds two vectors
+--- 
 --- :param dst: Destination
 --- :param v1:  Vector 1
 --- :param v2:  Vector 2
+--- 
+--- C definition: void vec3_add(struct vec3 *dst, const struct vec3 *v1, const struct vec3 *v2)
 --- @param dst vec3*
 --- @param v1 vec3*
 --- @param v2 vec3*
-obslua.vec3_add = function(dst, v1, v2) end
+function obslua.vec3_add(dst, v1, v2) end
 
---- void vec3_addf(struct vec3 *dst, const struct vec3 *v, float f)
 --- Adds a floating point to all components
+--- 
 --- :param dst: Destination
 --- :param dst: Vector
 --- :param f:   Floating point
+--- 
+--- C definition: void vec3_addf(struct vec3 *dst, const struct vec3 *v, float f)
 --- @param dst vec3*
 --- @param v vec3*
 --- @param f float
-obslua.vec3_addf = function(dst, v, f) end
+function obslua.vec3_addf(dst, v, f) end
 
---- void vec3_ceil(struct vec3 *dst, const struct vec3 *v)
 --- Gets the ceiling values of each component
+--- 
 --- :param dst: Destination
 --- :param v:   Vector
+--- 
+--- C definition: void vec3_ceil(struct vec3 *dst, const struct vec3 *v)
 --- @param dst vec3*
 --- @param v vec3*
-obslua.vec3_ceil = function(dst, v) end
+function obslua.vec3_ceil(dst, v) end
 
---- int vec3_close(const struct vec3 *v1, const struct vec3 *v2, float epsilon)
 --- Compares two vectors
+--- 
 --- :param v1:      Vector 1
 --- :param v2:      Vector 2
 --- :param epsilon: Maximum precision for comparison
+--- 
+--- C definition: int vec3_close(const struct vec3 *v1, const struct vec3 *v2, float epsilon)
 --- @param v1 vec3*
 --- @param v2 vec3*
 --- @param epsilon float
 --- @return int
-obslua.vec3_close = function(v1, v2, epsilon) end
+function obslua.vec3_close(v1, v2, epsilon) end
 
---- void vec3_copy(struct vec3 *dst, const struct vec3 *v)
 --- Copies a vector
+--- 
 --- :param dst: Destination
 --- :param v:   Vector to copy
+--- 
+--- C definition: void vec3_copy(struct vec3 *dst, const struct vec3 *v)
 --- @param dst vec3*
 --- @param v vec3*
-obslua.vec3_copy = function(dst, v) end
+function obslua.vec3_copy(dst, v) end
 
---- void vec3_cross(struct vec3 *dst, const struct vec3 *v1, const struct vec3 *v2)
 --- Performs a cross product between two vectors
+--- 
 --- :param dst: Destination
 --- :param v1:  Vector 1
 --- :param v2:  Vector 2
+--- 
+--- C definition: void vec3_cross(struct vec3 *dst, const struct vec3 *v1, const struct vec3 *v2)
 --- @param dst vec3*
 --- @param v1 vec3*
 --- @param v2 vec3*
-obslua.vec3_cross = function(dst, v1, v2) end
+function obslua.vec3_cross(dst, v1, v2) end
 
---- float vec3_dist(const struct vec3 *v1, const struct vec3 *v2)
 --- Gets the distance between two vectors
+--- 
 --- :param v1: Vector 1
 --- :param v2: Vector 2
 --- :return:   Distance between the two vectors
+--- 
+--- C definition: float vec3_dist(const struct vec3 *v1, const struct vec3 *v2)
 --- @param v1 vec3*
 --- @param v2 vec3*
 --- @return float
-obslua.vec3_dist = function(v1, v2) end
+function obslua.vec3_dist(v1, v2) end
 
---- void vec3_div(struct vec3 *dst, const struct vec3 *v1, const struct vec3 *v2)
 --- Divides two vectors
+--- 
 --- :param dst: Destination
 --- :param v1:  Dividend
 --- :param v2:  Divisor
+--- 
+--- C definition: void vec3_div(struct vec3 *dst, const struct vec3 *v1, const struct vec3 *v2)
 --- @param dst vec3*
 --- @param v1 vec3*
 --- @param v2 vec3*
-obslua.vec3_div = function(dst, v1, v2) end
+function obslua.vec3_div(dst, v1, v2) end
 
---- void vec3_divf(struct vec3 *dst, const struct vec3 *v, float f)
 --- Divides a floating point from all components
+--- 
 --- :param dst: Destination
 --- :param v:   Vector (dividend)
 --- :param f:   Floating point (divisor)
+--- 
+--- C definition: void vec3_divf(struct vec3 *dst, const struct vec3 *v, float f)
 --- @param dst vec3*
 --- @param v vec3*
 --- @param f float
-obslua.vec3_divf = function(dst, v, f) end
+function obslua.vec3_divf(dst, v, f) end
 
---- float vec3_dot(const struct vec3 *v1, const struct vec3 *v2)
 --- Performs a dot product between two vectors
+--- 
 --- :param v1: Vector 1
 --- :param v2: Vector 2
 --- :return:   Result of the dot product
+--- 
+--- C definition: float vec3_dot(const struct vec3 *v1, const struct vec3 *v2)
 --- @param v1 vec3*
 --- @param v2 vec3*
 --- @return float
-obslua.vec3_dot = function(v1, v2) end
+function obslua.vec3_dot(v1, v2) end
 
---- void vec3_floor(struct vec3 *dst, const struct vec3 *v)
 --- Gets the floor values of each component
+--- 
 --- :param dst: Destination
 --- :param v:   Vector
+--- 
+--- C definition: void vec3_floor(struct vec3 *dst, const struct vec3 *v)
 --- @param dst vec3*
 --- @param v vec3*
-obslua.vec3_floor = function(dst, v) end
+function obslua.vec3_floor(dst, v) end
 
---- void vec3_from_vec4(struct vec3 *dst, const struct vec4 *v)
 --- Creates a 3-component vector from a 4-component vector
+--- 
 --- :param dst: 3-component vector destination
 --- :param v:   4-component vector
+--- 
+--- C definition: void vec3_from_vec4(struct vec3 *dst, const struct vec4 *v)
 --- @param dst vec3*
 --- @param v vec4*
-obslua.vec3_from_vec4 = function(dst, v) end
+function obslua.vec3_from_vec4(dst, v) end
 
---- float vec3_len(const struct vec3 *v)
 --- Gets the length of a vector
+--- 
 --- :param v: Vector
 --- :return:  The vector's length
+--- 
+--- C definition: float vec3_len(const struct vec3 *v)
 --- @param v vec3*
 --- @return float
-obslua.vec3_len = function(v) end
+function obslua.vec3_len(v) end
 
---- void vec3_max(struct vec3 *dst, const struct vec3 *v, const struct vec3 *max_v)
 --- Gets the maximum values between two vectors
+--- 
 --- :param dst:   Destination
 --- :param v:     Vector 1
 --- :param max_v: Vector 2
+--- 
+--- C definition: void vec3_max(struct vec3 *dst, const struct vec3 *v, const struct vec3 *max_v)
 --- @param dst vec3*
 --- @param v vec3*
 --- @param max_v vec3*
-obslua.vec3_max = function(dst, v, max_v) end
+function obslua.vec3_max(dst, v, max_v) end
 
---- void vec3_maxf(struct vec3 *dst, const struct vec3 *v, float val)
 --- Gets the maximum values between a vector's components and a floating point
+--- 
 --- :param dst: Destination
 --- :param v:   Vector
 --- :param val: Floating point
+--- 
+--- C definition: void vec3_maxf(struct vec3 *dst, const struct vec3 *v, float val)
 --- @param dst vec3*
 --- @param v vec3*
 --- @param val float
-obslua.vec3_maxf = function(dst, v, val) end
+function obslua.vec3_maxf(dst, v, val) end
 
---- void vec3_min(struct vec3 *dst, const struct vec3 *v, const struct vec3 *min_v)
 --- Gets the minimum values between two vectors
+--- 
 --- :param dst:   Destination
 --- :param v:     Vector 1
 --- :param min_v: Vector 2
+--- 
+--- C definition: void vec3_min(struct vec3 *dst, const struct vec3 *v, const struct vec3 *min_v)
 --- @param dst vec3*
 --- @param v vec3*
 --- @param min_v vec3*
-obslua.vec3_min = function(dst, v, min_v) end
+function obslua.vec3_min(dst, v, min_v) end
 
---- void vec3_minf(struct vec3 *dst, const struct vec3 *v, float val)
 --- Gets the minimum values between a vector's components and a floating point
+--- 
 --- :param dst: Destination
 --- :param v:   Vector
 --- :param val: Floating point
+--- 
+--- C definition: void vec3_minf(struct vec3 *dst, const struct vec3 *v, float val)
 --- @param dst vec3*
 --- @param v vec3*
 --- @param val float
-obslua.vec3_minf = function(dst, v, val) end
+function obslua.vec3_minf(dst, v, val) end
 
 --- vec3_mirror not documented
 obslua.vec3_mirror = function() end
@@ -8284,215 +10308,258 @@ obslua.vec3_mirror = function() end
 --- vec3_mirrorv not documented
 obslua.vec3_mirrorv = function() end
 
---- void vec3_mul(struct vec3 *dst, const struct vec3 *v1, const struct vec3 *v2)
 --- Multiplies two vectors
+--- 
 --- :param dst: Destination
 --- :param v1:  Vector 1
 --- :param v2:  Vector 2
+--- 
+--- C definition: void vec3_mul(struct vec3 *dst, const struct vec3 *v1, const struct vec3 *v2)
 --- @param dst vec3*
 --- @param v1 vec3*
 --- @param v2 vec3*
-obslua.vec3_mul = function(dst, v1, v2) end
+function obslua.vec3_mul(dst, v1, v2) end
 
---- void vec3_mulf(struct vec3 *dst, const struct vec3 *v, float f)
 --- Multiplies a floating point with all components
+--- 
 --- :param dst: Destination
 --- :param dst: Vector
 --- :param f:   Floating point
+--- 
+--- C definition: void vec3_mulf(struct vec3 *dst, const struct vec3 *v, float f)
 --- @param dst vec3*
 --- @param v vec3*
 --- @param f float
-obslua.vec3_mulf = function(dst, v, f) end
+function obslua.vec3_mulf(dst, v, f) end
 
---- void vec3_neg(struct vec3 *dst, const struct vec3 *v)
 --- Negates a vector
+--- 
 --- :param dst: Destination
 --- :param v:   Vector to negate
+--- 
+--- C definition: void vec3_neg(struct vec3 *dst, const struct vec3 *v)
 --- @param dst vec3*
 --- @param v vec3*
-obslua.vec3_neg = function(dst, v) end
+function obslua.vec3_neg(dst, v) end
 
---- void vec3_norm(struct vec3 *dst, const struct vec3 *v)
 --- Normalizes a vector
+--- 
 --- :param dst: Destination
 --- :param v:   Vector to normalize
+--- 
+--- C definition: void vec3_norm(struct vec3 *dst, const struct vec3 *v)
 --- @param dst vec3*
 --- @param v vec3*
-obslua.vec3_norm = function(dst, v) end
+function obslua.vec3_norm(dst, v) end
 
 --- vec3_plane_dist not documented
 obslua.vec3_plane_dist = function() end
 
---- void vec3_rand(struct vec3 *dst, int positive_only)
 --- Generates a random vector
+--- 
 --- :param dst:           Destination
 --- :param positive_only: *true* if positive only, *false* otherwise
+--- C definition: void vec3_rand(struct vec3 *dst, int positive_only)
 --- @param dst vec3*
 --- @param positive_only int
-obslua.vec3_rand = function(dst, positive_only) end
+function obslua.vec3_rand(dst, positive_only) end
 
---- void vec3_rotate(struct vec3 *dst, const struct vec3 *v, const struct matrix3 *m)
 --- Rotates a vector
+--- 
 --- :param dst: Destination
 --- :param v:   Vector
 --- :param m:   Matrix
+--- 
+--- C definition: void vec3_rotate(struct vec3 *dst, const struct vec3 *v, const struct matrix3 *m)
 --- @param dst vec3*
 --- @param v vec3*
 --- @param m matrix3*
-obslua.vec3_rotate = function(dst, v, m) end
+function obslua.vec3_rotate(dst, v, m) end
 
---- void vec3_set(struct vec3 *dst, float x, float y)
 --- Sets the individual components of a 3-component vector.
+--- 
 --- :param dst: Destination
 --- :param x:   X component
 --- :param y:   Y component
 --- :param y:   Z component
+--- 
+--- C definition: void vec3_set(struct vec3 *dst, float x, float y)
 --- @param dst vec3*
 --- @param x float
 --- @param y float
-obslua.vec3_set = function(dst, x, y) end
+function obslua.vec3_set(dst, x, y) end
 
---- void vec3_sub(struct vec3 *dst, const struct vec3 *v1, const struct vec3 *v2)
 --- Subtracts two vectors
+--- 
 --- :param dst: Destination
 --- :param v1:  Vector being subtracted from
 --- :param v2:  Vector being subtracted
+--- 
+--- C definition: void vec3_sub(struct vec3 *dst, const struct vec3 *v1, const struct vec3 *v2)
 --- @param dst vec3*
 --- @param v1 vec3*
 --- @param v2 vec3*
-obslua.vec3_sub = function(dst, v1, v2) end
+function obslua.vec3_sub(dst, v1, v2) end
 
---- void vec3_subf(struct vec3 *dst, const struct vec3 *v, float f)
 --- Subtracts a floating point from all components
+--- 
 --- :param dst: Destination
 --- :param v:   Vector being subtracted from
 --- :param f:   Floating point being subtracted
+--- 
+--- C definition: void vec3_subf(struct vec3 *dst, const struct vec3 *v, float f)
 --- @param dst vec3*
 --- @param v vec3*
 --- @param f float
-obslua.vec3_subf = function(dst, v, f) end
+function obslua.vec3_subf(dst, v, f) end
 
---- void vec3_transform(struct vec3 *dst, const struct vec3 *v, const struct matrix4 *m)
 --- Transforms a vector
+--- 
 --- :param dst: Destination
 --- :param v:   Vector
 --- :param m:   Matrix
+--- 
+--- C definition: void vec3_transform(struct vec3 *dst, const struct vec3 *v, const struct matrix4 *m)
 --- @param dst vec3*
 --- @param v vec3*
 --- @param m matrix4*
-obslua.vec3_transform = function(dst, v, m) end
+function obslua.vec3_transform(dst, v, m) end
 
 --- vec3_transform3x4 not documented
 obslua.vec3_transform3x4 = function() end
 
---- void vec3_zero(struct vec3 *dst)
 --- Zeroes a vector
+--- 
 --- :param dst: Destination
+--- 
+--- C definition: void vec3_zero(struct vec3 *dst)
 --- @param dst vec3*
-obslua.vec3_zero = function(dst) end
+function obslua.vec3_zero(dst) end
 
---- void vec4_abs(struct vec4 *dst, const struct vec4 *v)
 --- Gets the absolute values of each component
+--- 
 --- :param dst: Destination
 --- :param v:   Vector
+--- 
+--- C definition: void vec4_abs(struct vec4 *dst, const struct vec4 *v)
 --- @param dst vec4*
 --- @param v vec4*
-obslua.vec4_abs = function(dst, v) end
+function obslua.vec4_abs(dst, v) end
 
---- void vec4_add(struct vec4 *dst, const struct vec4 *v1, const struct vec4 *v2)
 --- Adds two vectors
+--- 
 --- :param dst: Destination
 --- :param v1:  Vector 1
 --- :param v2:  Vector 2
+--- 
+--- C definition: void vec4_add(struct vec4 *dst, const struct vec4 *v1, const struct vec4 *v2)
 --- @param dst vec4*
 --- @param v1 vec4*
 --- @param v2 vec4*
-obslua.vec4_add = function(dst, v1, v2) end
+function obslua.vec4_add(dst, v1, v2) end
 
---- void vec4_addf(struct vec4 *dst, const struct vec4 *v, float f)
 --- Adds a floating point to all components
+--- 
 --- :param dst: Destination
 --- :param dst: Vector
 --- :param f:   Floating point
+--- 
+--- C definition: void vec4_addf(struct vec4 *dst, const struct vec4 *v, float f)
 --- @param dst vec4*
 --- @param v vec4*
 --- @param f float
-obslua.vec4_addf = function(dst, v, f) end
+function obslua.vec4_addf(dst, v, f) end
 
---- void vec4_ceil(struct vec4 *dst, const struct vec4 *v)
 --- Gets the ceiling values of each component
+--- 
 --- :param dst: Destination
 --- :param v:   Vector
+--- 
+--- C definition: void vec4_ceil(struct vec4 *dst, const struct vec4 *v)
 --- @param dst vec4*
 --- @param v vec4*
-obslua.vec4_ceil = function(dst, v) end
+function obslua.vec4_ceil(dst, v) end
 
---- int vec4_close(const struct vec4 *v1, const struct vec4 *v2, float epsilon)
 --- Compares two vectors
+--- 
 --- :param v1:      Vector 1
 --- :param v2:      Vector 2
 --- :param epsilon: Maximum precision for comparison
+--- 
+--- C definition: int vec4_close(const struct vec4 *v1, const struct vec4 *v2, float epsilon)
 --- @param v1 vec4*
 --- @param v2 vec4*
 --- @param epsilon float
 --- @return int
-obslua.vec4_close = function(v1, v2, epsilon) end
+function obslua.vec4_close(v1, v2, epsilon) end
 
---- void vec4_copy(struct vec4 *dst, const struct vec4 *v)
 --- Copies a vector
+--- 
 --- :param dst: Destination
 --- :param v:   Vector to copy
+--- 
+--- C definition: void vec4_copy(struct vec4 *dst, const struct vec4 *v)
 --- @param dst vec4*
 --- @param v vec4*
-obslua.vec4_copy = function(dst, v) end
+function obslua.vec4_copy(dst, v) end
 
---- float vec4_dist(const struct vec4 *v1, const struct vec4 *v2)
 --- Gets the distance between two vectors
+--- 
 --- :param v1: Vector 1
 --- :param v2: Vector 2
 --- :return:   Distance between the two vectors
+--- 
+--- C definition: float vec4_dist(const struct vec4 *v1, const struct vec4 *v2)
 --- @param v1 vec4*
 --- @param v2 vec4*
 --- @return float
-obslua.vec4_dist = function(v1, v2) end
+function obslua.vec4_dist(v1, v2) end
 
---- void vec4_div(struct vec4 *dst, const struct vec4 *v1, const struct vec4 *v2)
 --- Divides two vectors
+--- 
 --- :param dst: Destination
 --- :param v1:  Dividend
 --- :param v2:  Divisor
+--- 
+--- C definition: void vec4_div(struct vec4 *dst, const struct vec4 *v1, const struct vec4 *v2)
 --- @param dst vec4*
 --- @param v1 vec4*
 --- @param v2 vec4*
-obslua.vec4_div = function(dst, v1, v2) end
+function obslua.vec4_div(dst, v1, v2) end
 
---- void vec4_divf(struct vec4 *dst, const struct vec4 *v, float f)
 --- Divides a floating point from all components
+--- 
 --- :param dst: Destination
 --- :param v:   Vector (dividend)
 --- :param f:   Floating point (divisor)
+--- 
+--- C definition: void vec4_divf(struct vec4 *dst, const struct vec4 *v, float f)
 --- @param dst vec4*
 --- @param v vec4*
 --- @param f float
-obslua.vec4_divf = function(dst, v, f) end
+function obslua.vec4_divf(dst, v, f) end
 
---- float vec4_dot(const struct vec4 *v1, const struct vec4 *v2)
 --- Performs a dot product between two vectors
+--- 
 --- :param v1: Vector 1
 --- :param v2: Vector 2
 --- :return:   Result of the dot product
+--- 
+--- C definition: float vec4_dot(const struct vec4 *v1, const struct vec4 *v2)
 --- @param v1 vec4*
 --- @param v2 vec4*
 --- @return float
-obslua.vec4_dot = function(v1, v2) end
+function obslua.vec4_dot(v1, v2) end
 
---- void vec4_floor(struct vec4 *dst, const struct vec4 *v)
 --- Gets the floor values of each component
+--- 
 --- :param dst: Destination
 --- :param v:   Vector
+--- 
+--- C definition: void vec4_floor(struct vec4 *dst, const struct vec4 *v)
 --- @param dst vec4*
 --- @param v vec4*
-obslua.vec4_floor = function(dst, v) end
+function obslua.vec4_floor(dst, v) end
 
 --- vec4_from_bgra not documented
 obslua.vec4_from_bgra = function() end
@@ -8500,131 +10567,157 @@ obslua.vec4_from_bgra = function() end
 --- vec4_from_rgba not documented
 obslua.vec4_from_rgba = function() end
 
---- void vec4_from_vec3(struct vec4 *dst, const struct vec3 *v)
 --- Creates a 4-component vector from a 3-component vector
+--- 
 --- :param dst: 4-component vector destination
 --- :param v:   3-component vector
+--- 
+--- C definition: void vec4_from_vec3(struct vec4 *dst, const struct vec3 *v)
 --- @param dst vec4*
 --- @param v vec3*
-obslua.vec4_from_vec3 = function(dst, v) end
+function obslua.vec4_from_vec3(dst, v) end
 
---- float vec4_len(const struct vec4 *v)
 --- Gets the length of a vector
+--- 
 --- :param v: Vector
 --- :return:  The vector's length
+--- 
+--- C definition: float vec4_len(const struct vec4 *v)
 --- @param v vec4*
 --- @return float
-obslua.vec4_len = function(v) end
+function obslua.vec4_len(v) end
 
---- void vec4_max(struct vec4 *dst, const struct vec4 *v, const struct vec4 *max_v)
 --- Gets the maximum values between two vectors
+--- 
 --- :param dst:   Destination
 --- :param v:     Vector 1
 --- :param max_v: Vector 2
+--- 
+--- C definition: void vec4_max(struct vec4 *dst, const struct vec4 *v, const struct vec4 *max_v)
 --- @param dst vec4*
 --- @param v vec4*
 --- @param max_v vec4*
-obslua.vec4_max = function(dst, v, max_v) end
+function obslua.vec4_max(dst, v, max_v) end
 
---- void vec4_maxf(struct vec4 *dst, const struct vec4 *v, float val)
 --- Gets the maximum values between a vector's components and a floating point
+--- 
 --- :param dst: Destination
 --- :param v:   Vector
 --- :param val: Floating point
+--- 
+--- C definition: void vec4_maxf(struct vec4 *dst, const struct vec4 *v, float val)
 --- @param dst vec4*
 --- @param v vec4*
 --- @param val float
-obslua.vec4_maxf = function(dst, v, val) end
+function obslua.vec4_maxf(dst, v, val) end
 
---- void vec4_min(struct vec4 *dst, const struct vec4 *v, const struct vec4 *min_v)
 --- Gets the minimum values between two vectors
+--- 
 --- :param dst:   Destination
 --- :param v:     Vector 1
 --- :param min_v: Vector 2
+--- 
+--- C definition: void vec4_min(struct vec4 *dst, const struct vec4 *v, const struct vec4 *min_v)
 --- @param dst vec4*
 --- @param v vec4*
 --- @param min_v vec4*
-obslua.vec4_min = function(dst, v, min_v) end
+function obslua.vec4_min(dst, v, min_v) end
 
---- void vec4_minf(struct vec4 *dst, const struct vec4 *v, float val)
 --- Gets the minimum values between a vector's components and a floating point
+--- 
 --- :param dst: Destination
 --- :param v:   Vector
 --- :param val: Floating point
+--- 
+--- C definition: void vec4_minf(struct vec4 *dst, const struct vec4 *v, float val)
 --- @param dst vec4*
 --- @param v vec4*
 --- @param val float
-obslua.vec4_minf = function(dst, v, val) end
+function obslua.vec4_minf(dst, v, val) end
 
---- void vec4_mul(struct vec4 *dst, const struct vec4 *v1, const struct vec4 *v2)
 --- Multiplies two vectors
+--- 
 --- :param dst: Destination
 --- :param v1:  Vector 1
 --- :param v2:  Vector 2
+--- 
+--- C definition: void vec4_mul(struct vec4 *dst, const struct vec4 *v1, const struct vec4 *v2)
 --- @param dst vec4*
 --- @param v1 vec4*
 --- @param v2 vec4*
-obslua.vec4_mul = function(dst, v1, v2) end
+function obslua.vec4_mul(dst, v1, v2) end
 
---- void vec4_mulf(struct vec4 *dst, const struct vec4 *v, float f)
 --- Multiplies a floating point with all components
+--- 
 --- :param dst: Destination
 --- :param dst: Vector
 --- :param f:   Floating point
+--- 
+--- C definition: void vec4_mulf(struct vec4 *dst, const struct vec4 *v, float f)
 --- @param dst vec4*
 --- @param v vec4*
 --- @param f float
-obslua.vec4_mulf = function(dst, v, f) end
+function obslua.vec4_mulf(dst, v, f) end
 
---- void vec4_neg(struct vec4 *dst, const struct vec4 *v)
 --- Negates a vector
+--- 
 --- :param dst: Destination
 --- :param v:   Vector to negate
+--- 
+--- C definition: void vec4_neg(struct vec4 *dst, const struct vec4 *v)
 --- @param dst vec4*
 --- @param v vec4*
-obslua.vec4_neg = function(dst, v) end
+function obslua.vec4_neg(dst, v) end
 
---- void vec4_norm(struct vec4 *dst, const struct vec4 *v)
 --- Normalizes a vector
+--- 
 --- :param dst: Destination
 --- :param v:   Vector to normalize
+--- 
+--- C definition: void vec4_norm(struct vec4 *dst, const struct vec4 *v)
 --- @param dst vec4*
 --- @param v vec4*
-obslua.vec4_norm = function(dst, v) end
+function obslua.vec4_norm(dst, v) end
 
---- void vec4_set(struct vec4 *dst, float x, float y, float z, float w)
 --- Sets the individual components of a 4-component vector.
+--- 
 --- :param dst: Destination
 --- :param x:   X component
 --- :param y:   Y component
 --- :param z:   Z component
 --- :param w:   W component
+--- 
+--- C definition: void vec4_set(struct vec4 *dst, float x, float y, float z, float w)
 --- @param dst vec4*
 --- @param x float
 --- @param y float
 --- @param z float
 --- @param w float
-obslua.vec4_set = function(dst, x, y, z, w) end
+function obslua.vec4_set(dst, x, y, z, w) end
 
---- void vec4_sub(struct vec4 *dst, const struct vec4 *v1, const struct vec4 *v2)
 --- Subtracts two vectors
+--- 
 --- :param dst: Destination
 --- :param v1:  Vector being subtracted from
 --- :param v2:  Vector being subtracted
+--- 
+--- C definition: void vec4_sub(struct vec4 *dst, const struct vec4 *v1, const struct vec4 *v2)
 --- @param dst vec4*
 --- @param v1 vec4*
 --- @param v2 vec4*
-obslua.vec4_sub = function(dst, v1, v2) end
+function obslua.vec4_sub(dst, v1, v2) end
 
---- void vec4_subf(struct vec4 *dst, const struct vec4 *v, float f)
 --- Subtracts a floating point from all components
+--- 
 --- :param dst: Destination
 --- :param v:   Vector being subtracted from
 --- :param f:   Floating point being subtracted
+--- 
+--- C definition: void vec4_subf(struct vec4 *dst, const struct vec4 *v, float f)
 --- @param dst vec4*
 --- @param v vec4*
 --- @param f float
-obslua.vec4_subf = function(dst, v, f) end
+function obslua.vec4_subf(dst, v, f) end
 
 --- vec4_to_bgra not documented
 obslua.vec4_to_bgra = function() end
@@ -8632,19 +10725,23 @@ obslua.vec4_to_bgra = function() end
 --- vec4_to_rgba not documented
 obslua.vec4_to_rgba = function() end
 
---- void vec4_transform(struct vec4 *dst, const struct vec4 *v, const struct matrix4 *m)
 --- Transforms a vector
+--- 
 --- :param dst: Destination
 --- :param v:   Vector
 --- :param m:   Matrix
+--- C definition: void vec4_transform(struct vec4 *dst, const struct vec4 *v, const struct matrix4 *m)
 --- @param dst vec4*
 --- @param v vec4*
 --- @param m matrix4*
-obslua.vec4_transform = function(dst, v, m) end
+function obslua.vec4_transform(dst, v, m) end
 
---- void vec4_zero(struct vec4 *dst)
 --- Zeroes a vector
+--- 
 --- :param dst: Destination
+--- 
+--- C definition: void vec4_zero(struct vec4 *dst)
 --- @param dst vec4*
-obslua.vec4_zero = function(dst) end
+function obslua.vec4_zero(dst) end
 
+return obslua

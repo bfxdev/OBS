@@ -13,17 +13,21 @@ script_settings = nil
 
 --- Returns a description string (minimal required function for OBS to recognize a Lua file as a script)
 function script_description()
-  return [[<p>Creates a Lua file that can be included to reproduce the
-           global variables available in the Lua scripting environment in OBS, including the functions of the
-           <code>obslua</code> module.</p>
+  return [[<p>Creates a Lua file that can be used to reproduce the definition of the global variables available
+           in the Lua scripting environment in OBS, including the functions of the <code>obslua</code> module.</p>
+           <p>Follow the instructions at the beginning of the generated file to see how to use it.
+           <a href="https://emmylua.github.io">EmmyLua-style</a> annotations are created in the Lua source, supported
+           by e.g. <a href="https://marketplace.visualstudio.com/items?itemName=sumneko.lua">sumneko's Language
+           Server extension</a> in Visual Studio or Visual Studio Code.</p></p>
+           <p>Two parameters can be set:</p>
+           <ul><li><p><strong>Destination folder</strong>: location where the Lua
+           include file will be written.</p></li>
+           <li><p><strong>OBS docs folder</strong>: location of <code>rst</code>
+           files, typically at <code>obs-studio/docs/sphinx</code> where <code>obs-studio</code> is the
+           root of the GitHub cloned repository.</p></li></ul>
            <p><bold>WARNING</bold>: This file is useful for auto-completion with e.g. IntelliSense, but it cannot
            be used otherwise, i.e. it cannot be included in an OBS script and provides no functionality if 
-           included in a Lua script.</p>
-           <p>Follow the instructions at the beginning of the generated file to see how to include it</p>
-           <p>Two parameters can be set. The <strong>Destination folder</strong> is the location where the Lua
-           include file will be written. The <strong>OBS docs folder</strong> is the location of <code>rst</code>
-           files, typically at
-           <code>obs-studio/docs/sphinx</code></li> where obs-studio is the root of the GitHub cloned repository.</p>]]
+           included in a Lua script.</p>]]
 end
 
 --- Sets default global variables `destination` and `obsdoc`
@@ -107,8 +111,7 @@ function generate()
 
   -- Gathers data from OBS docs/sphinx directory
   -- File names listed here to avoid OS-dependent call to `dir` or `ls`
-  local filenames = {"backend-design.rst", "frontends.rst", "graphics.rst", "index.rst", "plugins.rst",
-                     "reference-core-objects.rst", "reference-core.rst", "reference-encoders.rst",
+  local filenames = {"reference-libobs-graphics-math.rst", "reference-core-objects.rst", "reference-core.rst", "reference-encoders.rst",
                      "reference-frontend-api.rst", "reference-libobs-callback.rst",
                      "reference-libobs-graphics-axisang.rst", "reference-libobs-graphics-effects.rst",
                      "reference-libobs-graphics-graphics.rst", "reference-libobs-graphics-image-file.rst",
@@ -137,54 +140,98 @@ function generate()
       print("Skipping file " .. filename)
     else
 
-      -- Reads functions and arguments from the doc file
+      -- Reads functions/arguments and description from the doc file
       print("Parsing " .. filename)
-      local name ="dummy"
+
+      -- The format of a documented function is as following:
+      --   <several empty lines>
+      --   .. function :: <definition of one or two functions possibly on several lines>
+      --   <at least one empty line>
+      --   <description text over several line, empty lines for paragraph end>
+      --   ---------------------
+      -- A state machine is defined:
+      --  0 - waiting for function definition
+      --  1 - in function definition
+      --  2 - finished function definition
+      --  3 - waiting for description
+      --  4 - in description
+      --  5 - in description following an empty line
+      local names = {}
+      local block = ""
+      local state = 0
+      local count = 0
       for line in file:lines() do
 
-        -- Detects function definition
-        local fi, _, ft, fn, fa = string.find(line, "^.. function:: ([^ ]* %*?)(.*)%((.*)%)")
-        if fi then
-
-          -- Cleans up possible prefixes ans spaces
-          ft = string.gsub(ft, "^%s*const ", "")
-          ft = string.gsub(ft, "^%s*enum ", "")
-          ft = string.gsub(ft, "^%s*struct ", "")
-          ft = string.gsub(ft, " ", "")
-          fn = string.gsub(fn, " ", "")
-
-          -- Saves function name for later use
-          name = fn
-
-          -- Parses args, i.e. splits with "," separator
-          local arguments = {}
-          for arg in string.gmatch(fa, "([^,]+)") do
-
-              -- Cleans up possible prefixes ans spaces
-            arg = string.gsub(arg, "^%s*const ", "")
-            arg = string.gsub(arg, "^%s*enum ", "")
-            arg = string.gsub(arg, "^%s*struct ", "")
-
-            -- Detects well-formed argument
-            local ai, _, at, an = string.find(arg, "([%s%w_%*]+ %*?%*?)([^%s%*]+)")
-            if ai then
-              at = string.gsub(at, " ", "")
-              table.insert(arguments, {name=an, data_type=at})
-            end
-
+        -- Empty line
+        if string.find(line, "^%s*$") then
+          -- End of function definition
+          if state == 1 then
+            state = 2
+          -- Stores empty line in description and keeps memory of empty line
+          elseif state == 4 then
+            for _,name in pairs(names) do table.insert(doc_functions[name].description, "") end
+            state = 5
           end
-
-          -- Saves function data
-          local def = ft .. " " .. fn .. "(" .. fa .. ")"
-          doc_functions[name] = {data_type=ft, arguments=arguments, line=def, description={}}
-          count = count + 1
+        -- Description end, comes back to begin
+        elseif string.find(line, "^---------------------") then
+          state = 0
+        -- Function definition start
+        elseif string.find(line, "^.. function:: ") then
+          state = 1
+          block = string.gsub(string.sub(line, 15), "^%s*", "")
+        -- Non-empty line with no specific marker
         else
-
-          -- Adds line to the description (at least 2 consecutive alphanumeric characters)
-          if doc_functions[name] and string.find(line, "%w%w") then
+          if state == 1 then
+            block = block .. string.gsub(line, "^%s*", "")
+          elseif state == 3 or state == 4 or state == 5 then
             line = string.gsub(line, "^%s%s%s", "")
-            table.insert(doc_functions[name].description, line)
+            for _,name in pairs(names) do table.insert(doc_functions[name].description, line) end
+            state = 4
           end
+        end
+
+        -- Processes function definition block
+        if state == 2 then
+
+          -- Separates functions if several functions are listed with the same description
+          names = {}
+          for func in string.gmatch(block, "([^(]+%b())") do
+            --print(func)
+
+            -- Detects function definition and cleans up possible prefixes and spaces
+            local fi, _, ft, fn, fa = string.find(func, "([^%s]* %*?%*?)([%w_]*)%((.*)%)")
+            if ft and fn and fa then
+              ft = string.gsub(ft, "^%s*const ", "")
+              ft = string.gsub(ft, "^%s*enum ", "")
+              ft = string.gsub(ft, "^%s*struct ", "")
+              ft = string.gsub(ft, " ", "")
+              fn = string.gsub(fn, " ", "")
+
+              -- Parses args, i.e. splits with "," separator
+              local arguments = {}
+              for arg in string.gmatch(fa, "([^,]+)") do
+
+                -- Cleans up possible prefixes and spaces
+                arg = string.gsub(arg, "^%s*const ", "")
+                arg = string.gsub(arg, "^%s*enum ", "")
+                arg = string.gsub(arg, "^%s*struct ", "")
+
+                -- Detects well-formed argument
+                local ai, _, at, an = string.find(arg, "([%s%w_%*]+ %*?%*?)([^%s%*]+)")
+                if ai then
+                  at = string.gsub(at, " ", "")
+                  table.insert(arguments, {name=an, data_type=at})
+                end
+              end
+
+              -- Saves function data
+              table.insert(names, fn)
+              doc_functions[fn] = {data_type=ft, arguments=arguments, definition=func, description={}}
+              --print(as_string(doc_functions[fn]))
+              count = count + 1
+            end
+          end
+          state = 3
         end
       end
 
@@ -200,10 +247,80 @@ function generate()
   end
 
   -- Header
-  file:write("-- Definition of globals to reproduce the Lua scripting environment in OBS - bfxdev 2020\n\n")
-  file:write("-- Use it for IntelliSense with this line at the beginning of your script (without comment):\n")
-  file:write("--    if _G['obslua']==nil then dofile('obslua-globals.lua') end\n\n")
-  file:write("-- Main obslua module\nobslua = {}\n\n")
+  print("Writing header")
+  file:write([[
+-- Definition of globals to mimic the Lua scripting environment in OBS - bfxdev 2020
+
+-- Use it for IntelliSense e.g. in Visual Studio or Visual Studio Code with sumneko's Lua Language
+-- Server extension, see https://marketplace.visualstudio.com/items?itemName=sumneko.lua
+-- It relies on EmmyLua-style annotations, see https://emmylua.github.io
+-- Just store the file in the same folder as your source file.
+
+--- Version number in OBS
+_VERSION = "Lua 5.1"
+
+--- Returns Kb of dynamic memory in use.
+--- This function is deprecated in Lua 5.1. Use collectgarbage ("count") instead.
+--- @return number
+function gcinfo() end
+
+--- Returns the current environment used by the nominated function f.
+--- f can be a function or a number representing the stack level, where 1 is the currently running function, 2 is its parent and so on.
+--- The environment is where "global" variables are stored.
+function getfenv(f) end
+
+--- Parses the string and returns the compiled chunk as a function. Does not execute it.
+--- If the string cannot be parsed returns nil plus an error message.
+--- The optional debugname is used in debug error messages.
+function loadstring(str, debugname) end
+
+--- Creates a module. This is intended for use with external "package" files, however it can be used internally as shown in the example below. The module effectively has its own global variable space (because module does a setfenv) so that any functions or variables used in the module are local to the module name (for example, foo.add in the example below).
+--- If there is a table in package.loaded[name], this table is the module. Thus, if the module has already been requested (by a require statement) another new table is not created.
+--- Otherwise, if there is a global table t with the given name, this table is the module.
+--- Otherwise creates a new table t and sets it as the value of the global name and the value of package.loaded[name].
+--- This function also initializes t._NAME with the given name, t._M with the module (t itself), and t._PACKAGE with the package name (the full module name minus last component).
+--- Finally, module sets t as the new environment of the current function and the new value of package.loaded[name], so that require returns t.
+--- The example below shows the creation of the module "foo". In practice you would probably put the contents of the "test" function into a separate file, and then: require "test"
+--- The nice thing about this approach is that nothing inside the module will "pollute" the global namespace, excepting the module name itself (foo in this case). Internally inside the module functions can call each other without having to use the package name (eg. add could call subtract without using foo.subtract).
+--- You can make a "private" function inside the "foo" package by simply putting "local" in front of the function name.
+function module(name, ···) end
+
+
+--- Unsupported and undocumented function in the Lua base library.
+--- From Lua code, the setmetatable function may only be used on objects of table type.
+--- The newproxy function circumvents that limitation by creating a zero-size userdata and setting
+--- either a new, empty metatable on it or using the metatable of another newproxy instance. We are
+--- then free to modify the metatable from Lua. This is the only way to create a proxy object from
+--- Lua which honors certain metamethods, such as __len.
+--- @param param bool
+function newproxy(param) end
+
+--- OBS function that returns the path of the folder of the current script
+--- @return string
+function script_path()
+
+--- Sets the current environment to be used by f, which can be a function, userdata, thread or stack level. Level 1 is the current function. Level 0 is the global environment of the current thread. The "env" argument is a table, which effectively becomes the "root" for the environment.
+--- The return value is the function whose environment was changed, unless the argument was 0.
+function setfenv(f, env) end
+
+--- SWIG function - Not documented
+function swig_equals() end
+
+--- SWIG function that returns as a string the type of object pointed to by the argument (assuming it was a SWIG wrapped object)
+function swig_type(obj) end
+
+--- Returns the elements from the given table. This function is equivalent to
+---
+--- return list[i], list[i+1], ···, list[j]
+---
+--- except that the above code can be written only for a fixed number of elements.
+--- By default, i is 1 and j is the length of the list, as defined by the length operator.
+function unpack (list, i, j) end
+
+--- Main obslua module
+obslua = {}
+
+]])
 
   -- Retrieves the table of names of constants/functions and sorts them
   constants = {}
@@ -219,6 +336,7 @@ function generate()
   table.sort(functions)
 
   -- Writes one line per constant
+  print("Writing constants")
   file:write("-- Constants\n")
   for i, key in ipairs(constants) do
     local value = obslua[key]
@@ -227,6 +345,7 @@ function generate()
   end
 
   -- Writes functions definition
+  print("Writing functions")
   file:write("\n")
   for i, key in ipairs(functions) do
     local documentation = doc_functions[key]
@@ -240,10 +359,10 @@ function generate()
     else
 
       -- Parsable comments
-      file:write("--- " .. documentation.line .. "\n")
       for _,s in ipairs(documentation.description) do
         file:write("--- " .. s .. "\n")
       end
+      file:write("--- C definition: " .. documentation.definition .. "\n")
       for _,a in ipairs(documentation.arguments) do
         file:write("--- @param " .. a.name .. " " .. a.data_type .. "\n")
       end
@@ -257,15 +376,15 @@ function generate()
         if #args > 0 then args = args .. ", " end
         args = args .. a.name
       end
-      file:write("obslua." .. key .. " = " .. "function(" .. args ..") end\n\n")
-
+      file:write("function obslua." .. key .. "(" .. args ..") end\n\n")
 
     end
   end
 
   -- Closes file
+  print("Closing file")
+  file:write("return obslua\n")
   file:close(file)
-
 end
 
   --[[ All globals as comment
