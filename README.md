@@ -6,21 +6,35 @@ At its kernel, for maximal performance, OBS is largely based on GPU-based video 
 
 Various stuff running under OBS with the StreamFX plugin can be found in this repository.
 
+## Lua IDE support
+
+The Lua/Python scripting environment of OBS is very powerful but is lacking proper documentation. The API documentation of OBS describes the C structures and functions but not the exact way the bindings are implemented.
+
+[generate-obslua-globals.lua](generate-obslua-globals.lua) is a Lua script that generates a definition file [obslua-globals.lua](obslua-globals.lua) by parsing the OBS text documentation and a SWIG generated file.
+
+Its main purpose is to ease development in an IDE such as Visual Studio Code by providing functions such as auto-documentation and auto-completion. Use it in VS Code with [sumneko's Lua Language Server extension](https://marketplace.visualstudio.com/items?itemName=sumneko.lua). It relies on [EmmyLua-style annotations](https://emmylua.github.io).
+
+![auto-completion](pics/auto-completion.gif)
+
+
 ## Usage of the shaders in StreamFX
 
 For the shaders running under StreamFX, obviously the first step is to install StreamFX in OBS if not already done:
+
 - Go to the [StreamFX plugin page](https://obsproject.com/forum/resources/streamfx-for-obs-studio.578/) and download a release (at time of writing, the shaders were tested on StreamFX 0.8.0b3).
 - Follow the [installation instructions on the Wiki pages](https://github.com/Xaymar/obs-streamfx/wiki/Installation). The plugin is correctly installed if a new entry "StreamFX" appears in the menu "Tools".
 
 StreamFX supports 3 types of custom shaders: filter (e.g. CPC shader), source (e.g. starfield) and transition.
 
 For a filter shader:
+
 - Right-click on a source and select "Filters"
 - Add a Filter, select "Shader"
 - Select the shader file e.g. [cpc.effect](cpc.effect), then click on "Refresh Options and Parameters"
 - Adapt the parameters
 
 For a source shader:
+
 - Create a source of type "Shader"
 - Select the shader file e.g. [shadertoy-XtjcW3.effect](shadertoy-XtjcW3.effect), then click on "Refresh Options and Parameters"
 - Adapt the parameters
@@ -32,6 +46,7 @@ The purpose of this effect file is to display a source video as an [Amstrad CPC]
 ### Resolution and supported modes
 
 The 3 standard *CPC video modes* are supported, plus one fictive mode used for debug:
+
 - Mode 0: 160x200 in 16 colors out of 27
 - Mode 1: 320x200 in 4 colors out of 27
 - Mode 2: 640x200 in 2 colors out of 27
@@ -137,7 +152,7 @@ Adapt both parameters to achieve the desired result, depending on the context, h
 
 ### Use for streaming
 
-You're of course welcome to use it on Twitch or wherever you want to. The shader was [already used](https://www.twitch.tv/videos/614098028) by PifLyon on the Twitch canal [Vieilles Touches](https://www.twitch.tv/vieillestouches).
+You're of course welcome to use it on Twitch or wherever you want to. The shader is often used by PifLyon on the Twitch canal [Noix De Croco](https://www.twitch.tv/noixdecroco).
 
 ![Cedric](pics/cedric-oh-502x285.jpg)
 
