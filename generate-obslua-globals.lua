@@ -3,7 +3,7 @@
 --------------------------------------------------------------------------------
 
 -- Once the file is generated, the following line setups IntelliSense for auto-completion
--- if _G['obslua']==nil then dofile('obslua-globals.lua') end
+if _G['obslua']==nil then require('obslua-globals') end
 
 --- Name of the file to be created
 DESTINATION_FILENAME = "obslua-globals.lua"
@@ -13,20 +13,23 @@ script_settings = nil
 
 --- Returns a description string (minimal required function for OBS to recognize a Lua file as a script)
 function script_description()
-  return [[<p>Creates a Lua file that can be used to reproduce the definition of the global variables available
-           in the Lua scripting environment in OBS, including the functions of the <code>obslua</code> module.</p>
-           <p>Follow the instructions at the beginning of the generated file to see how to use it.
+  return [[<center><h2>obslua globals</h2></center>
+  
+           <p>Generates a Lua definition source file with the definition of global variables of the Lua scripting
+           environment in OBS. The generated file includes the functions and constants of the <code>obslua</code> module,
+           plus some LuaJIT/SWIG/OBS global functions. If given, OBS documentation and compilation files are parsed
+           to extract the official description of the functions and the exact types expected in Lua.</p>
+           
+           <p>The purpose of the generated file is to support IDE features such as auto-completion and contextual
+           documentation in e.g. IntelliSense.
            <a href="https://emmylua.github.io">EmmyLua-style</a> annotations are created in the Lua source, supported
            by e.g. <a href="https://marketplace.visualstudio.com/items?itemName=sumneko.lua">sumneko's Language
-           Server extension</a> in Visual Studio or Visual Studio Code.</p></p>
-           <p>Two parameters can be set:</p>
-           <ul><li><p><strong>Destination folder</strong>: location where the Lua
-           include file will be written.</p></li>
-           <li><p><strong>OBS docs folder</strong>: location of <code>rst</code>
-           files, typically at <code>obs-studio/docs/sphinx</code> where <code>obs-studio</code> is the
-           root of the GitHub cloned repository.</p></li></ul>
-           <p><bold>WARNING</bold>: This file is useful for auto-completion with e.g. IntelliSense, but it cannot
-           be used otherwise, i.e. it cannot be included in an OBS script and provides no functionality if 
+           Server extension</a> in Visual Studio or Visual Studio Code.
+           It should be usable as well with the
+           <a href="https://plugins.jetbrains.com/plugin/9768-emmylua">EmmyLua plugin in the IntelliJ IDE</a>.</p>
+
+           <p><bold>WARNING</bold>: This file is useful for development but it cannot
+           be used otherwise, i.e. it cannot be included in an OBS script and would provide no functionality if 
            included in a Lua script.</p>]]
 end
 
@@ -34,6 +37,7 @@ end
 function script_defaults(settings)
   obslua.obs_data_set_default_string(settings, "destination", script_path())
   obslua.obs_data_set_default_string(settings, "obsdoc", "")
+  obslua.obs_data_set_default_string(settings, "wrapper", "")
   script_settings = settings
 end
 
@@ -48,12 +52,26 @@ function script_properties()
   -- print("script_settings:" .. tostring(script_settings))
 
   local properties = obslua.obs_properties_create()
+  local p
 
-  obslua.obs_properties_add_path(properties, "destination", "Destination folder",
-                                 obslua.OBS_PATH_DIRECTORY, nil, obslua.obs_data_get_string(script_settings, "destination"))
+  p = obslua.obs_properties_add_path(properties, "destination", "Destination folder",
+      obslua.OBS_PATH_DIRECTORY, nil, obslua.obs_data_get_string(script_settings, "destination"))
 
-  obslua.obs_properties_add_path(properties, "obsdoc", "OBS docs folder",
-                                 obslua.OBS_PATH_DIRECTORY, nil, obslua.obs_data_get_string(script_settings, "obsdoc"))
+  obslua.obs_property_set_long_description(p, "Destination folder for the generated file " .. DESTINATION_FILENAME)
+
+  p = obslua.obs_properties_add_path(properties, "obsdoc", "OBS docs/sphinx folder",
+      obslua.OBS_PATH_DIRECTORY, nil, obslua.obs_data_get_string(script_settings, "obsdoc"))
+
+  obslua.obs_property_set_long_description(p, [[Location of the OBS source documentation folder with rst files, typically at
+obs-studio/docs/sphinx where obs-studio is the root of the repository cloned from GitHub]])
+
+  p = obslua.obs_properties_add_path(properties, "wrapper", "C/Lua wrapper file",
+      obslua.OBS_PATH_FILE, "Wrapper file (obsluaLUA_wrap.c)", obslua.obs_data_get_string(script_settings, "obsdoc"))
+
+  obslua.obs_property_set_long_description(p, [[Location of the C file created by SWIG during OBS compilation, where a C wrapper function
+is defined for each function of the OBS API, typically located at
+obs-studio/build/deps/obs-scripting/obslua/CMakeFiles/obslua.dir/obsluaLUA_wrap.c where
+obs-studio/build is the compilation build folder]])
 
   obslua.obs_properties_add_button(properties, "generate", "Generate " .. DESTINATION_FILENAME, generate)
 
@@ -107,7 +125,7 @@ end
 function generate()
 
   print("-------------------")
-  print("Starting generation of " .. DESTINATION_FILENAME)
+  print("INFO: starting generation of " .. DESTINATION_FILENAME)
 
   -- Gathers data from OBS docs/sphinx directory
   -- File names listed here to avoid OS-dependent call to `dir` or `ls`
@@ -137,11 +155,11 @@ function generate()
     filename = obslua.obs_data_get_string(script_settings, "obsdoc") .. "/" .. filename
     local file = io.open(filename, "r")
     if not file then
-      print("Skipping file " .. filename)
+      print("WARNING: skipping file " .. filename)
     else
 
       -- Reads functions/arguments and description from the doc file
-      print("Parsing " .. filename)
+      print("INFO: parsing " .. filename)
 
       -- The format of a documented function is as following:
       --   <several empty lines>
@@ -149,7 +167,7 @@ function generate()
       --   <at least one empty line>
       --   <description text over several line, empty lines for paragraph end>
       --   ---------------------
-      -- A state machine is defined:
+      -- State machine:
       --  0 - waiting for function definition
       --  1 - in function definition
       --  2 - finished function definition
@@ -198,35 +216,72 @@ function generate()
           for func in string.gmatch(block, "([^(]+%b())") do
             --print(func)
 
-            -- Detects function definition and cleans up possible prefixes and spaces
-            local fi, _, ft, fn, fa = string.find(func, "([^%s]* %*?%*?)([%w_]*)%((.*)%)")
+            -- Detects proper function definition
+            local fi, _, ft, fn, fa = string.find(func, "([^%s]* %*?%*?)([%w_]*)(%b())")
             if ft and fn and fa then
-              ft = string.gsub(ft, "^%s*const ", "")
-              ft = string.gsub(ft, "^%s*enum ", "")
-              ft = string.gsub(ft, "^%s*struct ", "")
+
+              -- Cleans up possible prefixes and spaces
+              ft = string.gsub(ft, "%s*const ", "")
+              ft = string.gsub(ft, "%s*enum ", "")
+              ft = string.gsub(ft, "%s*struct ", "")
               ft = string.gsub(ft, " ", "")
               fn = string.gsub(fn, " ", "")
+              fa = string.gsub(fa, "^%(", "")
+              fa = string.gsub(fa, "%)$", "")
+
+              -- Replaces parenthesis-enclosed ',' with '#' to simplify parsing of callback types
+              fa = string.gsub(fa, "%(([^%),]+),([^%)]*)%)", "%(%1#%2%)")
+              fa = string.gsub(fa, "%(([^%),]+),([^%)]*)%)", "%(%1#%2%)")
+              fa = string.gsub(fa, "%(([^%),]+),([^%)]*)%)", "%(%1#%2%)")
+              fa = string.gsub(fa, "%(([^%),]+),([^%)]*)%)", "%(%1#%2%)")
+              fa = string.gsub(fa, "%(([^%),]+),([^%)]*)%)", "%(%1#%2%)")
 
               -- Parses args, i.e. splits with "," separator
               local arguments = {}
               for arg in string.gmatch(fa, "([^,]+)") do
 
-                -- Cleans up possible prefixes and spaces
-                arg = string.gsub(arg, "^%s*const ", "")
-                arg = string.gsub(arg, "^%s*enum ", "")
-                arg = string.gsub(arg, "^%s*struct ", "")
+                -- Cleans up possible prefixes (keeps spaces here to differentiate type and name) and
+                -- restores commas
+                arg = string.gsub(arg, "%s*const ", "")
+                arg = string.gsub(arg, "%s*enum ", "")
+                arg = string.gsub(arg, "%s*struct ", "")
+                arg = string.gsub(arg, "#", ",")
 
-                -- Detects well-formed argument
-                local ai, _, at, an = string.find(arg, "([%s%w_%*]+ %*?%*?)([^%s%*]+)")
+                -- Detects well-formed argument, differentiates between classical arguments and callbacks
+                local pattern
+                if string.find(arg, "%(") then
+                  -- Callback type
+                  pattern = "([%s%w_%*]+ %*?%*?)%(%s*%*%s*([%w_]+)%s*%)%s*(%b())"
+                else
+                  -- Simple type
+                  pattern = "([%s%w_%*]+ %*?%*?)([^%s%*]+)"
+                end
+                local ai, _, at, an, at2 = string.find(arg, pattern)
                 if ai then
+
+                  -- Removes extra spaces in prefix type
                   at = string.gsub(at, " ", "")
-                  table.insert(arguments, {name=an, data_type=at})
+
+                  -- Re-create type for callbacks (removes argument names)
+                  if at2 then
+                    at2 = string.gsub(at2, "%s*[%w_]+%s*,", ",")
+                    at2 = string.gsub(at2, "%s*[%w_]+%s*%)", "%)")
+                    at2 = string.gsub(at2, " ", "")
+                    at = at .. "(*)" .. at2
+                  end
+
+                  table.insert(arguments, {name=an, c_type=at, lua_type=at})
+                  if string.find(arg, "%(") then
+                    print("INFO: callback argument in function " .. fn .. " - " .. func)
+                    print("  Argument arg=" .. arg .. " name=" .. an .. " type=" .. at)
+                  end
+    
                 end
               end
 
               -- Saves function data
               table.insert(names, fn)
-              doc_functions[fn] = {data_type=ft, arguments=arguments, definition=func, description={}}
+              doc_functions[fn] = {c_type=ft, lua_type=ft, arguments=arguments, definition=func, description={}}
               --print(as_string(doc_functions[fn]))
               count = count + 1
             end
@@ -235,11 +290,120 @@ function generate()
         end
       end
 
-      print("New functions found: " .. tostring(count))
+      print("INFO: found " .. tostring(count) .. " new functions in " .. filename)
     end
   end
 
-  -- Creates file
+  -- Wrapper file
+  local filename = obslua.obs_data_get_string(script_settings, "wrapper")
+  local file = io.open(filename, "r")
+  if not file then
+    print("WARNING: skipping C/Lua wrapper file " .. filename)
+  else
+
+    -- Reads type data from the C file
+    print("INFO: parsing " .. filename)
+    function_name = "unknown"
+    for line in file:lines() do
+
+      -- Parses wrapper function definition, example:
+      -- static int _wrap_obs_display_add_draw_callback(lua_State* L) {
+      pattern = "^static int _wrap_([%w_]+)%(lua_State%* L%) {"
+      local res, _, name = string.find(line, pattern)
+      if res and name then
+        function_name = name
+      end
+
+      -- Parses argument check commands, examples:
+      -- if(!lua_isnumber(L,1)) SWIG_fail_arg("obs_key_to_str",1,"obs_key_t");
+      -- if(!SWIG_isptrtype(L,2)) SWIG_fail_arg("obs_key_to_str",2,"struct dstr *");
+      pattern = '^  if%(!([%w_]+)%(L,(%d)%)%) SWIG_fail_arg%("([^"]+)",%d,"([^"]+)"%);'
+      local res, _, convert_func, index, name, c_type = string.find(line, pattern) 
+      if res then
+
+        -- Cleans up parsed C type to make it comparable to type determined from doc
+        c_type = string.gsub(c_type, "%s*const ", "")
+        c_type = string.gsub(c_type, "%s*enum ", "")
+        c_type = string.gsub(c_type, "%s*struct ", "")
+        c_type = string.gsub(c_type, " ", "")
+
+        -- Converts from acquired string to number
+        index = tonumber(index)
+
+        -- Determines Lua type
+        local lua_type = c_type
+        if convert_func == "SWIG_isptrtype" then
+          lua_type = "ref_" .. c_type
+        elseif convert_func == "lua_isuserdata" then
+          lua_type = "userdata_" .. c_type
+        elseif convert_func == "SWIG_lua_isnilstring" then
+          lua_type = "string"
+        elseif convert_func == "lua_isnumber" then
+          lua_type = "number"
+        elseif convert_func == "lua_isboolean" then
+          lua_type = "boolean"
+        end
+
+        -- Creates function entry if not already existing
+        if not doc_functions[name] then
+          doc_functions[name] = {c_type="void", lua_type="void", arguments={}, definition=nil,
+                                 description={"Not mentioned in OBS documentation",""}}
+        end
+
+        -- Creates argument entry if not already existing
+        if not doc_functions[name].arguments[index] then
+          doc_functions[name].arguments[index] = {name="param" .. tostring(index), c_type=c_type, lua_type=lua_type}
+        else
+          -- Saves lua_type
+          doc_functions[name].arguments[index].lua_type = lua_type
+        end
+
+        -- Detects C type mismatch between doc and SWIG
+        if doc_functions[name].arguments[index].c_type ~= c_type then
+          print("WARNING: type mismatch on function " .. name .. " for " .. doc_functions[name].arguments[index].name ..
+            "(parameter #" .. tostring(index) .. ")")
+          print(" Documentation:" .. doc_functions[name].arguments[index].c_type .. " C wrapper:" .. c_type)
+        end
+        if name ~= function_name then
+          print("WARNING name mismatch: " .. name .. " vs " .. function_name)
+        end
+      end
+
+      -- Parses argument Lua type check commands, example:
+      --     SWIG_fail_ptr("obs_display_add_draw_callback",1,SWIGTYPE_p_obs_display);
+      pattern = 'SWIG_fail_ptr%("([%w_]+)",(%d),SWIGTYPE_p_([%w_]+)%);'
+      local res, _, name, index, lua_type = string.find(line, pattern) 
+      if res and doc_functions[name] then
+        -- print("----------------------------------Found: " .. name)
+        -- Stores detected type if function already defined (always the case except for setters/getters)
+        index = tonumber(index)
+        doc_functions[name].arguments[index].lua_type = lua_type
+        if name ~= function_name then
+          print("WARNING name mismatch: " .. name .. " vs " .. function_name)
+        end
+      end
+
+      -- Parses return Lua type commands, examples:
+      --   lua_pushnumber(L, (lua_Number) result); SWIG_arg++;
+      --   SWIG_NewPointerObj(L,result,SWIGTYPE_p_gs_tvertarray,0); SWIG_arg++;
+      if string.find(line, "SWIG_NewPointerObj") then
+        pattern = 'SWIG_NewPointerObj%(.*SWIGTYPE_p_([%w_]+).*SWIG_arg%+%+;'
+      else
+        pattern = 'lua_push([%w_]+).*SWIG_arg%+%+;'
+      end
+      local res, _, lua_type = string.find(line, pattern)
+      if res and lua_type and doc_functions[function_name] then
+        doc_functions[function_name].lua_type = lua_type
+      end
+    end
+  end
+
+
+
+
+
+
+  -- Creates destination file
   file = io.open(obslua.obs_data_get_string(script_settings, "destination") .. DESTINATION_FILENAME, "w")
   if not file then
     print("ERROR: cannot open file " .. obslua.obs_data_get_string(script_settings, "destination") .. DESTINATION_FILENAME)
@@ -352,7 +516,7 @@ obslua = {}
 
     -- Non-documented function
     if not documentation then
-      file:write("--- " .. key .. " not documented\n")
+      file:write("--- " .. key .. " not found in OBS documentation nor C wrapper\n")
       file:write("obslua." .. key .. " = " .. "function() end\n\n")
 
     -- Documented function
@@ -362,12 +526,16 @@ obslua = {}
       for _,s in ipairs(documentation.description) do
         file:write("--- " .. s .. "\n")
       end
-      file:write("--- C definition: " .. documentation.definition .. "\n")
-      for _,a in ipairs(documentation.arguments) do
-        file:write("--- @param " .. a.name .. " " .. a.data_type .. "\n")
+      if documentation.definition then
+        file:write("--- C definition: `" .. documentation.definition .. "`\n")
+      else
+        file:write("--- C definition: Not available in OBS documentation\n")
       end
-      if documentation.data_type ~= "void" then
-        file:write("--- @return " .. documentation.data_type .. "\n")
+      for _,a in ipairs(documentation.arguments) do
+        file:write("--- @param " .. a.name .. " " .. a.lua_type .. "\n")
+      end
+      if documentation.c_type ~= "void" then
+        file:write("--- @return " .. documentation.lua_type .. "\n")
       end
 
       -- Function definition
