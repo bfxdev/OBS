@@ -10,9 +10,24 @@ Various stuff running under OBS with the StreamFX plugin can be found in this re
 
 The Lua/Python scripting environment of OBS is very powerful but is lacking proper documentation. The API documentation of OBS describes the C structures and functions but not the exact way the bindings are implemented.
 
-[generate-obslua-globals.lua](generate-obslua-globals.lua) is a Lua script that generates a definition file [obslua-globals.lua](obslua-globals.lua) by parsing the OBS text documentation and a SWIG generated file.
+[generate-obslua-globals.lua](generate-obslua-globals.lua) is a Lua script that generates a definition file **[obslua-globals.lua](obslua-globals.lua)** by parsing the OBS text documentation and a SWIG generated file.
 
 Its main purpose is to ease development in an IDE such as Visual Studio Code by providing functions such as auto-documentation and auto-completion. Use it in VS Code with [sumneko's Lua Language Server extension](https://marketplace.visualstudio.com/items?itemName=sumneko.lua). It relies on [EmmyLua-style annotations](https://emmylua.github.io).
+
+It is important to change the settings of the Lua Language Server extension such that, for VS Code:
+
+- The size limitation of input files is set to a higher value, e.g. `"Lua.workspace.preloadFileSize": 10000,`
+- The file is in the list of workspace libraries (here the files is stored in the root folder of the VS Code workspace):
+
+```JSON
+"Lua.workspace.library": {
+        ".../obslua-globals.lua": true
+    },
+```
+
+- LuaJIT is set as Lua version `"Lua.runtime.version": "LuaJIT",`
+
+Auto-completion looks like this:
 
 ![auto-completion](pics/auto-completion.gif)
 
