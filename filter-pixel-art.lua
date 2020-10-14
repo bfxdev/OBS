@@ -11,9 +11,9 @@
 --             make the settings easily understandable for the user.                                                  --
 --                                                                                                                    --
 --             Needs and requirements can be summarized as:                                                           --
---              - Multi-stage, highly-parameterized processing through activable steps including:                     --
---                 1. Downscale: resolution adaptation (pixelization and border), no color adaptation                 --
---                 2. Palette: definition of overall set of colors allowed in the ouput pictures                      --
+--              - Multi-stage, highly-parameterized processing through selectable steps including:                     --
+--                 1. Downscale: resolution adaptation (pixelation and border), no color adaptation                 --
+--                 2. Palette: definition of overall set of colors allowed in the output pictures                      --
 --                 3. Coloration: reduction to a fixed number of colors in the output picture                         --
 --                 4. Dithering: use of mix of dots of several colors to render different shades                      --
 --                 5. Outline: line drawn drawn on top of the final picture, following detected edges                 --
@@ -32,9 +32,9 @@
 --                retro computers and common Pixel Art palettes                                                       --
 --              - GUI allowing the user to activate/de-activate the different processing stages, to understand easily --
 --                which parameters are related to which stage, and to see directly the result of any change           --
---              - Single-pixel outline based on Sobel filters or pixel-level rules, then optimzed according to        --
+--              - Single-pixel outline based on Sobel filters or pixel-level rules, then optimized according to        --
 --                https://sites.google.com/site/tiffanycinglis/research/pixelating-vector-line-art                    --
---              - Downscale based on several methods like sub-smapling, bilinear interpolation or methods like        --
+--              - Downscale based on several methods like sub-sampling, bilinear interpolation or methods like        --
 --                http://people.inf.ethz.ch/~cengizo/Files/Sig15PerceptualDownscaling.pdf or                          --
 --                https://johanneskopf.de/publications/downscaling/paper/downscaling.pdf                              --
 --                                                                                                                    --
@@ -47,6 +47,8 @@
 
 --- FFI library see https://luajit.org/ext_ffi.html
 -- ffi = require("ffi")
+
+-- require("obslua-globals")
 
 -------------------------------------------------- GLOBAL LOG FUNCTIONS ------------------------------------------------
 
@@ -272,7 +274,7 @@ function script_description()
     local description = "Pixel Art filter" ..
     "\n\nThis LUA plugin adds a new 'Pixel Art' filter that can be applied on any video source to reduce the " ..
     "pixel resolution and the number of colors and obtain a gorgeous retro-looking picture. " ..
-    "It can work with a custom or pre-defined palette and features dithering, downscaling, outlines, etc." ..
+    "It can work with a custom or pre-defined palette and features dithering, down-scaling, outlines, etc." ..
     "\n\nAs a main global setting, the default preset can be chosen below. " ..
     "Other settings are available when the filter is added on a source."
 
@@ -942,4 +944,5 @@ else
     print("ERROR: texture not created--------------------")
 end
 obslua.obs_leave_graphics()
+
 

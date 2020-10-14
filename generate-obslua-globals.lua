@@ -413,42 +413,25 @@ function generate()
   -- Header
   print("Writing header")
   file:write([[
--- Definition of globals to mimic the Lua scripting environment in OBS - bfxdev 2020
+-- Definition of globals to reproduce the Lua scripting environment in OBS - bfxdev 2020
 
--- Use it for IntelliSense e.g. in Visual Studio or Visual Studio Code with sumneko's Lua Language
--- Server extension, see https://marketplace.visualstudio.com/items?itemName=sumneko.lua
--- It relies on EmmyLua-style annotations, see https://emmylua.github.io
--- Just store the file in the same folder as your source file.
-
---- Version number in OBS
-_VERSION = "Lua 5.1"
+-- Use this file to support development in Lua for OBS. It is designed to work in Visual Studio Code with
+-- sumneko's Lua Language Server extension, see https://marketplace.visualstudio.com/items?itemName=sumneko.lua
+-- With this extension (currently v0.21.2), it is necessary to adapt some settings:
+--  - Increase the "Preload File Size" ("Lua.workspace.preloadFileSize") to a size larger than the
+--    actual size of this file (e.g. increase to 10000). Otherwise the extension will just ignore the file.
+--  - Select "LuaJIT" as "Runtime Version" ("Lua.runtime.version") for support of specific functions and modules
+--  - Add the file path (or containing folder path) in the "Workspace Library" ("Lua.workspace.library"). This
+--    setting is not even necessary if this file is in the same folder as the source file, or if the file is open
+--    in Visual Studio Code.
+-- Code documentation follows the syntax of EmmyLua-style annotations, see https://emmylua.github.io
+-- Consequently the file should be usable in other environments such as Visual Studio or IntelliJ IDE.
 
 --- Returns Kb of dynamic memory in use.
 --- This function is deprecated in Lua 5.1. Use collectgarbage ("count") instead.
+--- @param param string
 --- @return number
-function gcinfo() end
-
---- Returns the current environment used by the nominated function f.
---- f can be a function or a number representing the stack level, where 1 is the currently running function, 2 is its parent and so on.
---- The environment is where "global" variables are stored.
-function getfenv(f) end
-
---- Parses the string and returns the compiled chunk as a function. Does not execute it.
---- If the string cannot be parsed returns nil plus an error message.
---- The optional debugname is used in debug error messages.
-function loadstring(str, debugname) end
-
---- Creates a module. This is intended for use with external "package" files, however it can be used internally as shown in the example below. The module effectively has its own global variable space (because module does a setfenv) so that any functions or variables used in the module are local to the module name (for example, foo.add in the example below).
---- If there is a table in package.loaded[name], this table is the module. Thus, if the module has already been requested (by a require statement) another new table is not created.
---- Otherwise, if there is a global table t with the given name, this table is the module.
---- Otherwise creates a new table t and sets it as the value of the global name and the value of package.loaded[name].
---- This function also initializes t._NAME with the given name, t._M with the module (t itself), and t._PACKAGE with the package name (the full module name minus last component).
---- Finally, module sets t as the new environment of the current function and the new value of package.loaded[name], so that require returns t.
---- The example below shows the creation of the module "foo". In practice you would probably put the contents of the "test" function into a separate file, and then: require "test"
---- The nice thing about this approach is that nothing inside the module will "pollute" the global namespace, excepting the module name itself (foo in this case). Internally inside the module functions can call each other without having to use the package name (eg. add could call subtract without using foo.subtract).
---- You can make a "private" function inside the "foo" package by simply putting "local" in front of the function name.
-function module(name, ···) end
-
+function gcinfo(param) end
 
 --- Unsupported and undocumented function in the Lua base library.
 --- From Lua code, the setmetatable function may only be used on objects of table type.
@@ -463,30 +446,19 @@ function newproxy(param) end
 --- @return string
 function script_path()
 
---- Sets the current environment to be used by f, which can be a function, userdata, thread or stack level. Level 1 is the current function. Level 0 is the global environment of the current thread. The "env" argument is a table, which effectively becomes the "root" for the environment.
---- The return value is the function whose environment was changed, unless the argument was 0.
-function setfenv(f, env) end
-
 --- SWIG function - Not documented
 function swig_equals() end
 
 --- SWIG function that returns as a string the type of object pointed to by the argument (assuming it was a SWIG wrapped object)
 function swig_type(obj) end
 
---- Returns the elements from the given table. This function is equivalent to
----
---- return list[i], list[i+1], ···, list[j]
----
---- except that the above code can be written only for a fixed number of elements.
---- By default, i is 1 and j is the length of the list, as defined by the length operator.
-function unpack (list, i, j) end
-
 --- Main obslua module
 obslua = {}
 
 ]])
 
-  -- Retrieves the table of names of constants/functions and sorts them
+
+-- Retrieves the table of names of constants/functions and sorts them
   constants = {}
   functions = {}
   for key, value in pairs(obslua) do
@@ -569,20 +541,17 @@ end
   end ]]
 
 
-
-
---[[ Pre-imported packages:
-bit (unknown)
+--[[ Pre-imported packages, known in sumneko extension with LuaJIT selected:
+bit (no detailed documentation)
 coroutine
 debug
 io
-jit (unknown)
+jit (no detailed documentation)
 math
 os
 string
 table
 ]]--
-
 
 --[[ Global functions and strings
 _VERSION = "Lua 5.1"
@@ -591,12 +560,12 @@ collectgarbage
 dofile
 error
 gcinfo (unknown)
-getfenv (unknown)
+getfenv
 getmetatable
 ipairs
 load
-loadstring (unknown)
-module (unknown)
+loadstring
+module
 newproxy (unknown)
 next
 pairs
@@ -608,13 +577,13 @@ rawset
 require
 script_path (unknown)
 select
-setfenv (unknown)
+setfenv
 setmetatable
 swig_equals (unknown)
 swig_type (unknown)
 tonumber
 tostring
 type
-unpack (unknown)
+unpack
 xpcall
 ]]--
