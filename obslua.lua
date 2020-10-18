@@ -1,39 +1,22 @@
--- Definition of globals to mimic the Lua scripting environment in OBS - bfxdev 2020
+-- Definition of globals to reproduce the Lua scripting environment in OBS - bfxdev 2020
 
--- Use it for IntelliSense e.g. in Visual Studio or Visual Studio Code with sumneko's Lua Language
--- Server extension, see https://marketplace.visualstudio.com/items?itemName=sumneko.lua
--- It relies on EmmyLua-style annotations, see https://emmylua.github.io
--- Just store the file in the same folder as your source file.
-
---- Version number in OBS
-_VERSION = "Lua 5.1"
+-- Use this file to support development in Lua for OBS. It is designed to work in Visual Studio Code with
+-- sumneko's Lua Language Server extension, see https://marketplace.visualstudio.com/items?itemName=sumneko.lua
+-- With this extension (currently v0.21.2), it is necessary to adapt some settings:
+--  - Increase the "Preload File Size" ("Lua.workspace.preloadFileSize") to a size larger than the
+--    actual size of this file (e.g. increase to 10000). Otherwise the extension will just ignore the file.
+--  - Select "LuaJIT" as "Runtime Version" ("Lua.runtime.version") for support of specific functions and modules
+--  - Add the file path (or containing folder path) in the "Workspace Library" ("Lua.workspace.library"). This
+--    setting is not even necessary if this file is in the same folder as the source file, or if the file is open
+--    in Visual Studio Code.
+-- Code documentation follows the syntax of EmmyLua-style annotations, see https://emmylua.github.io
+-- Consequently the file should be usable in other environments such as Visual Studio or IntelliJ IDE.
 
 --- Returns Kb of dynamic memory in use.
 --- This function is deprecated in Lua 5.1. Use collectgarbage ("count") instead.
+--- @param param string
 --- @return number
-function gcinfo() end
-
---- Returns the current environment used by the nominated function f.
---- f can be a function or a number representing the stack level, where 1 is the currently running function, 2 is its parent and so on.
---- The environment is where "global" variables are stored.
-function getfenv(f) end
-
---- Parses the string and returns the compiled chunk as a function. Does not execute it.
---- If the string cannot be parsed returns nil plus an error message.
---- The optional debugname is used in debug error messages.
-function loadstring(str, debugname) end
-
---- Creates a module. This is intended for use with external "package" files, however it can be used internally as shown in the example below. The module effectively has its own global variable space (because module does a setfenv) so that any functions or variables used in the module are local to the module name (for example, foo.add in the example below).
---- If there is a table in package.loaded[name], this table is the module. Thus, if the module has already been requested (by a require statement) another new table is not created.
---- Otherwise, if there is a global table t with the given name, this table is the module.
---- Otherwise creates a new table t and sets it as the value of the global name and the value of package.loaded[name].
---- This function also initializes t._NAME with the given name, t._M with the module (t itself), and t._PACKAGE with the package name (the full module name minus last component).
---- Finally, module sets t as the new environment of the current function and the new value of package.loaded[name], so that require returns t.
---- The example below shows the creation of the module "foo". In practice you would probably put the contents of the "test" function into a separate file, and then: require "test"
---- The nice thing about this approach is that nothing inside the module will "pollute" the global namespace, excepting the module name itself (foo in this case). Internally inside the module functions can call each other without having to use the package name (eg. add could call subtract without using foo.subtract).
---- You can make a "private" function inside the "foo" package by simply putting "local" in front of the function name.
-function module(name, ···) end
-
+function gcinfo(param) end
 
 --- Unsupported and undocumented function in the Lua base library.
 --- From Lua code, the setmetatable function may only be used on objects of table type.
@@ -48,26 +31,14 @@ function newproxy(param) end
 --- @return string
 function script_path()
 
---- Sets the current environment to be used by f, which can be a function, userdata, thread or stack level. Level 1 is the current function. Level 0 is the global environment of the current thread. The "env" argument is a table, which effectively becomes the "root" for the environment.
---- The return value is the function whose environment was changed, unless the argument was 0.
-function setfenv(f, env) end
-
 --- SWIG function - Not documented
 function swig_equals() end
 
 --- SWIG function that returns as a string the type of object pointed to by the argument (assuming it was a SWIG wrapped object)
 function swig_type(obj) end
 
---- Returns the elements from the given table. This function is equivalent to
----
---- return list[i], list[i+1], ···, list[j]
----
---- except that the above code can be written only for a fixed number of elements.
---- By default, i is 1 and j is the length of the list, as defined by the length operator.
-function unpack (list, i, j) end
-
 --- Main obslua module
-obslua = {}
+local obslua = {}
 
 -- Constants
 obslua.ARCH_BITS = 32
@@ -426,46 +397,11 @@ obslua.S__LINE__ = "33"
 obslua.TRUE = 1
 obslua.UI_ENABLED = 1
 obslua.XINPUT_MOUSE_LEN = 33
-obslua.base_allocator = {}
-obslua.calldata = {}
-obslua.gs_device_loss = {}
-obslua.gs_display_mode = {}
-obslua.gs_image_file = {}
-obslua.gs_image_file2 = {}
-obslua.gs_init_data = {}
-obslua.gs_monitor_info = {}
-obslua.gs_rect = {}
-obslua.gs_sampler_info = {}
-obslua.gs_tvertarray = {}
-obslua.gs_vb_data = {}
-obslua.gs_window = {}
-obslua.matrix3 = {}
-obslua.matrix4 = {}
-obslua.obs_audio_data = {}
-obslua.obs_audio_info = {}
-obslua.obs_cmdline_args = {}
-obslua.obs_key_combination = {}
-obslua.obs_key_event = {}
-obslua.obs_mouse_event = {}
-obslua.obs_sceneitem_crop = {}
-obslua.obs_sceneitem_order_info = {}
-obslua.obs_source_audio = {}
-obslua.obs_source_audio_mix = {}
-obslua.obs_source_frame = {}
-obslua.obs_source_frame2 = {}
-obslua.obs_transform_info = {}
-obslua.obs_video_info = {}
-obslua.os_dirent = {}
-obslua.os_glob_info = {}
-obslua.os_globent = {}
-obslua.os_proc_memory_usage = {}
-obslua.quat = {}
-obslua.vec2 = {}
-obslua.vec3 = {}
-obslua.vec4 = {}
 
---- base_get_alignment not found in OBS documentation nor C wrapper
-obslua.base_get_alignment = function() end
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
+function obslua.base_get_alignment() end
 
 --- Sets/gets the current log handler.
 --- 
@@ -475,8 +411,8 @@ obslua.base_get_alignment = function() end
 function obslua.base_get_log_handler(handler, param) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 base_allocator
 function obslua.base_set_allocator(param1) end
 
@@ -587,17 +523,19 @@ function obslua.bzalloc(size) end
 function obslua.calldata_bool(data, name) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 calldata
 function obslua.calldata_clear(param1) end
 
---- calldata_create not found in OBS documentation nor C wrapper
-obslua.calldata_create = function() end
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
+function obslua.calldata_create() end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 calldata
 function obslua.calldata_destroy(param1) end
 
@@ -622,16 +560,16 @@ function obslua.calldata_float(data, name) end
 function obslua.calldata_free(data) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 calldata
 --- @param param2 string
 --- @param param3 bool
 function obslua.calldata_get_bool(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 calldata
 --- @param param2 string
 --- @param param3 ref_void*
@@ -639,32 +577,32 @@ function obslua.calldata_get_bool(param1, param2, param3) end
 function obslua.calldata_get_data(param1, param2, param3, param4) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 calldata
 --- @param param2 string
 --- @param param3 double
 function obslua.calldata_get_float(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 calldata
 --- @param param2 string
 --- @param param3 long_long
 function obslua.calldata_get_int(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 calldata
 --- @param param2 string
 --- @param param3 ref_void*
 function obslua.calldata_get_ptr(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 calldata
 --- @param param2 string
 --- @param param3 p_char
@@ -679,8 +617,8 @@ function obslua.calldata_get_string(param1, param2, param3) end
 function obslua.calldata_init(data) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 calldata
 --- @param param2 unsigned_char
 --- @param param3 number
@@ -710,8 +648,17 @@ function obslua.calldata_int(data, name) end
 --- @return void
 function obslua.calldata_ptr(data, name) end
 
---- calldata_sceneitem not found in OBS documentation nor C wrapper
-obslua.calldata_sceneitem = function() end
+--- Casts a pointer parameter of a calldata_t object to an
+--- obs_sceneitem_t object.
+--- 
+--- :param calldata: A calldata_t object.
+--- :param name:     Name of the parameter.
+--- :return:         A borrowed reference to an obs_sceneitem_t object.
+--- C definition: Not available
+--- @param calldata unknown
+--- @param name unknown
+--- @return unknown
+function obslua.calldata_sceneitem(calldata, name) end
 
 --- Sets a boolean parameter.
 --- 
@@ -726,8 +673,8 @@ obslua.calldata_sceneitem = function() end
 function obslua.calldata_set_bool(data, name, val) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 calldata
 --- @param param2 string
 --- @param param3 ref_void*
@@ -782,8 +729,18 @@ function obslua.calldata_set_ptr(data, name, ptr) end
 --- @param str string
 function obslua.calldata_set_string(data, name, str) end
 
---- calldata_source not found in OBS documentation nor C wrapper
-obslua.calldata_source = function() end
+--- Casts a pointer parameter of a calldata_t object to an obs_source_t
+--- object.
+--- 
+--- :param calldata: A calldata_t object.
+--- :param name:     Name of the parameter.
+--- :return:         A borrowed reference to an obs_source_t object.
+--- 
+--- C definition: Not available
+--- @param calldata unknown
+--- @param name unknown
+--- @return unknown
+function obslua.calldata_source(calldata, name) end
 
 --- Gets a string parameter.
 --- 
@@ -797,8 +754,10 @@ obslua.calldata_source = function() end
 --- @return string
 function obslua.calldata_string(data, name) end
 
---- gs_begin_frame not found in OBS documentation nor C wrapper
-obslua.gs_begin_frame = function() end
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
+function obslua.gs_begin_frame() end
 
 --- Begins/ends a scene (this is automatically called by libobs, there's
 --- no need to call this manually).
@@ -879,8 +838,8 @@ function obslua.gs_color4v(v) end
 function obslua.gs_copy_texture(dst, src) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_texture
 --- @param param2 number
 --- @param param3 number
@@ -911,8 +870,8 @@ function obslua.gs_copy_texture_region(param1, param2, param3, param4, param5, p
 function obslua.gs_create(graphics, module, adapter) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 string
 --- @param param2 gs_color_format
 --- @param param3 unsigned_int
@@ -950,7 +909,6 @@ function obslua.gs_cubetexture_create(size, color_format, levels, data, flags) e
 --- 
 --- C definition: `void     gs_cubetexture_destroy(gs_texture_t *cubetex)`
 --- @param cubetex gs_texture
---- @return 
 function obslua.gs_cubetexture_destroy(cubetex) end
 
 --- Gets the color format of a cube texture.
@@ -990,21 +948,23 @@ function obslua.gs_cubetexture_get_size(cubetex) end
 function obslua.gs_cubetexture_set_image(cubetex, side, data, linesize, invert) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 float
 --- @param param2 string
 function obslua.gs_debug_marker_begin(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 float
 --- @param param2 string
 function obslua.gs_debug_marker_begin_format(param1, param2) end
 
---- gs_debug_marker_end not found in OBS documentation nor C wrapper
-obslua.gs_debug_marker_end = function() end
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
+function obslua.gs_debug_marker_end() end
 
 --- Sets the depth function
 --- 
@@ -1035,8 +995,8 @@ function obslua.gs_destroy(graphics) end
 function obslua.gs_draw(draw_mode, start_vert, num_verts) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_texture
 --- @param param2 quat
 --- @param param3 number
@@ -1390,8 +1350,8 @@ function obslua.gs_effect_set_vec3(param, val) end
 function obslua.gs_effect_set_vec4(param, val) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_effect
 function obslua.gs_effect_update_params(param1) end
 
@@ -1493,14 +1453,20 @@ function obslua.gs_get_context() end
 --- @return number
 function obslua.gs_get_cull_mode() end
 
---- gs_get_device_name not found in OBS documentation nor C wrapper
-obslua.gs_get_device_name = function() end
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
+function obslua.gs_get_device_name() end
 
---- gs_get_device_obj not found in OBS documentation nor C wrapper
-obslua.gs_get_device_obj = function() end
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
+function obslua.gs_get_device_obj() end
 
---- gs_get_device_type not found in OBS documentation nor C wrapper
-obslua.gs_get_device_type = function() end
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
+function obslua.gs_get_device_type() end
 
 --- :return: The currently active effect, or *NULL* if none active
 --- 
@@ -1509,8 +1475,8 @@ obslua.gs_get_device_type = function() end
 function obslua.gs_get_effect() end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 number
 function obslua.gs_get_format_bpp(param1) end
 
@@ -1520,11 +1486,15 @@ function obslua.gs_get_format_bpp(param1) end
 --- @return number
 function obslua.gs_get_height() end
 
---- gs_get_input not found in OBS documentation nor C wrapper
-obslua.gs_get_input = function() end
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
+function obslua.gs_get_input() end
 
---- gs_get_pixel_shader not found in OBS documentation nor C wrapper
-obslua.gs_get_pixel_shader = function() end
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
+function obslua.gs_get_pixel_shader() end
 
 --- :return: The currently active render target
 --- 
@@ -1543,21 +1513,23 @@ function obslua.gs_get_render_target() end
 function obslua.gs_get_size(cx, cy) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_texture
 function obslua.gs_get_texture_type(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 number
 --- @param param2 number
 --- @param param3 number
 function obslua.gs_get_total_levels(param1, param2, param3) end
 
---- gs_get_vertex_shader not found in OBS documentation nor C wrapper
-obslua.gs_get_vertex_shader = function() end
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
+function obslua.gs_get_vertex_shader() end
 
 --- Gets the current viewport
 --- 
@@ -1580,34 +1552,34 @@ function obslua.gs_get_width() end
 function obslua.gs_get_zstencil_target() end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_image_file2
 function obslua.gs_image_file2_free(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_image_file2
 --- @param param2 string
 function obslua.gs_image_file2_init(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_image_file2
 function obslua.gs_image_file2_init_texture(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_image_file2
 --- @param param2 number
 function obslua.gs_image_file2_tick(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_image_file2
 function obslua.gs_image_file2_update_texture(param1) end
 
@@ -1692,7 +1664,6 @@ function obslua.gs_indexbuffer_create(type, indices, num, flags) end
 --- 
 --- C definition: `void     gs_indexbuffer_destroy(gs_indexbuffer_t *indexbuffer)`
 --- @param indexbuffer gs_index_buffer
---- @return 
 function obslua.gs_indexbuffer_destroy(indexbuffer) end
 
 --- Flushes a index buffer to its interval index data object.  To modify
@@ -1704,7 +1675,6 @@ function obslua.gs_indexbuffer_destroy(indexbuffer) end
 --- 
 --- C definition: `void     gs_indexbuffer_flush(gs_indexbuffer_t *indexbuffer)`
 --- @param indexbuffer gs_index_buffer
---- @return 
 function obslua.gs_indexbuffer_flush(indexbuffer) end
 
 --- Flushes a index buffer to the specified index buffer data.
@@ -1717,7 +1687,6 @@ function obslua.gs_indexbuffer_flush(indexbuffer) end
 --- C definition: `void     gs_indexbuffer_flush_direct(gs_indexbuffer_t *indexbuffer, const void *data)`
 --- @param indexbuffer gs_index_buffer
 --- @param data ref_void*
---- @return 
 function obslua.gs_indexbuffer_flush_direct(indexbuffer, data) end
 
 --- Gets the index buffer data associated with a index buffer object.
@@ -1755,8 +1724,8 @@ function obslua.gs_indexbuffer_get_num_indices(indexbuffer) end
 function obslua.gs_indexbuffer_get_type(indexbuffer) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 number
 function obslua.gs_is_compressed_format(param1) end
 
@@ -1768,8 +1737,8 @@ function obslua.gs_is_compressed_format(param1) end
 function obslua.gs_leave_context() end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 boolean
 --- @param param2 number
 function obslua.gs_load_default_samplerstate(param1, param2) end
@@ -1783,8 +1752,8 @@ function obslua.gs_load_default_samplerstate(param1, param2) end
 function obslua.gs_load_indexbuffer(indexbuffer) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_shader
 function obslua.gs_load_pixelshader(param1) end
 
@@ -1825,8 +1794,8 @@ function obslua.gs_load_texture(tex, unit) end
 function obslua.gs_load_vertexbuffer(vertbuffer) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_shader
 function obslua.gs_load_vertexshader(param1) end
 
@@ -1947,8 +1916,10 @@ function obslua.gs_normal3f(x, y, z) end
 --- @param v vec3
 function obslua.gs_normal3v(v) end
 
---- gs_nv12_available not found in OBS documentation nor C wrapper
-obslua.gs_nv12_available = function() end
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
+function obslua.gs_nv12_available() end
 
 --- Sets the projection matrix to an orthographic matrix
 --- 
@@ -2011,16 +1982,16 @@ function obslua.gs_param_get_num_annotations(param) end
 function obslua.gs_perspective(fovy, aspect, znear, zfar) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 string
 --- @param param2 string
 --- @param param3 p_char
 function obslua.gs_pixelshader_create(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 string
 --- @param param2 p_char
 function obslua.gs_pixelshader_create_from_file(param1, param2) end
@@ -2089,7 +2060,6 @@ function obslua.gs_samplerstate_create(info) end
 --- 
 --- C definition: `void     gs_samplerstate_destroy(gs_samplerstate_t *samplerstate)`
 --- @param samplerstate gs_sampler_state
---- @return 
 function obslua.gs_samplerstate_destroy(samplerstate) end
 
 ---  Sets the projection matrix to a default screen-sized orthographic
@@ -2194,7 +2164,6 @@ function obslua.gs_stagesurface_create(width, height, color_format) end
 --- 
 --- C definition: `void     gs_stagesurface_destroy(gs_stagesurf_t *stagesurf)`
 --- @param stagesurf gs_stage_surface
---- @return 
 function obslua.gs_stagesurface_destroy(stagesurf) end
 
 --- Gets the color format of a staging surface object.
@@ -2249,7 +2218,6 @@ function obslua.gs_stagesurface_map(stagesurf, data, linesize) end
 --- 
 --- C definition: `void     gs_stagesurface_unmap(gs_stagesurf_t *stagesurf)`
 --- @param stagesurf gs_stage_surface
---- @return 
 function obslua.gs_stagesurface_unmap(stagesurf) end
 
 --- Sets the stencil function
@@ -2290,7 +2258,6 @@ function obslua.gs_swapchain_create(data) end
 --- 
 --- C definition: `void     gs_swapchain_destroy(gs_swapchain_t *swapchain)`
 --- @param swapchain gs_swap_chain
---- @return 
 function obslua.gs_swapchain_destroy(swapchain) end
 
 --- Begins a technique.
@@ -2348,15 +2315,15 @@ function obslua.gs_technique_end(technique) end
 function obslua.gs_technique_end_pass(technique) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_effect_technique
 --- @param param2 number
 function obslua.gs_technique_get_pass_by_idx(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_effect_technique
 --- @param param2 string
 function obslua.gs_technique_get_pass_by_name(param1, param2) end
@@ -2373,41 +2340,41 @@ function obslua.gs_texcoord(x, y, unit) end
 function obslua.gs_texcoord2v(v, unit) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_texture_render
 --- @param param2 number
 --- @param param3 number
 function obslua.gs_texrender_begin(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 number
 --- @param param2 number
 function obslua.gs_texrender_create(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_texture_render
 function obslua.gs_texrender_destroy(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_texture_render
 function obslua.gs_texrender_end(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_texture_render
 function obslua.gs_texrender_get_texture(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_texture_render
 function obslua.gs_texrender_reset(param1) end
 
@@ -2455,7 +2422,6 @@ function obslua.gs_texture_create_from_file(file) end
 --- 
 --- C definition: `void     gs_texture_destroy(gs_texture_t *tex)`
 --- @param tex gs_texture
---- @return 
 function obslua.gs_texture_destroy(tex) end
 
 --- Gets the texture's color format
@@ -2479,8 +2445,8 @@ function obslua.gs_texture_get_color_format(tex) end
 function obslua.gs_texture_get_height(tex) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_texture
 function obslua.gs_texture_get_obj(param1) end
 
@@ -2495,8 +2461,8 @@ function obslua.gs_texture_get_obj(param1) end
 function obslua.gs_texture_get_width(tex) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_texture
 function obslua.gs_texture_is_rect(param1) end
 
@@ -2535,72 +2501,77 @@ function obslua.gs_texture_set_image(tex, data, linesize, invert) end
 --- 
 --- C definition: `void     gs_texture_unmap(gs_texture_t *tex)`
 --- @param tex gs_texture
---- @return 
 function obslua.gs_texture_unmap(tex) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_timer
 function obslua.gs_timer_begin(param1) end
 
---- gs_timer_create not found in OBS documentation nor C wrapper
-obslua.gs_timer_create = function() end
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
+function obslua.gs_timer_create() end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_timer
 function obslua.gs_timer_destroy(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_timer
 function obslua.gs_timer_end(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_timer
 --- @param param2 unsigned_long_long
 function obslua.gs_timer_get_data(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_timer_range
 function obslua.gs_timer_range_begin(param1) end
 
---- gs_timer_range_create not found in OBS documentation nor C wrapper
-obslua.gs_timer_range_create = function() end
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
+function obslua.gs_timer_range_create() end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_timer_range
 function obslua.gs_timer_range_destroy(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_timer_range
 function obslua.gs_timer_range_end(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_timer_range
 --- @param param2 bool
 --- @param param3 unsigned_long_long
 function obslua.gs_timer_range_get_data(param1, param2, param3) end
 
---- gs_vbdata_create not found in OBS documentation nor C wrapper
-obslua.gs_vbdata_create = function() end
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
+function obslua.gs_vbdata_create() end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_vb_data
 function obslua.gs_vbdata_destroy(param1) end
 
@@ -2655,7 +2626,6 @@ function obslua.gs_vertexbuffer_create(data, flags) end
 --- 
 --- C definition: `void     gs_vertexbuffer_destroy(gs_vertbuffer_t *vertbuffer)`
 --- @param vertbuffer gs_vertex_buffer
---- @return 
 function obslua.gs_vertexbuffer_destroy(vertbuffer) end
 
 --- Flushes a vertex buffer to its interval vertex data object.  To
@@ -2668,7 +2638,6 @@ function obslua.gs_vertexbuffer_destroy(vertbuffer) end
 --- 
 --- C definition: `void     gs_vertexbuffer_flush(gs_vertbuffer_t *vertbuffer)`
 --- @param vertbuffer gs_vertex_buffer
---- @return 
 function obslua.gs_vertexbuffer_flush(vertbuffer) end
 
 --- Directly flushes a vertex buffer to the specified vertex buffer data.
@@ -2683,7 +2652,6 @@ function obslua.gs_vertexbuffer_flush(vertbuffer) end
 --- C definition: `void     gs_vertexbuffer_flush_direct(gs_vertbuffer_t *vertbuffer, const struct gs_vb_data *data)`
 --- @param vertbuffer gs_vertex_buffer
 --- @param data gs_vb_data
---- @return 
 function obslua.gs_vertexbuffer_flush_direct(vertbuffer, data) end
 
 --- Gets the vertex buffer data associated with a vertex buffer object.
@@ -2701,16 +2669,16 @@ function obslua.gs_vertexbuffer_flush_direct(vertbuffer, data) end
 function obslua.gs_vertexbuffer_get_data(vertbuffer) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 string
 --- @param param2 string
 --- @param param3 p_char
 function obslua.gs_vertexshader_create(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 string
 --- @param param2 p_char
 function obslua.gs_vertexshader_create_from_file(param1, param2) end
@@ -2726,8 +2694,8 @@ function obslua.gs_viewport_pop() end
 function obslua.gs_viewport_push() end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 number
 --- @param param2 number
 --- @param param3 number
@@ -2738,32 +2706,32 @@ function obslua.gs_viewport_push() end
 function obslua.gs_voltexture_create(param1, param2, param3, param4, param5, param6, param7) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_texture
 function obslua.gs_voltexture_destroy(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_texture
 function obslua.gs_voltexture_get_color_format(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_texture
 function obslua.gs_voltexture_get_depth(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_texture
 function obslua.gs_voltexture_get_height(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 gs_texture
 function obslua.gs_voltexture_get_width(param1) end
 
@@ -2787,93 +2755,92 @@ function obslua.gs_zstencil_create(width, height, format) end
 --- 
 --- C definition: `void     gs_zstencil_destroy(gs_zstencil_t *zstencil)`
 --- @param zstencil gs_zstencil_buffer
---- @return 
 function obslua.gs_zstencil_destroy(zstencil) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 matrix3
 --- @param param2 matrix3
 function obslua.matrix3_copy(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 matrix3
 --- @param param2 axisang
 function obslua.matrix3_from_axisang(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 matrix3
 --- @param param2 matrix4
 function obslua.matrix3_from_matrix4(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 matrix3
 --- @param param2 quat
 function obslua.matrix3_from_quat(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 matrix3
 function obslua.matrix3_identity(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 matrix3
 --- @param param2 matrix3
 function obslua.matrix3_inv(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 matrix3
 --- @param param2 matrix3
 --- @param param3 plane
 function obslua.matrix3_mirror(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 matrix3
 --- @param param2 matrix3
 --- @param param3 vec3
 function obslua.matrix3_mirrorv(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 matrix3
 --- @param param2 matrix3
 --- @param param3 matrix3
 function obslua.matrix3_mul(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 matrix3
 --- @param param2 matrix3
 --- @param param3 quat
 function obslua.matrix3_rotate(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 matrix3
 --- @param param2 matrix3
 --- @param param3 axisang
 function obslua.matrix3_rotate_aa(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 matrix3
 --- @param param2 matrix3
 --- @param param3 number
@@ -2883,16 +2850,16 @@ function obslua.matrix3_rotate_aa(param1, param2, param3) end
 function obslua.matrix3_rotate_aa4f(param1, param2, param3, param4, param5, param6) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 matrix3
 --- @param param2 matrix3
 --- @param param3 vec3
 function obslua.matrix3_scale(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 matrix3
 --- @param param2 matrix3
 --- @param param3 number
@@ -2901,16 +2868,16 @@ function obslua.matrix3_scale(param1, param2, param3) end
 function obslua.matrix3_scale3f(param1, param2, param3, param4, param5) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 matrix3
 --- @param param2 matrix3
 --- @param param3 vec3
 function obslua.matrix3_translate(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 matrix3
 --- @param param2 matrix3
 --- @param param3 number
@@ -2919,8 +2886,8 @@ function obslua.matrix3_translate(param1, param2, param3) end
 function obslua.matrix3_translate3f(param1, param2, param3, param4, param5) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 matrix3
 --- @param param2 matrix3
 function obslua.matrix3_transpose(param1, param2) end
@@ -2956,8 +2923,8 @@ function obslua.matrix4_determinant(m) end
 function obslua.matrix4_from_axisang(dst, aa) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 matrix4
 --- @param param2 matrix3
 function obslua.matrix4_from_matrix3(param1, param2) end
@@ -3043,16 +3010,16 @@ function obslua.matrix4_rotate_aa(dst, m, aa) end
 function obslua.matrix4_rotate_aa4f(dst, m, x, y, z, rot) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 matrix4
 --- @param param2 axisang
 --- @param param3 matrix4
 function obslua.matrix4_rotate_aa_i(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 matrix4
 --- @param param2 quat
 --- @param param3 matrix4
@@ -3085,8 +3052,8 @@ function obslua.matrix4_scale(dst, m, v) end
 function obslua.matrix4_scale3f(dst, m, x, y, z) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 matrix4
 --- @param param2 vec3
 --- @param param3 matrix4
@@ -3119,8 +3086,8 @@ function obslua.matrix4_translate3f(dst, m, x, y, z) end
 function obslua.matrix4_translate3v(dst, m, v) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 matrix4
 --- @param param2 vec3
 --- @param param3 matrix4
@@ -3139,8 +3106,8 @@ function obslua.matrix4_translate3v_i(param1, param2, param3) end
 function obslua.matrix4_translate4v(dst, m, v) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 matrix4
 --- @param param2 vec4
 --- @param param3 matrix4
@@ -3156,18 +3123,23 @@ function obslua.matrix4_translate4v_i(param1, param2, param3) end
 function obslua.matrix4_transpose(dst, m) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 string
 function obslua.obs_add_data_path(param1) end
 
---- Adds/removes a main rendering callback.  Allows custom rendering to
---- the main stream/recording output.
+--- **Lua only:** Adds a primary output render callback.  This callback
+--- has no parameters.
 --- 
---- C definition: `void obs_add_main_render_callback(void (*draw)(void *param, uint32_t cx, uint32_t cy), void *param)`
---- @param draw void(*)(void*,uint32_t,uint32_t)
---- @param param void*
-function obslua.obs_add_main_render_callback(draw, param) end
+--- :param callback: Render callback.  Use
+---                  :py:func:`obs_remove_main_render_callback()` or
+---                  :py:func:`remove_current_callback()` to remove the
+---                  callback.
+--- 
+--- C definition: Not available
+--- @param callback unknown
+--- @return unknown
+function obslua.obs_add_main_render_callback(callback) end
 
 --- Adds a module search path to be used with obs_find_modules.  If the search
 --- path strings contain %module%, that text will be replaced with the module
@@ -3199,8 +3171,8 @@ function obslua.obs_add_raw_video_callback(conversion, callback, param) end
 obslua.obs_add_tick_callback = function() end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 function obslua.obs_apply_private_data(param1) end
 
@@ -3259,8 +3231,8 @@ function obslua.obs_data_array_count(array) end
 function obslua.obs_data_array_create() end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_array
 --- @param param2 number
 function obslua.obs_data_array_erase(param1, param2) end
@@ -3287,8 +3259,8 @@ function obslua.obs_data_array_item(array, idx) end
 function obslua.obs_data_array_push_back(array, obj) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_array
 --- @param param2 obs_data_array
 function obslua.obs_data_array_push_back_array(param1, param2) end
@@ -3350,8 +3322,8 @@ function obslua.obs_data_create_from_json_file_safe(json_file, backup_ext) end
 function obslua.obs_data_erase(data, name) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 function obslua.obs_data_first(param1) end
 
@@ -3364,8 +3336,8 @@ function obslua.obs_data_first(param1) end
 function obslua.obs_data_get_array(data, name) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 function obslua.obs_data_get_autoselect_array(param1, param2) end
@@ -3383,8 +3355,8 @@ function obslua.obs_data_get_autoselect_bool(data, name) end
 function obslua.obs_data_get_autoselect_double(data, name) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 --- @param param3 media_frames_per_second
@@ -3406,8 +3378,8 @@ function obslua.obs_data_get_autoselect_int(data, name) end
 function obslua.obs_data_get_autoselect_obj(data, name) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 --- @param param3 quat
@@ -3420,24 +3392,24 @@ function obslua.obs_data_get_autoselect_quat(param1, param2, param3) end
 function obslua.obs_data_get_autoselect_string(data, name) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 --- @param param3 vec2
 function obslua.obs_data_get_autoselect_vec2(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 --- @param param3 vec3
 function obslua.obs_data_get_autoselect_vec3(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 --- @param param3 vec4
@@ -3450,8 +3422,8 @@ function obslua.obs_data_get_autoselect_vec4(param1, param2, param3) end
 function obslua.obs_data_get_bool(data, name) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 function obslua.obs_data_get_default_array(param1, param2) end
@@ -3469,8 +3441,8 @@ function obslua.obs_data_get_default_bool(data, name) end
 function obslua.obs_data_get_default_double(data, name) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 --- @param param3 media_frames_per_second
@@ -3492,8 +3464,8 @@ function obslua.obs_data_get_default_int(data, name) end
 function obslua.obs_data_get_default_obj(data, name) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 --- @param param3 quat
@@ -3506,24 +3478,24 @@ function obslua.obs_data_get_default_quat(param1, param2, param3) end
 function obslua.obs_data_get_default_string(data, name) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 --- @param param3 vec2
 function obslua.obs_data_get_default_vec2(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 --- @param param3 vec3
 function obslua.obs_data_get_default_vec3(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 --- @param param3 vec4
@@ -3536,8 +3508,8 @@ function obslua.obs_data_get_default_vec4(param1, param2, param3) end
 function obslua.obs_data_get_double(data, name) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 --- @param param3 media_frames_per_second
@@ -3566,8 +3538,8 @@ function obslua.obs_data_get_json(data) end
 function obslua.obs_data_get_obj(data, name) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 --- @param param3 quat
@@ -3580,414 +3552,414 @@ function obslua.obs_data_get_quat(param1, param2, param3) end
 function obslua.obs_data_get_string(data, name) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 --- @param param3 vec2
 function obslua.obs_data_get_vec2(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 --- @param param3 vec3
 function obslua.obs_data_get_vec3(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 --- @param param3 vec4
 function obslua.obs_data_get_vec4(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 function obslua.obs_data_has_autoselect_value(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 function obslua.obs_data_has_default_value(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 function obslua.obs_data_has_user_value(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 function obslua.obs_data_item_byname(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_item
 function obslua.obs_data_item_get_array(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_item
 function obslua.obs_data_item_get_autoselect_array(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_item
 function obslua.obs_data_item_get_autoselect_bool(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_item
 function obslua.obs_data_item_get_autoselect_double(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_item
 --- @param param2 media_frames_per_second
 --- @param param3 p_char
 function obslua.obs_data_item_get_autoselect_frames_per_second(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_item
 function obslua.obs_data_item_get_autoselect_int(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_item
 function obslua.obs_data_item_get_autoselect_obj(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_item
 function obslua.obs_data_item_get_autoselect_string(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_item
 function obslua.obs_data_item_get_bool(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_item
 function obslua.obs_data_item_get_default_array(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_item
 function obslua.obs_data_item_get_default_bool(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_item
 function obslua.obs_data_item_get_default_double(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_item
 --- @param param2 media_frames_per_second
 --- @param param3 p_char
 function obslua.obs_data_item_get_default_frames_per_second(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_item
 function obslua.obs_data_item_get_default_int(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_item
 function obslua.obs_data_item_get_default_obj(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_item
 function obslua.obs_data_item_get_default_string(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_item
 function obslua.obs_data_item_get_double(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_item
 --- @param param2 media_frames_per_second
 --- @param param3 p_char
 function obslua.obs_data_item_get_frames_per_second(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_item
 function obslua.obs_data_item_get_int(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_item
 function obslua.obs_data_item_get_name(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_item
 function obslua.obs_data_item_get_obj(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_item
 function obslua.obs_data_item_get_string(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_item
 function obslua.obs_data_item_gettype(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_item
 function obslua.obs_data_item_has_autoselect_value(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_item
 function obslua.obs_data_item_has_default_value(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_item
 function obslua.obs_data_item_has_user_value(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 p_obs_data_item
 function obslua.obs_data_item_next(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_item
 function obslua.obs_data_item_numtype(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 p_obs_data_item
 function obslua.obs_data_item_release(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 p_obs_data_item
 function obslua.obs_data_item_remove(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 p_obs_data_item
 --- @param param2 obs_data_array
 function obslua.obs_data_item_set_array(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 p_obs_data_item
 --- @param param2 obs_data_array
 function obslua.obs_data_item_set_autoselect_array(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 p_obs_data_item
 --- @param param2 boolean
 function obslua.obs_data_item_set_autoselect_bool(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 p_obs_data_item
 --- @param param2 number
 function obslua.obs_data_item_set_autoselect_double(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 p_obs_data_item
 --- @param param2 media_frames_per_second
 --- @param param3 string
 function obslua.obs_data_item_set_autoselect_frames_per_second(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 p_obs_data_item
 --- @param param2 number
 function obslua.obs_data_item_set_autoselect_int(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 p_obs_data_item
 --- @param param2 obs_data
 function obslua.obs_data_item_set_autoselect_obj(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 p_obs_data_item
 --- @param param2 string
 function obslua.obs_data_item_set_autoselect_string(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 p_obs_data_item
 --- @param param2 boolean
 function obslua.obs_data_item_set_bool(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 p_obs_data_item
 --- @param param2 obs_data_array
 function obslua.obs_data_item_set_default_array(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 p_obs_data_item
 --- @param param2 boolean
 function obslua.obs_data_item_set_default_bool(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 p_obs_data_item
 --- @param param2 number
 function obslua.obs_data_item_set_default_double(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 p_obs_data_item
 --- @param param2 media_frames_per_second
 --- @param param3 string
 function obslua.obs_data_item_set_default_frames_per_second(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 p_obs_data_item
 --- @param param2 number
 function obslua.obs_data_item_set_default_int(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 p_obs_data_item
 --- @param param2 obs_data
 function obslua.obs_data_item_set_default_obj(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 p_obs_data_item
 --- @param param2 string
 function obslua.obs_data_item_set_default_string(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 p_obs_data_item
 --- @param param2 number
 function obslua.obs_data_item_set_double(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 p_obs_data_item
 --- @param param2 media_frames_per_second
 --- @param param3 string
 function obslua.obs_data_item_set_frames_per_second(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 p_obs_data_item
 --- @param param2 number
 function obslua.obs_data_item_set_int(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 p_obs_data_item
 --- @param param2 obs_data
 function obslua.obs_data_item_set_obj(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 p_obs_data_item
 --- @param param2 string
 function obslua.obs_data_item_set_string(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_item
 function obslua.obs_data_item_unset_autoselect_value(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_item
 function obslua.obs_data_item_unset_default_value(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data_item
 function obslua.obs_data_item_unset_user_value(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 function obslua.obs_data_newref(param1) end
 
@@ -4044,8 +4016,8 @@ function obslua.obs_data_set_autoselect_bool(data, name, val) end
 function obslua.obs_data_set_autoselect_double(data, name, val) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 --- @param param3 media_frames_per_second
@@ -4067,8 +4039,8 @@ function obslua.obs_data_set_autoselect_int(data, name, val) end
 function obslua.obs_data_set_autoselect_obj(data, name, obj) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 --- @param param3 quat
@@ -4081,24 +4053,24 @@ function obslua.obs_data_set_autoselect_quat(param1, param2, param3) end
 function obslua.obs_data_set_autoselect_string(data, name, val) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 --- @param param3 vec2
 function obslua.obs_data_set_autoselect_vec2(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 --- @param param3 vec3
 function obslua.obs_data_set_autoselect_vec3(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 --- @param param3 vec4
@@ -4123,8 +4095,8 @@ function obslua.obs_data_set_default_bool(data, name, val) end
 function obslua.obs_data_set_default_double(data, name, val) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 --- @param param3 media_frames_per_second
@@ -4146,8 +4118,8 @@ function obslua.obs_data_set_default_int(data, name, val) end
 function obslua.obs_data_set_default_obj(data, name, obj) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 --- @param param3 quat
@@ -4160,24 +4132,24 @@ function obslua.obs_data_set_default_quat(param1, param2, param3) end
 function obslua.obs_data_set_default_string(data, name, val) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 --- @param param3 vec2
 function obslua.obs_data_set_default_vec2(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 --- @param param3 vec3
 function obslua.obs_data_set_default_vec3(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 --- @param param3 vec4
@@ -4190,8 +4162,8 @@ function obslua.obs_data_set_default_vec4(param1, param2, param3) end
 function obslua.obs_data_set_double(data, name, val) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 --- @param param3 media_frames_per_second
@@ -4211,8 +4183,8 @@ function obslua.obs_data_set_int(data, name, val) end
 function obslua.obs_data_set_obj(data, name, obj) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 --- @param param3 quat
@@ -4225,46 +4197,46 @@ function obslua.obs_data_set_quat(param1, param2, param3) end
 function obslua.obs_data_set_string(data, name, val) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 --- @param param3 vec2
 function obslua.obs_data_set_vec2(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 --- @param param3 vec3
 function obslua.obs_data_set_vec3(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 --- @param param3 vec4
 function obslua.obs_data_set_vec4(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 function obslua.obs_data_unset_autoselect_value(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 function obslua.obs_data_unset_default_value(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 --- @param param2 string
 function obslua.obs_data_unset_user_value(param1, param2) end
@@ -4384,8 +4356,8 @@ function obslua.obs_display_set_background_color(display, color) end
 function obslua.obs_display_set_enabled(display, enable) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_display
 --- @param param2 unsigned_int
 --- @param param3 unsigned_int
@@ -4414,8 +4386,8 @@ function obslua.obs_encoder_addref(encoder) end
 function obslua.obs_encoder_audio(encoder) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_encoder
 --- @param param2 string
 function obslua.obs_encoder_create_rerouted(param1, param2) end
@@ -4428,8 +4400,8 @@ function obslua.obs_encoder_create_rerouted(param1, param2) end
 function obslua.obs_encoder_defaults(id) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_encoder
 function obslua.obs_encoder_get_caps(param1) end
 
@@ -4478,14 +4450,14 @@ function obslua.obs_encoder_get_extra_data(encoder, extra_data, size) end
 function obslua.obs_encoder_get_height(encoder) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_encoder
 function obslua.obs_encoder_get_id(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_encoder
 function obslua.obs_encoder_get_last_error(param1) end
 
@@ -4509,8 +4481,8 @@ function obslua.obs_encoder_get_name(encoder) end
 function obslua.obs_encoder_get_preferred_video_format(encoder) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_encoder
 function obslua.obs_encoder_get_ref(param1) end
 
@@ -4536,8 +4508,8 @@ function obslua.obs_encoder_get_settings(encoder) end
 function obslua.obs_encoder_get_type(encoder) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_encoder
 function obslua.obs_encoder_get_type_data(param1) end
 
@@ -4578,8 +4550,8 @@ function obslua.obs_encoder_packet_ref(dst, src) end
 function obslua.obs_encoder_packet_release(packet) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_encoder
 function obslua.obs_encoder_paused(param1) end
 
@@ -4619,8 +4591,8 @@ function obslua.obs_encoder_scaling_enabled(encoder) end
 function obslua.obs_encoder_set_audio(encoder, audio) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_encoder
 --- @param param2 string
 function obslua.obs_encoder_set_last_error(param1, param2) end
@@ -4723,15 +4695,15 @@ function obslua.obs_enum_encoders(enum_proc, param) end
 function obslua.obs_enum_filter_types(idx, id) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 f_p_void_size_t_p_struct_obs_hotkey_binding__bool
 --- @param param2 ref_void*
 function obslua.obs_enum_hotkey_bindings(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 f_p_void_size_t_p_struct_obs_hotkey__bool
 --- @param param2 ref_void*
 function obslua.obs_enum_hotkeys(param1, param2) end
@@ -4748,8 +4720,8 @@ function obslua.obs_enum_hotkeys(param1, param2) end
 function obslua.obs_enum_input_types(idx, id) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 number
 --- @param param2 p_char
 --- @param param3 p_char
@@ -4806,8 +4778,8 @@ function obslua.obs_enum_scenes(enum_proc, param) end
 function obslua.obs_enum_service_types(idx, id) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 f_p_void_p_struct_obs_service__bool
 --- @param param2 ref_void*
 function obslua.obs_enum_services(param1, param2) end
@@ -4820,19 +4792,14 @@ function obslua.obs_enum_services(param1, param2) end
 --- @return boolean
 function obslua.obs_enum_source_types(idx, id) end
 
---- Enumerates all input sources.
+--- Enumerates all sources.
 --- 
---- Callback function returns true to continue enumeration, or false to end
---- enumeration.
+--- :return: An array of reference-incremented sources.  Release with
+---          :py:func:`source_list_release()`.
 --- 
---- Use :c:func:`obs_source_get_ref()` or
---- :c:func:`obs_source_get_weak_source()` if you want to retain a
---- reference after obs_enum_sources finishes.
---- 
---- C definition: `void obs_enum_sources(bool (*enum_proc)(void*, obs_source_t*), void *param)`
---- @param enum_proc bool(*)(void*,obs_source_t*)
---- @param param void*
-function obslua.obs_enum_sources(enum_proc, param) end
+--- C definition: Not available
+--- @return unknown
+function obslua.obs_enum_sources() end
 
 --- Enumerates all available transition source types.
 --- 
@@ -4868,8 +4835,8 @@ function obslua.obs_filter_get_parent(filter) end
 function obslua.obs_filter_get_target(filter) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 string
 function obslua.obs_find_data_file(param1) end
 
@@ -4913,11 +4880,15 @@ function obslua.obs_frontend_add_event_callback(callback, private_data) end
 --- @param private_data void*
 function obslua.obs_frontend_add_save_callback(callback, private_data) end
 
---- obs_frontend_defer_save_begin not found in OBS documentation nor C wrapper
-obslua.obs_frontend_defer_save_begin = function() end
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
+function obslua.obs_frontend_defer_save_begin() end
 
---- obs_frontend_defer_save_end not found in OBS documentation nor C wrapper
-obslua.obs_frontend_defer_save_end = function() end
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
+function obslua.obs_frontend_defer_save_end() end
 
 --- :return: A new reference to the current preview scene if studio mode
 ---          is active, or the current scene if studio mode is not
@@ -4953,11 +4924,15 @@ function obslua.obs_frontend_get_current_scene_collection() end
 --- @return obs_source_t*
 function obslua.obs_frontend_get_current_transition() end
 
---- obs_frontend_get_global_config not found in OBS documentation nor C wrapper
-obslua.obs_frontend_get_global_config = function() end
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
+function obslua.obs_frontend_get_global_config() end
 
---- obs_frontend_get_profile_config not found in OBS documentation nor C wrapper
-obslua.obs_frontend_get_profile_config = function() end
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
+function obslua.obs_frontend_get_profile_config() end
 
 --- :return: The list of profile names, ending with NULL.  The list is
 ---          stored within one contiguous segment of memory, so freeing
@@ -5029,16 +5004,18 @@ function obslua.obs_frontend_get_streaming_service() end
 function obslua.obs_frontend_get_transitions(sources) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 string
 --- @param param2 number
 --- @param param3 string
 --- @param param4 string
 function obslua.obs_frontend_open_projector(param1, param2, param3, param4) end
 
---- obs_frontend_preview_enabled not found in OBS documentation nor C wrapper
-obslua.obs_frontend_preview_enabled = function() end
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
+function obslua.obs_frontend_preview_enabled() end
 
 --- :return: *true* if studio mode is active, *false* otherwise.
 --- 
@@ -5164,8 +5141,8 @@ function obslua.obs_frontend_set_current_scene_collection(collection) end
 function obslua.obs_frontend_set_current_transition(transition) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 boolean
 function obslua.obs_frontend_set_preview_enabled(param1) end
 
@@ -5216,8 +5193,10 @@ function obslua.obs_frontend_take_screenshot() end
 --- @return void*
 function obslua.obs_frontend_take_source_screenshot(source) end
 
---- obs_get_active_fps not found in OBS documentation nor C wrapper
-obslua.obs_get_active_fps = function() end
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
+function obslua.obs_get_active_fps() end
 
 --- :return: The main audio output handler for this OBS context
 --- 
@@ -5241,8 +5220,10 @@ function obslua.obs_get_audio_info(oai) end
 --- @param id p_char
 function obslua.obs_get_audio_monitoring_device(name, id) end
 
---- obs_get_average_frame_time_ns not found in OBS documentation nor C wrapper
-obslua.obs_get_average_frame_time_ns = function() end
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
+function obslua.obs_get_average_frame_time_ns() end
 
 --- Returns a commoinly used base effect.
 --- 
@@ -5261,8 +5242,10 @@ obslua.obs_get_average_frame_time_ns = function() end
 --- @return gs_effect
 function obslua.obs_get_base_effect(effect) end
 
---- obs_get_cmdline_args not found in OBS documentation nor C wrapper
-obslua.obs_get_cmdline_args = function() end
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
+function obslua.obs_get_cmdline_args() end
 
 --- Gets an encoder by its name.
 --- 
@@ -5275,8 +5258,8 @@ obslua.obs_get_cmdline_args = function() end
 function obslua.obs_get_encoder_by_name(name) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 string
 function obslua.obs_get_encoder_caps(param1) end
 
@@ -5306,15 +5289,19 @@ function obslua.obs_get_encoder_properties(id) end
 --- @return number
 function obslua.obs_get_encoder_type(id) end
 
---- obs_get_frame_interval_ns not found in OBS documentation nor C wrapper
-obslua.obs_get_frame_interval_ns = function() end
-
---- obs_get_lagged_frames not found in OBS documentation nor C wrapper
-obslua.obs_get_lagged_frames = function() end
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
+function obslua.obs_get_frame_interval_ns() end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
+function obslua.obs_get_lagged_frames() end
+
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 string
 function obslua.obs_get_latest_input_type_id(param1) end
 
@@ -5324,8 +5311,10 @@ function obslua.obs_get_latest_input_type_id(param1) end
 --- @return string
 function obslua.obs_get_locale() end
 
---- obs_get_main_texture not found in OBS documentation nor C wrapper
-obslua.obs_get_main_texture = function() end
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
+function obslua.obs_get_main_texture() end
 
 --- :return: The master user volume
 --- 
@@ -5334,8 +5323,8 @@ obslua.obs_get_main_texture = function() end
 function obslua.obs_get_master_volume() end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 string
 function obslua.obs_get_module(param1) end
 
@@ -5417,8 +5406,10 @@ function obslua.obs_get_output_properties(id) end
 --- @return obs_source
 function obslua.obs_get_output_source(channel) end
 
---- obs_get_private_data not found in OBS documentation nor C wrapper
-obslua.obs_get_private_data = function() end
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
+function obslua.obs_get_private_data() end
 
 --- :return: The primary obs procedure handler
 --- 
@@ -5514,8 +5505,10 @@ function obslua.obs_get_source_output_flags(id) end
 --- @return obs_properties
 function obslua.obs_get_source_properties(id) end
 
---- obs_get_total_frames not found in OBS documentation nor C wrapper
-obslua.obs_get_total_frames = function() end
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
+function obslua.obs_get_total_frames() end
 
 --- :return: The current core version
 --- 
@@ -5535,8 +5528,10 @@ function obslua.obs_get_version_string() end
 --- @return video_t
 function obslua.obs_get_video() end
 
---- obs_get_video_frame_time not found in OBS documentation nor C wrapper
-obslua.obs_get_video_frame_time = function() end
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
+function obslua.obs_get_video_frame_time() end
 
 --- Gets the current video settings.
 --- 
@@ -5556,242 +5551,259 @@ function obslua.obs_get_video_info(ovi) end
 function obslua.obs_group_from_source(source) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_hotkey_binding
 function obslua.obs_hotkey_binding_get_hotkey(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_hotkey_binding
 function obslua.obs_hotkey_binding_get_hotkey_id(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_hotkey_binding
 function obslua.obs_hotkey_binding_get_key_combination(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 boolean
 function obslua.obs_hotkey_enable_background_press(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 boolean
 function obslua.obs_hotkey_enable_callback_rerouting(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 boolean
 function obslua.obs_hotkey_enable_strict_modifiers(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_hotkey
 function obslua.obs_hotkey_get_description(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_hotkey
 function obslua.obs_hotkey_get_id(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_hotkey
 function obslua.obs_hotkey_get_name(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_hotkey
 function obslua.obs_hotkey_get_pair_partner_id(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_hotkey
 function obslua.obs_hotkey_get_registerer(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_hotkey
 function obslua.obs_hotkey_get_registerer_type(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_key_combination
 --- @param param2 boolean
 function obslua.obs_hotkey_inject_event(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 number
 --- @param param2 obs_data_array
 function obslua.obs_hotkey_load(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 number
 --- @param param2 obs_key_combination
 --- @param param3 number
 function obslua.obs_hotkey_load_bindings(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 number
 --- @param param2 obs_data_array
 --- @param param3 obs_data_array
 function obslua.obs_hotkey_pair_load(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 number
 --- @param param2 p_obs_data_array
 --- @param param3 p_obs_data_array
 function obslua.obs_hotkey_pair_save(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 number
 --- @param param2 string
 --- @param param3 string
 function obslua.obs_hotkey_pair_set_descriptions(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 number
 --- @param param2 string
 --- @param param3 string
 function obslua.obs_hotkey_pair_set_names(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 number
 function obslua.obs_hotkey_pair_unregister(param1) end
 
---- obs_hotkey_register_frontend not found in OBS documentation nor C wrapper
-obslua.obs_hotkey_register_frontend = function() end
+--- Adds a frontend hotkey.  The callback takes one parameter: a boolean
+--- 'pressed' parameter.
+--- 
+--- :param name:        Unique name identifier string of the hotkey.
+--- :param description: Hotkey description shown to the user.
+--- :param callback:    Callback for the hotkey.  Use
+---                     :py:func:`obs_hotkey_unregister()` or
+---                     :py:func:`remove_current_callback()` to remove
+---                     the callback.
+--- 
+--- C definition: Not available
+--- @param name unknown
+--- @param description unknown
+--- @param callback unknown
+--- @return unknown
+function obslua.obs_hotkey_register_frontend(name, description, callback) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 number
 function obslua.obs_hotkey_save(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 f_p_void_size_t_bool__void
 --- @param param2 ref_void*
 function obslua.obs_hotkey_set_callback_routing_func(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 number
 --- @param param2 string
 function obslua.obs_hotkey_set_description(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 number
 --- @param param2 string
 function obslua.obs_hotkey_set_name(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 number
 --- @param param2 boolean
 function obslua.obs_hotkey_trigger_routed_callback(param1, param2) end
 
---- Not mentioned in OBS documentation
+--- Unregisters the hotkey associated with the specified callback.
 --- 
---- C definition: Not available in OBS documentation
---- @param param1 number
-function obslua.obs_hotkey_unregister(param1) end
+--- :param callback: Callback of the hotkey to unregister.
+--- 
+--- C definition: Not available
+--- @param callback number
+--- @return unknown
+function obslua.obs_hotkey_unregister(callback) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 f_p_void__void
 --- @param param2 ref_void*
 function obslua.obs_hotkey_update_atomic(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_encoder
 --- @param param2 obs_data
 function obslua.obs_hotkeys_load_encoder(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_output
 --- @param param2 obs_data
 function obslua.obs_hotkeys_load_output(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_service
 --- @param param2 obs_data
 function obslua.obs_hotkeys_load_service(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 --- @param param2 obs_data
 function obslua.obs_hotkeys_load_source(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_encoder
 function obslua.obs_hotkeys_save_encoder(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_output
 function obslua.obs_hotkeys_save_output(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_service
 function obslua.obs_hotkeys_save_service(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 function obslua.obs_hotkeys_save_source(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 string
 --- @param param2 string
 --- @param param3 string
@@ -5799,8 +5811,8 @@ function obslua.obs_hotkeys_save_source(param1) end
 function obslua.obs_hotkeys_set_audio_hotkeys_translations(param1, param2, param3, param4) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 string
 --- @param param2 string
 function obslua.obs_hotkeys_set_sceneitem_hotkeys_translations(param1, param2) end
@@ -5829,46 +5841,46 @@ function obslua.obs_initialized() end
 function obslua.obs_is_source_configurable(id) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_key_combination
 function obslua.obs_key_combination_is_empty(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_key_combination
 --- @param param2 dstr
 function obslua.obs_key_combination_to_str(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 string
 function obslua.obs_key_from_name(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 number
 function obslua.obs_key_from_virtual_key(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 number
 function obslua.obs_key_to_name(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 number
 --- @param param2 dstr
 function obslua.obs_key_to_str(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 number
 function obslua.obs_key_to_virtual_key(param1) end
 
@@ -5924,52 +5936,54 @@ function obslua.obs_log_loaded_modules() end
 function obslua.obs_module_get_config_path(module, file) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_module
 --- @param param2 string
 --- @param param3 p_char
 function obslua.obs_module_get_locale_string(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_module
 --- @param param2 string
 function obslua.obs_module_get_locale_text(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_module
 --- @param param2 string
 --- @param param3 string
 function obslua.obs_module_load_locale(param1, param2, param3) end
 
---- obs_nv12_tex_active not found in OBS documentation nor C wrapper
-obslua.obs_nv12_tex_active = function() end
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
+function obslua.obs_nv12_tex_active() end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 ref_void*
 function obslua.obs_obj_get_data(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 ref_void*
 function obslua.obs_obj_get_id(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 ref_void*
 function obslua.obs_obj_get_type(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 ref_void*
 function obslua.obs_obj_invalid(param1) end
 
@@ -6192,8 +6206,8 @@ function obslua.obs_output_get_frames_dropped(output) end
 function obslua.obs_output_get_height(output) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_output
 function obslua.obs_output_get_id(param1) end
 
@@ -6251,8 +6265,8 @@ function obslua.obs_output_get_pause_offset(output) end
 function obslua.obs_output_get_proc_handler(output) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_output
 function obslua.obs_output_get_ref(param1) end
 
@@ -6310,8 +6324,8 @@ function obslua.obs_output_get_total_bytes(output) end
 function obslua.obs_output_get_total_frames(output) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_output
 function obslua.obs_output_get_type_data(param1) end
 
@@ -6696,32 +6710,28 @@ function obslua.obs_post_load_modules() end
 --- @return obs_property
 function obslua.obs_properties_add_bool(props, name, description) end
 
---- Adds a button property.  This property does not actually store any
---- settings; it's used to implement a button in user interface if the
---- properties are used to generate user interface.
+--- Adds a button property to an obs_properties_t object.  The callback
+--- takes two parameters:  the first parameter is the obs_properties_t
+--- object, and the second parameter is the obs_property_t for the
+--- button.
 --- 
---- :param    name:        Setting identifier string
---- :param    description: Localized name shown to user
---- :return:               The property
+--- :param properties:   An obs_properties_t object.
+--- :param setting_name: A setting identifier string.
+--- :param text:         Button text.
+--- :param callback:     Button callback.  This callback is automatically
+---                      cleaned up.
 --- 
---- Relevant data types used with this function:
---- 
---- .. code:: cpp
---- 
---- typedef bool (*obs_property_clicked_t)(obs_properties_t *props,
----                 obs_property_t *property, void *data);
---- 
---- C definition: `obs_property_t *obs_properties_add_button(obs_properties_t *props, const char *name, const char *text, obs_property_clicked_t callback)`
---- @param props obs_properties_t*
---- @param name char*
---- @param text char*
---- @param callback obs_property_clicked_t
---- @return obs_property_t*
-function obslua.obs_properties_add_button(props, name, text, callback) end
+--- C definition: Not available
+--- @param properties unknown
+--- @param setting_name unknown
+--- @param text unknown
+--- @param callback unknown
+--- @return unknown
+function obslua.obs_properties_add_button(properties, setting_name, text, callback) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_properties
 --- @param param2 string
 --- @param param3 string
@@ -7064,8 +7074,8 @@ function obslua.obs_properties_get_param(props) end
 function obslua.obs_properties_get_parent(props) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_properties
 --- @param param2 string
 function obslua.obs_properties_remove_by_name(param1, param2) end
@@ -7146,8 +7156,8 @@ function obslua.obs_property_float_min(p) end
 function obslua.obs_property_float_set_limits(p, min, max, step) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_property
 --- @param param2 string
 function obslua.obs_property_float_set_suffix(param1, param2) end
@@ -7158,8 +7168,8 @@ function obslua.obs_property_float_set_suffix(param1, param2) end
 function obslua.obs_property_float_step(p) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_property
 function obslua.obs_property_float_suffix(param1) end
 
@@ -7180,8 +7190,8 @@ function obslua.obs_property_frame_rate_clear(p) end
 function obslua.obs_property_frame_rate_fps_range_add(p, min, max) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_property
 --- @param param2 number
 --- @param param3 media_frames_per_second
@@ -7299,8 +7309,8 @@ function obslua.obs_property_int_min(p) end
 function obslua.obs_property_int_set_limits(p, min, max, step) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_property
 --- @param param2 string
 function obslua.obs_property_int_set_suffix(param1, param2) end
@@ -7311,8 +7321,8 @@ function obslua.obs_property_int_set_suffix(param1, param2) end
 function obslua.obs_property_int_step(p) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_property
 function obslua.obs_property_int_suffix(param1) end
 
@@ -7545,14 +7555,14 @@ function obslua.obs_property_set_modified_callback2(p, modified2, priv) end
 function obslua.obs_property_set_visible(p, visible) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_property
 function obslua.obs_property_text_monospace(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_property
 --- @param param2 boolean
 function obslua.obs_property_text_set_monospace(param1, param2) end
@@ -7568,8 +7578,8 @@ function obslua.obs_property_text_type(p) end
 function obslua.obs_property_visible(p) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 number
 --- @param param2 f_p_void__void
 --- @param param3 ref_void*
@@ -7584,18 +7594,19 @@ function obslua.obs_queue_task(param1, param2, param3, param4) end
 function obslua.obs_register_source(info) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 string
 function obslua.obs_remove_data_path(param1) end
 
---- Adds/removes a main rendering callback.  Allows custom rendering to
---- the main stream/recording output.
+--- **Lua only:** Removes a primary output render callback.
 --- 
---- C definition: `void obs_remove_main_render_callback(void (*draw)(void *param, uint32_t cx, uint32_t cy), void *param)`
---- @param draw void(*)(void*,uint32_t,uint32_t)
---- @param param void*
-function obslua.obs_remove_main_render_callback(draw, param) end
+--- :param callback: Render callback.
+--- 
+--- C definition: Not available
+--- @param callback unknown
+--- @return unknown
+function obslua.obs_remove_main_render_callback(callback) end
 
 --- Adds/removes a raw video callback.  Allows the ability to obtain raw
 --- video frames without necessarily using an output.
@@ -7619,8 +7630,10 @@ obslua.obs_remove_tick_callback = function() end
 --- C definition: `void obs_render_main_texture(void)`
 function obslua.obs_render_main_texture() end
 
---- obs_render_main_texture_src_color_only not found in OBS documentation nor C wrapper
-obslua.obs_render_main_texture_src_color_only = function() end
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
+function obslua.obs_render_main_texture_src_color_only() end
 
 --- Sets base audio output format/channels/samples/etc.
 --- 
@@ -7767,8 +7780,8 @@ function obslua.obs_scene_add_group2(scene, name, signal) end
 function obslua.obs_scene_addref(scene) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_scene
 --- @param param2 f_p_void_p_struct_obs_scene__void
 --- @param param3 ref_void*
@@ -7814,11 +7827,16 @@ function obslua.obs_scene_duplicate(scene, name, type) end
 
 --- Enumerates scene items within a scene.
 --- 
---- C definition: `void obs_scene_enum_items(obs_scene_t *scene, bool (*callback)(obs_scene_t*, obs_sceneitem_t*, void*), void *param)`
+--- :param scene: obs_scene_t object to enumerate items from.
+--- :return:      List of scene items.  Release with
+---               :py:func:`sceneitem_list_release()`.
+--- 
+--- C definition: Not available
 --- @param scene obs_scene
---- @param callback f_p_struct_obs_scene_p_struct_obs_scene_item_p_void__bool
---- @param param ref_void*
-function obslua.obs_scene_enum_items(scene, callback, param) end
+--- @param param2 f_p_struct_obs_scene_p_struct_obs_scene_item_p_void__bool
+--- @param param3 ref_void*
+--- @return unknown
+function obslua.obs_scene_enum_items(scene, param2, param3) end
 
 --- :param id: The unique numeric identifier of the scene item
 --- :return:   The scene item if found, otherwise *NULL* if not found
@@ -7916,8 +7934,8 @@ function obslua.obs_scene_insert_group(scene, name, items, count) end
 function obslua.obs_scene_insert_group2(scene, name, items, count, signal) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_scene
 function obslua.obs_scene_is_group(param1) end
 
@@ -7952,8 +7970,8 @@ function obslua.obs_scene_reorder_items2(scene, item_order, item_order_size) end
 function obslua.obs_sceneitem_addref(item) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_scene_item
 function obslua.obs_sceneitem_defer_group_resize_begin(param1) end
 
@@ -7985,8 +8003,8 @@ function obslua.obs_sceneitem_defer_update_begin(item) end
 function obslua.obs_sceneitem_defer_update_end(item) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_scene_item
 function obslua.obs_sceneitem_force_update_transform(param1) end
 
@@ -8044,8 +8062,8 @@ function obslua.obs_sceneitem_get_bounds_alignment(item) end
 function obslua.obs_sceneitem_get_bounds_type(item) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_scene_item
 --- @param param2 vec2
 function obslua.obs_sceneitem_get_box_scale(param1, param2) end
@@ -8238,15 +8256,15 @@ function obslua.obs_sceneitem_release(item) end
 function obslua.obs_sceneitem_remove(item) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_scene_item
 --- @param param2 boolean
 function obslua.obs_sceneitem_select(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_scene_item
 function obslua.obs_sceneitem_selected(param1) end
 
@@ -8441,8 +8459,8 @@ function obslua.obs_service_apply_encoder_settings(service, video_encoder_settin
 function obslua.obs_service_create(id, name, settings, hotkey_data) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 string
 --- @param param2 string
 --- @param param3 obs_data
@@ -8467,8 +8485,8 @@ function obslua.obs_service_defaults(id) end
 function obslua.obs_service_get_display_name(id) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_service
 function obslua.obs_service_get_id(param1) end
 
@@ -8487,8 +8505,8 @@ function obslua.obs_service_get_key(service) end
 function obslua.obs_service_get_name(service) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_service
 function obslua.obs_service_get_output_type(param1) end
 
@@ -8500,8 +8518,8 @@ function obslua.obs_service_get_output_type(param1) end
 function obslua.obs_service_get_password(service) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_service
 function obslua.obs_service_get_ref(param1) end
 
@@ -8513,14 +8531,14 @@ function obslua.obs_service_get_ref(param1) end
 function obslua.obs_service_get_settings(service) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_service
 function obslua.obs_service_get_type(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_service
 function obslua.obs_service_get_type_data(param1) end
 
@@ -8583,8 +8601,8 @@ function obslua.obs_service_update(service, settings) end
 function obslua.obs_set_audio_monitoring_device(name, id) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 number
 --- @param param2 p_char
 function obslua.obs_set_cmdline_args(param1, param2) end
@@ -8612,14 +8630,14 @@ function obslua.obs_set_master_volume(volume) end
 function obslua.obs_set_output_source(channel, source) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_data
 function obslua.obs_set_private_data(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 f_p_f_p_void__void_p_void_bool__void
 function obslua.obs_set_ui_task_handler(param1) end
 
@@ -8672,26 +8690,26 @@ function obslua.obs_source_add_audio_capture_callback(source, callback, param) e
 function obslua.obs_source_addref(source) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 function obslua.obs_source_async_decoupled(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 function obslua.obs_source_async_unbuffered(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 function obslua.obs_source_audio_active(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 function obslua.obs_source_audio_pending(param1) end
 
@@ -8761,8 +8779,8 @@ function obslua.obs_source_create(id, name, settings, hotkey_data) end
 function obslua.obs_source_create_private(id, name, settings) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 function obslua.obs_source_dec_active(param1) end
 
@@ -8931,35 +8949,35 @@ function obslua.obs_source_filter_remove(source, filter) end
 function obslua.obs_source_filter_set_order(source, filter, movement) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source_frame
 --- @param param2 obs_source_frame
 function obslua.obs_source_frame_copy(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 number
 --- @param param2 number
 --- @param param3 number
 function obslua.obs_source_frame_create(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source_frame
 function obslua.obs_source_frame_destroy(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source_frame
 function obslua.obs_source_frame_free(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source_frame
 --- @param param2 number
 --- @param param3 number
@@ -8967,8 +8985,8 @@ function obslua.obs_source_frame_free(param1) end
 function obslua.obs_source_frame_init(param1, param2, param3, param4) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 --- @param param2 obs_source_audio_mix
 function obslua.obs_source_get_audio_mix(param1, param2) end
@@ -8987,26 +9005,26 @@ function obslua.obs_source_get_audio_mix(param1, param2) end
 function obslua.obs_source_get_audio_mixers(source) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 function obslua.obs_source_get_audio_timestamp(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 function obslua.obs_source_get_balance_value(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 function obslua.obs_source_get_base_height(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 function obslua.obs_source_get_base_width(param1) end
 
@@ -9065,8 +9083,8 @@ function obslua.obs_source_get_filter_by_name(source, name) end
 function obslua.obs_source_get_flags(source) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 function obslua.obs_source_get_frame(param1) end
 
@@ -9086,8 +9104,8 @@ function obslua.obs_source_get_frame(param1) end
 function obslua.obs_source_get_height(source) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 string
 function obslua.obs_source_get_icon_type(param1) end
 
@@ -9099,14 +9117,14 @@ function obslua.obs_source_get_icon_type(param1) end
 function obslua.obs_source_get_id(source) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 function obslua.obs_source_get_last_obs_version(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 function obslua.obs_source_get_monitoring_type(param1) end
 
@@ -9160,8 +9178,8 @@ function obslua.obs_source_get_push_to_mute_delay(source) end
 function obslua.obs_source_get_push_to_talk_delay(source) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 function obslua.obs_source_get_ref(param1) end
 
@@ -9186,8 +9204,8 @@ function obslua.obs_source_get_settings(source) end
 function obslua.obs_source_get_signal_handler(source) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 function obslua.obs_source_get_speaker_layout(param1) end
 
@@ -9209,14 +9227,14 @@ function obslua.obs_source_get_sync_offset(source) end
 function obslua.obs_source_get_type(source) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 function obslua.obs_source_get_type_data(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 function obslua.obs_source_get_unversioned_id(param1) end
 
@@ -9253,8 +9271,8 @@ function obslua.obs_source_get_weak_source(source) end
 function obslua.obs_source_get_width(source) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 function obslua.obs_source_inc_active(param1) end
 
@@ -9266,82 +9284,82 @@ function obslua.obs_source_inc_active(param1) end
 function obslua.obs_source_inc_showing(source) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 function obslua.obs_source_is_group(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 function obslua.obs_source_load(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 function obslua.obs_source_media_ended(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 function obslua.obs_source_media_get_duration(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 function obslua.obs_source_media_get_state(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 function obslua.obs_source_media_get_time(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 function obslua.obs_source_media_next(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 --- @param param2 boolean
 function obslua.obs_source_media_play_pause(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 function obslua.obs_source_media_previous(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 function obslua.obs_source_media_restart(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 --- @param param2 number
 function obslua.obs_source_media_set_time(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 function obslua.obs_source_media_started(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 function obslua.obs_source_media_stop(param1) end
 
@@ -9408,8 +9426,8 @@ function obslua.obs_source_output_audio(source, audio) end
 function obslua.obs_source_output_video(source, frame) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 --- @param param2 obs_source_frame2
 function obslua.obs_source_output_video2(param1, param2) end
@@ -9423,8 +9441,8 @@ function obslua.obs_source_output_video2(param1, param2) end
 function obslua.obs_source_preload_video(source, frame) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 --- @param param2 obs_source_frame2
 function obslua.obs_source_preload_video2(param1, param2) end
@@ -9507,8 +9525,8 @@ function obslua.obs_source_push_to_talk_enabled(source) end
 function obslua.obs_source_release(source) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 --- @param param2 obs_source_frame
 function obslua.obs_source_release_frame(param1, param2) end
@@ -9553,8 +9571,8 @@ function obslua.obs_source_remove_audio_capture_callback(source, callback, param
 function obslua.obs_source_removed(source) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 function obslua.obs_source_save(param1) end
 
@@ -9606,8 +9624,8 @@ function obslua.obs_source_send_mouse_move(source, event, mouse_leave) end
 function obslua.obs_source_send_mouse_wheel(source, event, x_delta, y_delta) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 --- @param param2 boolean
 function obslua.obs_source_set_async_decoupled(param1, param2) end
@@ -9622,15 +9640,15 @@ function obslua.obs_source_set_async_decoupled(param1, param2) end
 function obslua.obs_source_set_async_rotation(source, rotation) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 --- @param param2 boolean
 function obslua.obs_source_set_async_unbuffered(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 --- @param param2 boolean
 function obslua.obs_source_set_audio_active(param1, param2) end
@@ -9649,15 +9667,15 @@ function obslua.obs_source_set_audio_active(param1, param2) end
 function obslua.obs_source_set_audio_mixers(source, mixers) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 --- @param param2 number
 function obslua.obs_source_set_balance_value(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 --- @param param2 number
 function obslua.obs_source_set_default_flags(param1, param2) end
@@ -9704,8 +9722,8 @@ function obslua.obs_source_set_enabled(source, enabled) end
 function obslua.obs_source_set_flags(source, flags) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 --- @param param2 number
 function obslua.obs_source_set_monitoring_type(param1, param2) end
@@ -9747,15 +9765,15 @@ function obslua.obs_source_set_push_to_talk_delay(source, delay) end
 function obslua.obs_source_set_sync_offset(source, offset) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 --- @param param2 obs_source_frame
 function obslua.obs_source_set_video_frame(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 --- @param param2 obs_source_frame2
 function obslua.obs_source_set_video_frame2(param1, param2) end
@@ -9880,8 +9898,8 @@ function obslua.obs_transition_enable_fixed(transition, enable, duration_ms) end
 function obslua.obs_transition_fixed(transition) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 function obslua.obs_transition_force_stop(param1) end
 
@@ -9946,8 +9964,8 @@ function obslua.obs_transition_get_source(transition, target) end
 function obslua.obs_transition_get_time(transition) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 --- @param param2 obs_source
 function obslua.obs_transition_set(param1, param2) end
@@ -9968,15 +9986,15 @@ function obslua.obs_transition_set(param1, param2) end
 function obslua.obs_transition_set_alignment(transition, alignment) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 --- @param param2 number
 function obslua.obs_transition_set_manual_time(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 --- @param param2 number
 --- @param param3 number
@@ -10078,14 +10096,16 @@ function obslua.obs_transition_swap_end(tr_dest, tr_source) end
 function obslua.obs_transition_video_render(transition, callback) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_source
 --- @param param2 number
 function obslua.obs_transition_video_render_direct(param1, param2) end
 
---- obs_video_active not found in OBS documentation nor C wrapper
-obslua.obs_video_active = function() end
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
+function obslua.obs_video_active() end
 
 --- Creates a video encoder with the specified settings.
 --- 
@@ -10110,31 +10130,33 @@ obslua.obs_video_active = function() end
 --- @return obs_encoder
 function obslua.obs_video_encoder_create(id, name, settings, hotkey_data) end
 
---- obs_view_create not found in OBS documentation nor C wrapper
-obslua.obs_view_create = function() end
+--- Not mentioned in OBS documentation
+---
+--- C definition: Not available
+function obslua.obs_view_create() end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_view
 function obslua.obs_view_destroy(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_view
 --- @param param2 number
 function obslua.obs_view_get_source(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_view
 function obslua.obs_view_render(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_view
 --- @param param2 number
 --- @param param3 obs_source
@@ -10157,8 +10179,8 @@ function obslua.obs_weak_encoder_addref(weak) end
 function obslua.obs_weak_encoder_get_encoder(weak) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_weak_encoder
 --- @param param2 obs_encoder
 function obslua.obs_weak_encoder_references_encoder(param1, param2) end
@@ -10186,8 +10208,8 @@ function obslua.obs_weak_output_addref(weak) end
 function obslua.obs_weak_output_get_output(weak) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_weak_output
 --- @param param2 obs_output
 function obslua.obs_weak_output_references_output(param1, param2) end
@@ -10215,8 +10237,8 @@ function obslua.obs_weak_service_addref(weak) end
 function obslua.obs_weak_service_get_service(weak) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_weak_service
 --- @param param2 obs_service
 function obslua.obs_weak_service_references_service(param1, param2) end
@@ -10244,8 +10266,8 @@ function obslua.obs_weak_source_addref(weak) end
 function obslua.obs_weak_source_get_source(weak) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 obs_weak_source
 --- @param param2 obs_source
 function obslua.obs_weak_source_references_source(param1, param2) end
@@ -10287,7 +10309,6 @@ function obslua.os_copyfile(file_in, file_out) end
 --- 
 --- C definition: `void                os_cpu_usage_info_destroy(os_cpu_usage_info_t *info)`
 --- @param info os_cpu_usage_info
---- @return 
 function obslua.os_cpu_usage_info_destroy(info) end
 
 --- Queries the current CPU usage.
@@ -10334,8 +10355,8 @@ function obslua.os_dlsym(module, func) end
 function obslua.os_dtostr(value, dst, size) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 ref_os_performance_token_t*
 function obslua.os_end_high_performance(param1) end
 
@@ -10362,8 +10383,8 @@ function obslua.os_file_exists(path) end
 function obslua.os_fopen(path, mode) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 FILE
 --- @param param2 p_char
 function obslua.os_fread_mbs(param1, param2) end
@@ -10435,8 +10456,8 @@ function obslua.os_get_config_path(dst, size, name) end
 function obslua.os_get_config_path_ptr(name) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 string
 function obslua.os_get_executable_path_ptr(param1) end
 
@@ -10448,8 +10469,8 @@ function obslua.os_get_executable_path_ptr(param1) end
 function obslua.os_get_file_size(path) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 string
 function obslua.os_get_free_disk_space(param1) end
 
@@ -10572,16 +10593,16 @@ function obslua.os_inhibit_sleep_destroy(info) end
 function obslua.os_inhibit_sleep_set_active(info, active) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 string
 --- @param param2 number
 --- @param param3 p_char
 function obslua.os_mbs_to_utf8_ptr(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 string
 --- @param param2 number
 --- @param param3 wchar_t
@@ -10589,8 +10610,8 @@ function obslua.os_mbs_to_utf8_ptr(param1, param2, param3) end
 function obslua.os_mbs_to_wcs(param1, param2, param3, param4) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 string
 --- @param param2 number
 --- @param param3 p_wchar_t
@@ -10618,8 +10639,8 @@ function obslua.os_mkdirs(path) end
 function obslua.os_opendir(path) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 string
 function obslua.os_quick_read_mbs_file(param1) end
 
@@ -10632,8 +10653,8 @@ function obslua.os_quick_read_mbs_file(param1) end
 function obslua.os_quick_read_utf8_file(path) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 string
 --- @param param2 string
 --- @param param3 number
@@ -10677,8 +10698,8 @@ function obslua.os_readdir(dir) end
 function obslua.os_rename(old_path, new_path) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 string
 function obslua.os_request_high_performance(param1) end
 
@@ -10726,8 +10747,8 @@ function obslua.os_strtod(str) end
 function obslua.os_unlink(path) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 string
 --- @param param2 number
 --- @param param3 p_char
@@ -10753,8 +10774,8 @@ function obslua.os_utf8_to_wcs(str, len, dst, dst_size) end
 function obslua.os_utf8_to_wcs_ptr(str, len, pstr) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 wchar_t
 --- @param param2 number
 --- @param param3 string
@@ -10762,8 +10783,8 @@ function obslua.os_utf8_to_wcs_ptr(str, len, pstr) end
 function obslua.os_wcs_to_mbs(param1, param2, param3, param4) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 wchar_t
 --- @param param2 number
 --- @param param3 p_char
@@ -10863,8 +10884,8 @@ function obslua.quat_add(dst, v1, v2) end
 function obslua.quat_addf(dst, v, f) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 quat
 --- @param param2 quat
 --- @param param3 number
@@ -10893,8 +10914,8 @@ function obslua.quat_copy(dst, v) end
 function obslua.quat_dist(v1, v2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 quat
 --- @param param2 quat
 --- @param param3 number
@@ -10913,8 +10934,8 @@ function obslua.quat_divf(param1, param2, param3) end
 function obslua.quat_dot(v1, v2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 quat
 --- @param param2 quat
 function obslua.quat_exp(param1, param2) end
@@ -10930,8 +10951,8 @@ function obslua.quat_exp(param1, param2) end
 function obslua.quat_from_axisang(dst, aa) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 quat
 --- @param param2 matrix3
 function obslua.quat_from_matrix3(param1, param2) end
@@ -11030,8 +11051,8 @@ function obslua.quat_inv(dst, v) end
 function obslua.quat_len(v) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 quat
 --- @param param2 quat
 function obslua.quat_log(param1, param2) end
@@ -11061,15 +11082,15 @@ function obslua.quat_mul(dst, v1, v2) end
 function obslua.quat_mulf(dst, v, f) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 quat
 --- @param param2 quat
 function obslua.quat_neg(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 quat
 --- @param param2 quat
 function obslua.quat_norm(param1, param2) end
@@ -11124,11 +11145,21 @@ function obslua.quat_sub(dst, v1, v2) end
 --- @param f number
 function obslua.quat_subf(dst, v, f) end
 
---- remove_current_callback not found in OBS documentation nor C wrapper
-obslua.remove_current_callback = function() end
+--- Removes the current callback being executed.  Does nothing if not
+--- within a callback.
+--- 
+--- C definition: Not available
+--- @return unknown
+function obslua.remove_current_callback() end
 
---- sceneitem_list_release not found in OBS documentation nor C wrapper
-obslua.sceneitem_list_release = function() end
+--- Releases the references of a scene item list.
+--- 
+--- :param item_list: Array of scene items to release.
+--- 
+--- C definition: Not available
+--- @param item_list unknown
+--- @return unknown
+function obslua.sceneitem_list_release(item_list) end
 
 --- script_log not found in OBS documentation nor C wrapper
 obslua.script_log = function() end
@@ -11156,21 +11187,38 @@ function obslua.signal_handler_add(handler, signal_decl) end
 --- @return boolean
 function obslua.signal_handler_add_array(handler, signal_decls) end
 
---- Connect a callback to a signal on a signal handler.
+--- Adds a callback to a specific signal on a signal handler.  This
+--- callback has one parameter:  the calldata_t object.
 --- 
---- :param handler:  Signal handler object
---- :param callback: Signal callback
---- :param data:     Private data passed the callback
+--- :param handler:  A signal_handler_t object.
+--- :param signal:   The signal on the signal handler (string)
+--- :param callback: The callback to connect to the signal.  Use
+---                  :py:func:`signal_handler_disconnect()` or
+---                  :py:func:`remove_current_callback()` to remove the
+---                  callback.
 --- 
---- C definition: `void signal_handler_connect(signal_handler_t *handler, const char *signal, signal_callback_t callback, void *data)`
---- @param handler signal_handler_t*
---- @param signal char*
---- @param callback signal_callback_t
---- @param data void*
-function obslua.signal_handler_connect(handler, signal, callback, data) end
+--- C definition: Not available
+--- @param handler unknown
+--- @param signal unknown
+--- @param callback unknown
+--- @return unknown
+function obslua.signal_handler_connect(handler, signal, callback) end
 
---- signal_handler_connect_global not found in OBS documentation nor C wrapper
-obslua.signal_handler_connect_global = function() end
+--- Adds a global callback to a signal handler.  This callback has two
+--- parameters:  the first parameter is the signal string, and the second
+--- parameter is the calldata_t object.
+--- 
+--- :param handler:  A signal_handler_t object.
+--- :param callback: The callback to connect.  Use
+---                  :py:func:`signal_handler_disconnect_global()` or
+---                  :py:func:`remove_current_callback()` to remove the
+---                  callback.
+--- 
+--- C definition: Not available
+--- @param handler unknown
+--- @param callback unknown
+--- @return unknown
+function obslua.signal_handler_connect_global(handler, callback) end
 
 --- Connect a callback to a signal on a signal handler, and increments
 --- the handler's internal reference counter, preventing it from being
@@ -11203,21 +11251,29 @@ function obslua.signal_handler_create() end
 --- @param handler signal_handler
 function obslua.signal_handler_destroy(handler) end
 
---- Disconnects a callback from a signal on a signal handler.
+--- Removes a callback from a specific signal of a signal handler.
 --- 
---- :param handler:  Signal handler object
---- :param callback: Signal callback
---- :param data:     Private data passed the callback
+--- :param handler:  A signal_handler_t object.
+--- :param signal:   The signal on the signal handler (string)
+--- :param callback: The callback to disconnect from the signal.
 --- 
---- C definition: `void signal_handler_disconnect(signal_handler_t *handler, const char *signal, signal_callback_t callback, void *data)`
---- @param handler signal_handler_t*
---- @param signal char*
---- @param callback signal_callback_t
---- @param data void*
-function obslua.signal_handler_disconnect(handler, signal, callback, data) end
+--- C definition: Not available
+--- @param handler unknown
+--- @param signal unknown
+--- @param callback unknown
+--- @return unknown
+function obslua.signal_handler_disconnect(handler, signal, callback) end
 
---- signal_handler_disconnect_global not found in OBS documentation nor C wrapper
-obslua.signal_handler_disconnect_global = function() end
+--- Removes a global callback from a signal handler.
+--- 
+--- :param handler:  A signal_handler_t object.
+--- :param callback: The callback to disconnect.
+--- 
+--- C definition: Not available
+--- @param handler unknown
+--- @param callback unknown
+--- @return unknown
+function obslua.signal_handler_disconnect_global(handler, callback) end
 
 --- Triggers a signal, calling all connected callbacks.
 --- 
@@ -11231,14 +11287,32 @@ obslua.signal_handler_disconnect_global = function() end
 --- @param params calldata
 function obslua.signal_handler_signal(handler, signal, params) end
 
---- source_list_release not found in OBS documentation nor C wrapper
-obslua.source_list_release = function() end
+--- Releases the references of a source list.
+--- 
+--- :param source_list: Array of sources to release.
+--- 
+--- C definition: Not available
+--- @param source_list unknown
+--- @return unknown
+function obslua.source_list_release(source_list) end
 
---- timer_add not found in OBS documentation nor C wrapper
-obslua.timer_add = function() end
+---  Adds an timer callback which triggers every *millseconds*.
+--- 
+--- C definition: Not available
+--- @param callback unknown
+--- @param milliseconds unknown
+--- @return unknown
+function obslua.timer_add(callback, milliseconds) end
 
---- timer_remove not found in OBS documentation nor C wrapper
-obslua.timer_remove = function() end
+---  Removes a timer callback.  (Note: You can also use
+---  :py:func:`remove_current_callback()` to terminate the timer from the
+---  timer callback)
+--- 
+--- Script Sources (Lua Only)
+--- C definition: Not available
+--- @param callback unknown
+--- @return unknown
+function obslua.timer_remove(callback) end
 
 --- Gets the absolute values of each component
 --- 
@@ -11716,16 +11790,16 @@ function obslua.vec3_min(dst, v, min_v) end
 function obslua.vec3_minf(dst, v, val) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 vec3
 --- @param param2 vec3
 --- @param param3 plane
 function obslua.vec3_mirror(param1, param2, param3) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 vec3
 --- @param param2 vec3
 --- @param param3 vec3
@@ -11776,8 +11850,8 @@ function obslua.vec3_neg(dst, v) end
 function obslua.vec3_norm(dst, v) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 vec3
 --- @param param2 plane
 function obslua.vec3_plane_dist(param1, param2) end
@@ -11854,8 +11928,8 @@ function obslua.vec3_subf(dst, v, f) end
 function obslua.vec3_transform(dst, v, m) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 vec3
 --- @param param2 vec3
 --- @param param3 matrix3
@@ -11995,15 +12069,15 @@ function obslua.vec4_dot(v1, v2) end
 function obslua.vec4_floor(dst, v) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 vec4
 --- @param param2 number
 function obslua.vec4_from_bgra(param1, param2) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 vec4
 --- @param param2 number
 function obslua.vec4_from_rgba(param1, param2) end
@@ -12161,14 +12235,14 @@ function obslua.vec4_sub(dst, v1, v2) end
 function obslua.vec4_subf(dst, v, f) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 vec4
 function obslua.vec4_to_bgra(param1) end
 
 --- Not mentioned in OBS documentation
---- 
---- C definition: Not available in OBS documentation
+---
+--- C definition: Not available
 --- @param param1 vec4
 function obslua.vec4_to_rgba(param1) end
 

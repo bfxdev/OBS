@@ -10,9 +10,9 @@ Various stuff running under OBS with the StreamFX plugin can be found in this re
 
 The Lua/Python scripting environment of OBS is very powerful but is lacking proper documentation. The API documentation of OBS describes the C structures and functions but not the exact way the bindings are implemented.
 
-[generate-obslua-globals.lua](generate-obslua-globals.lua) is a Lua script that generates a definition file **[obslua-globals.lua](obslua-globals.lua)** by parsing the OBS text documentation and a SWIG generated file.
+[generate-obslua-support-files.lua](generate-obslua-support-files.lua) is a Lua script that generates a documentation file **[obslua.html](obslua.html)** and a definition file **[obslua.lua](obslua.lua)** by parsing the OBS text documentation and a SWIG generated file.
 
-Its main purpose is to ease development in an IDE such as Visual Studio Code by providing functions such as auto-documentation and auto-completion. Use it in VS Code with [sumneko's Lua Language Server extension](https://marketplace.visualstudio.com/items?itemName=sumneko.lua). It relies on [EmmyLua-style annotations](https://emmylua.github.io).
+The main purpose of the Lua definition file is to ease development in an IDE such as Visual Studio Code by supporting contextual help by hovering and auto-completion. Use it in VS Code with [sumneko's Lua Language Server extension](https://marketplace.visualstudio.com/items?itemName=sumneko.lua). It relies on [EmmyLua-style annotations](https://emmylua.github.io).
 
 It is important to change the settings of the Lua Language Server extension such that, for VS Code:
 
@@ -21,7 +21,7 @@ It is important to change the settings of the Lua Language Server extension such
 
 ```JSON
 "Lua.workspace.library": {
-        ".../obslua-globals.lua": true
+        ".../obslua.lua": true
     },
 ```
 
@@ -30,7 +30,6 @@ It is important to change the settings of the Lua Language Server extension such
 Auto-completion looks like this:
 
 ![auto-completion](pics/auto-completion.gif)
-
 
 ## Usage of the shaders in StreamFX
 
@@ -92,6 +91,7 @@ It is possible to convert the source picture to a *gray scale* (based on classic
 ![Gray scale](pics/apple-mode-2-gray-scale.png)
 
 The parameter *pixel size* can be used to re-fine the resolution:
+
 - 0: Exact scaled resolution of the CPC. ATTENTION: even if this pixel size mimics perfectly the CPC resolution, it leads to aliasing effects if the resolution of the source is to low. For better results it is recommended to increase the filter resolution to e.g. 500% or force it to 768x544.
 - 1: Uses the resolution of the source (if the filter resolution is set to 100%), or the resolution of the filter
 - 2 - 8: Same as 1 but uses blocks of 2x2 pixels if set to 2, 3x3 if set to 3, etc
@@ -111,6 +111,7 @@ Using false colors which are more or less similar to the original colors can giv
 ![Blue shade](pics/apple-mode-1-blue-shade.png)
 
 The complete palette of the Amstrad CPC contains 27 colors. Three slightly different variants of the palette are available to reproduce the electrical signal levels transmitted to the CRT (see [the grimware page](https://www.grimware.org/doku.php/documentations/devices/gatearray)):
+
 - Original Gate Array
 - ASIC embedding the Gate Array (last CPC generation)
 - Theoretically perfect signals
@@ -118,6 +119,7 @@ The complete palette of the Amstrad CPC contains 27 colors. Three slightly diffe
 ### Dithering
 
 A common [dithering algorithm](https://en.wikipedia.org/wiki/Dither) is used. The processing on each pixel can be described as:
+
 - Adds a small error value to color of the current pixel, value which is extracted from the *dithering matrix* wrapped using a modulo on the position of the pixel
 - Finds the closest color, from the selected inks, to this color with error
 
@@ -131,8 +133,8 @@ On the contrary, a high spread value mixes the pixels of all colors, reducing th
 
 ![Low spread](pics/apple-mode-1-high-spread.png)
 
-
 Several matrices are available, either based on a Bayer matrix or on a spiral-dot pattern:
+
 - 1: 2x2 Bayer
 - 2: 4x4 Bayer
 - 3: 8x8 Bayer
@@ -155,7 +157,6 @@ The transparency level of each ink and the border can be set:
 
 ![Transparency](pics/apple-mode-1-transparent.png)
 
-
 ### Outline
 
 An outline based on edge detection on luminance can be drawn. It is set using a *threshold* that determines if the outline must be drawn and a *mix* factor that controls the mix between the *outline color* and the color that would be displayed without outline. The purpose of the mix factor is to draw colored outlines (the outline only darkens the original color on the edges).
@@ -164,13 +165,11 @@ Adapt both parameters to achieve the desired result, depending on the context, h
 
 ![Transparency](pics/apple-mode-1-edges.png)
 
-
 ### Use for streaming
 
 You're of course welcome to use it on Twitch or wherever you want to. The shader is often used by PifLyon on the Twitch canal [Noix De Croco](https://www.twitch.tv/noixdecroco).
 
 ![Cedric](pics/cedric-oh-502x285.jpg)
-
 
 ## Large message scroll with Amstrad CPC font for StreamFX
 
@@ -180,10 +179,8 @@ The purpose of [cpc-scroll.effect](cpc-scroll.effect) is to display a text with 
 
 With the current setting the messages scrolls horizontally. Few input parameters are available. Modify the shader directly to fullfil your needs.
 
-
 ## Port of Starfield effect ShaderToy XtjcW3
 
 The file [shadertoy-XtjcW3.effect](shadertoy-XtjcW3.effect) is a port of a [starfield animation on ShaderToy](https://www.shadertoy.com/view/XtjcW3). Many parameters were deduced and added by PifLyon, creator of [Anceder and Noix De Croco](http://www.noixdecroco.com).
 
 ![Starfield](pics/starfield.png)
-
