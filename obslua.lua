@@ -29,7 +29,7 @@ function newproxy(param) end
 
 --- OBS function that returns the path of the folder of the current script
 --- @return string
-function script_path()
+function script_path() end
 
 --- SWIG function - Not documented
 function swig_equals() end
@@ -38,7 +38,7 @@ function swig_equals() end
 function swig_type(obj) end
 
 --- Main obslua module
-local obslua = {}
+obslua = {}
 
 -- Constants
 obslua.ARCH_BITS = 32

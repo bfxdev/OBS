@@ -287,7 +287,7 @@ end
 --- You would typically call Default Value Functions on the settings in order to set its default values.
 --- A default value will create the related setting if not already existing, then passed to the first `script_load`
 --- The parameter `settings` is of type `obs_data_t`, see https://obsproject.com/docs/reference-settings.html
---- @param settings obs_data_t
+--- @param settings obs_data
 function script_defaults(settings)
   log_debug("Entering script_defaults")
   
@@ -774,7 +774,7 @@ source_info.create = function(settings, source)
   -- Inits filter data object (arbitrary data structure used to keep own data between calls)
   data = {}
   
-  -- Defalut resolution values (potentially used before rendering, just in case)
+  -- Default resolution values (potentially used before rendering, just in case)
   data.width = 320
   data.height = 200
   
@@ -916,48 +916,3 @@ source_info.filter_remove = function(data, source)
   log_debug("Entering source_info.filter_remove")
   log_debug("Leaving source_info.filter_remove")
 end
-
-
-
---[[
-
-function hex_dump(buf)
-  local res = ""
-  for i = 1,string.len(buf) do
-    res = res .. string.format( "%02x ", string.byte(buf, i))
-  end
-  return res
-end
-]]
-
-print("Building table")
-local w=128
-local h=128
-local t = {}
-for i=0,(w*h-1) do table.insert(t, 0xFF000000 + i) end
-
-print("Building LUT")
-local url = encode_bitmap_as_URL(w,h,t)
-print("Finished LUT")
-
---local bmp = encode_bitmap(3,2,{0xFF0000FF, 0xFFFFFFFF, 0xFFFF0000, 0x7F0000FF, 0x7FFFFFFF, 0x7FFF0000})
---print("------------- TEST encode --->" .. bmp .. "<-------")
-
--- Proof of concept: creates texture
-obslua.obs_enter_graphics()
-local tex = obslua.gs_texture_create_from_file(url)
-if tex ~= nil then
-  print("Texture created width=" .. tostring(obslua.gs_texture_get_width(tex)) .. " height=" .. tostring(obslua.gs_texture_get_height(tex)))
-  obslua.gs_texture_destroy(tex)
-else
-  print("ERROR: texture not created--------------------")
-end
-obslua.obs_leave_graphics()
-
-local image = obslua.gs_image_file()
-print("swig_type(image) " .. swig_type(image))
-obslua.gs_image_file_init(image, url)
-print("swig_type(image) " .. swig_type(image))
-print("size " .. tostring(image.cx) .. "," .. tostring(image.cy))
-
-
