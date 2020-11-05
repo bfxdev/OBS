@@ -31,6 +31,16 @@ Auto-completion looks like this:
 
 ![auto-completion](pics/auto-completion.gif)
 
+## Tips and tricks examples
+
+[tips-and-tricks.lua](tips-and-tricks.lua)  provides some examples as described on the [OBS Forum post Tips and tricks for Lua scripts](https://obsproject.com/forum/threads/tips-and-tricks-for-lua-scripts.132256).
+
+Among others, it shows how to refresh properties depending on changes in other properties:
+![visibility](pics/visibility.gif)
+
+It shows as well HTML-based formatting of the description (including pictures), and HTML-based picture preview:
+![preview](pics/picture-in-property-description.gif)
+
 ## Usage of the shaders in StreamFX
 
 For the shaders running under StreamFX, obviously the first step is to install StreamFX in OBS if not already done:
