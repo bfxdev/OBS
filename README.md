@@ -41,6 +41,12 @@ Among others, it shows how to refresh properties depending on changes in other p
 It shows as well HTML-based formatting of the description (including pictures), and HTML-based picture preview:
 ![preview](pics/picture-in-property-description.gif)
 
+## Texture Skin filter
+
+[filter-texture-skin.lua](filter-texture-skin.lua) Lua script for OBS selects a particular set of colors according to HSV intervals and replaces it with a texture:
+
+![filter-texture-skin](pics/texture-skin.png)
+
 ## Usage of the shaders in StreamFX
 
 For the shaders running under StreamFX, obviously the first step is to install StreamFX in OBS if not already done:
