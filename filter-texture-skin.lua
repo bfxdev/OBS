@@ -101,7 +101,6 @@ end
 --- You would typically call Default Value Functions on the settings in order to set its default values.
 --- A default value will create the related setting if not already existing, then passed to the first `script_load`
 --- The parameter `settings` is of type `obs_data_t`, see https://obsproject.com/docs/reference-settings.html
---- @param settings obs_data
 function script_defaults(settings)
   log_debug("Entering script_defaults")
   
@@ -287,7 +286,7 @@ EFFECT_DEFAULT = [[
       float edge_angle = 0;
       int i;
       if (outline_mode>0)
-        for(i=0; i<MAX_ITERRATIONS && edge_radius<outline_size && !edge_found; i++)
+        [loop] for(i=0; i<MAX_ITERRATIONS && edge_radius<outline_size && !edge_found; i++)
         {
           // Scans in a spiral around detected point for edges of detected zone
           edge_angle = i*2.0*PI/9.6;
@@ -300,7 +299,7 @@ EFFECT_DEFAULT = [[
       float2 edge_distance = {0.0, 0.0};
       bool edge_x_found = false, edge_y_found = false;
       if (effect_mode>=3)
-        for(i=1; i<MAX_ITERRATIONS && i<texture_scan_size && !edge_x_found && !edge_y_found; i++)
+        [loop] for(i=1; i<MAX_ITERRATIONS && i<texture_scan_size && !edge_x_found && !edge_y_found; i++)
         {
           // Scans in a line for edge of detected zone in X direction
           if (!edge_x_found)
@@ -541,7 +540,7 @@ source_info.create = function(settings, source)
   log_debug("effect_file_path:", effect_file_path)
   data.effect = obslua.gs_effect_create_from_file(effect_file_path, nil)
   if data.effect == nil then
-    log_error("No compilation of development effect file, reverting to internal effect")
+    log_info("Using effect HLSL code embedded in Lua script")
     data.effect = obslua.gs_effect_create(EFFECT_DEFAULT, "default", nil)
   end
   obslua.obs_leave_graphics()

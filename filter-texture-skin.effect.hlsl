@@ -116,7 +116,7 @@ float4 pixel_shader_texture_skin(shader_data cur) : TARGET
     float edge_angle = 0;
     int i;
     if (outline_mode>0)
-      for(i=0; i<MAX_ITERRATIONS && edge_radius<outline_size && !edge_found; i++)
+      [loop] for(i=0; i<MAX_ITERRATIONS && edge_radius<outline_size && !edge_found; i++)
       {
         // Scans in a spiral around detected point for edges of detected zone
         edge_angle = i*2.0*PI/9.6;
@@ -129,7 +129,7 @@ float4 pixel_shader_texture_skin(shader_data cur) : TARGET
     float2 edge_distance = {0.0, 0.0};
     bool edge_x_found = false, edge_y_found = false;
     if (effect_mode>=3)
-      for(i=1; i<MAX_ITERRATIONS && i<texture_scan_size && !edge_x_found && !edge_y_found; i++)
+      [loop] for(i=1; i<MAX_ITERRATIONS && i<texture_scan_size && !edge_x_found && !edge_y_found; i++)
       {
         // Scans in a line for edge of detected zone in X direction
         if (!edge_x_found)
