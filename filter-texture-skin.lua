@@ -177,9 +177,16 @@ EFFECT_DEFAULT = [[
   uniform float width = 320.0;
   uniform float height = 200.0;
   
-  // Base color values to be detected
-  //uniform float4 detection_color = {0.831, 0.553, 0.478, 0.0};
-
+  // Constants
+  #define PI 3.14159265
+  #define MAX_ITERRATIONS 50
+  
+  // Time
+  uniform float time = 0.0;
+  
+  // Opacity (alpha) of original picture (non-detected parts)
+  uniform float unprocessed_alpha = 0.5;
+  
   // HSV thresholds
   uniform float hue_min = 0.0;
   uniform float hue_max = 1.0;
@@ -187,13 +194,27 @@ EFFECT_DEFAULT = [[
   uniform float saturation_max = 1.0;
   uniform float value_min = 0.0;
   uniform float value_max = 1.0;
-
-  // Texture containing the skin replacement
+  
+  // Outline mode 0:nothing, 1: Solid color, 2: Smooth
+  uniform int outline_mode = 2;
+  uniform float4 outline_color = {1.0, 0.1, 0.1, 1.0};
+  uniform float outline_size = 2.0;
+  uniform float outline_color_mix_ratio = 1.0;
+  
+  // Effect mode 0:nothing, 1: Jiggle, 2: Texture flat static, 3: Texture rounded static, 4: Texture rounded moving
+  uniform int effect_mode = 2;
+  
+  // Deformation
+  uniform float jiggle_radius = 20.0;
+  uniform float jiggle_speed = 3.0;
+  
+  // Texture for skin replacement
   uniform texture2d texture_data;
-  uniform int texture_size_x = 1;
-  uniform int texture_size_y = 1;
+  uniform int texture_width = 1;
+  uniform int texture_height = 1;
   uniform float texture_scale = 1.0;
-
+  uniform int texture_scan_size = 1.0;
+  
    // Helper structure used as input/output of the vertex shader and as input of the pixel shader
   struct shader_data
   {
@@ -210,14 +231,22 @@ EFFECT_DEFAULT = [[
     Filter    = Linear;
     //BorderColor = 00000000;
   };
-
+  
+  sampler_state linear_clamp
+  {
+    AddressU  = Clamp;
+    AddressV  = Clamp;
+    Filter    = Linear;
+    //BorderColor = 00000000;
+  };
+  
   // RGB to HSV, ranges [0, 1]
   float3 rgb2hsv(float3 c)
   {
     float4 K = float4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
     float4 p = lerp(float4(c.bg, K.wz), float4(c.gb, K.xy), step(c.b, c.g));
     float4 q = lerp(float4(p.xyw, c.r), float4(c.r, p.yzx), step(p.x, c.r));
-
+  
     float d = q.x - min(q.w, q.y);
     float e = 1.0e-10;
     return float3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
@@ -232,26 +261,113 @@ EFFECT_DEFAULT = [[
     res.uv  = cur.uv;
     return res;
   }
-
+  
+  // Returns true if the given RGBA is in HSV ranges
+  bool detected(float4 rgba)
+  {
+    float3 hsv = rgb2hsv(rgba.rgb);
+    return ((hue_min        <= hsv.x && hsv.x <= hue_max && hue_min<hue_max) || 
+            (hue_max        <= hsv.x && hsv.x <= hue_min && hue_max<hue_min)) &&
+             saturation_min <= hsv.y && hsv.y <= saturation_max &&
+             value_min      <= hsv.z && hsv.z <= value_max;
+  }
+  
   // Pixel shader to map texture on pixels with particular HSV levels
   float4 pixel_shader_texture_skin(shader_data cur) : TARGET
   {
     // Gets current pixel color and transforms it to HSV
     float4 smp = image.Sample(linear_wrap, cur.uv);
-    float3 hsv = rgb2hsv(smp.rgb);
-
+  
     // Detects if color is in detection range
-    if (hue_min        <= hsv.x && hsv.x <= hue_max &&
-        saturation_min <= hsv.y && hsv.y <= saturation_max &&
-        value_min      <= hsv.z && hsv.z <= value_max)
+    if (detected(smp))
     {
-      // Gets RGBA pixel from texture (using texture wrap from sampler settings)
-      float2 tsize = float2(texture_size_x, texture_size_y);
-      float2 tpos = texture_scale*float2(cur.uv)*float2(width, height)/tsize;
-      smp.rgba = texture_data.Sample(linear_wrap, tpos);
+      // Searches closest edge
+      bool edge_found = false;
+      float edge_radius = 0;
+      float edge_angle = 0;
+      int i;
+      if (outline_mode>0)
+        for(i=0; i<MAX_ITERRATIONS && edge_radius<outline_size && !edge_found; i++)
+        {
+          // Scans in a spiral around detected point for edges of detected zone
+          edge_angle = i*2.0*PI/9.6;
+          edge_radius = edge_angle/(2.0*PI);
+          float2 posuv = cur.uv + float2(edge_radius*cos(edge_angle)/width, edge_radius*sin(edge_angle)/height);
+          edge_found = !detected(image.Sample(linear_clamp, posuv));
+        }
+  
+      // Searches closest edges in X and Y for shape-shifting
+      float2 edge_distance = {0.0, 0.0};
+      bool edge_x_found = false, edge_y_found = false;
+      if (effect_mode>=3)
+        for(i=1; i<MAX_ITERRATIONS && i<texture_scan_size && !edge_x_found && !edge_y_found; i++)
+        {
+          // Scans in a line for edge of detected zone in X direction
+          if (!edge_x_found)
+            if (!detected(image.Sample(linear_clamp, cur.uv + float2(i/width, 0.0))))
+              {edge_distance.x = texture_scan_size-i; edge_x_found=true;}
+            else if (!detected(image.Sample(linear_clamp, cur.uv + float2(-i/width, 0.0))))
+              {edge_distance.x = i-texture_scan_size; edge_x_found=true;}
+  
+          // Scans in a line for edge of detected zone in Y direction
+          if (!edge_y_found)
+            if (!detected(image.Sample(linear_clamp, cur.uv + float2(0.0, i/height))))
+              {edge_distance.y = texture_scan_size-i; edge_y_found=true;}
+            else if (!detected(image.Sample(linear_clamp, cur.uv + float2(0.0, -i/height))))
+              {edge_distance.y = i-texture_scan_size; edge_y_found=true;}
+        }
+      
+  
+      // Returns outline color if boundary found
+      float4 original_smp = smp;
+      if (outline_mode==1 && edge_found)
+      {
+        smp = lerp(smp, outline_color, outline_color_mix_ratio);
+      }
+      // Jiggle
+      else if(effect_mode==1)
+      {
+        float angle = time*jiggle_speed;
+        float radius = jiggle_radius*cos(angle*4.32123);
+        float2 posuv = cur.uv + float2(radius*cos(angle)/width, radius*sin(angle)/height);
+        smp = image.Sample(linear_clamp, posuv);
+      }
+      // Texture
+      else if (effect_mode>=2)
+      {
+        // Pixel position in texture relative to current position with wrap (in sampler settings)
+        float2 pos = cur.uv*float2(width, height);
+  
+        // Texture rounded
+        if (effect_mode>=3)
+        {
+          float2 ratio = edge_distance/texture_scan_size;
+          float2 offset = sign(edge_distance)*(exp(4.0*abs(ratio))-1.0);
+  
+          if (effect_mode==4)
+          {
+            // If edge was detected, starts texture from edge (moving with edge)
+            if (edge_x_found) pos.x = offset.x;
+            if (edge_y_found) pos.y = offset.y;
+          }
+          else
+            // Rounds texture when edge is near
+            pos += offset;
+        }
+  
+        smp = texture_data.Sample(linear_wrap, pos / float2(texture_width, texture_height) / texture_scale);
+      }
+  
+  
+      // Smooth
+      if (outline_mode==2 && edge_found)
+        smp = lerp(lerp(original_smp, smp, edge_radius/outline_size), outline_color,
+                        outline_color_mix_ratio*(1.0-abs(2.0*edge_radius/outline_size-1.0)));
     }
-
-    return smp.rgba;
+    else
+      smp.a *= unprocessed_alpha;
+  
+    return smp;
   }
   
   technique Draw
@@ -292,7 +408,7 @@ end
 -- and the default preset is set to a non-customized one
 source_info.get_defaults = function(settings)
   log_debug("Entering source_info.get_defaults")
-  
+
   -- Sets default values for parameters
   --obslua.obs_data_set_default_int(settings, "detection_color", 0xfff1baa7)
   obslua.obs_data_set_default_double(settings, "hue_min", 0.0)
@@ -301,12 +417,43 @@ source_info.get_defaults = function(settings)
   obslua.obs_data_set_default_double(settings, "saturation_max", 0.5)
   obslua.obs_data_set_default_double(settings, "value_min", 0.5)
   obslua.obs_data_set_default_double(settings, "value_max", 1.0)
+
+  obslua.obs_data_set_default_double(settings, "unprocessed_alpha", 1.0)
+
+  obslua.obs_data_set_default_int(settings, "outline_mode", 1)
+  obslua.obs_data_set_default_double(settings, "outline_size", 4.0)
+  obslua.obs_data_set_default_int(settings, "outline_color", 0xff000000)
+  obslua.obs_data_set_default_double(settings, "outline_color_mix_ratio", 0.5)
+
+  obslua.obs_data_set_default_int(settings, "effect_mode", 1)
+  obslua.obs_data_set_default_double(settings, "jiggle_radius", 20.0)
+  obslua.obs_data_set_default_double(settings, "jiggle_speed", 3.0)
   obslua.obs_data_set_default_string(settings, "texture_path", "")
   obslua.obs_data_set_default_double(settings, "texture_scale", 1.0)
+  obslua.obs_data_set_default_int(settings, "texture_scan_size", 20)
 
   log_debug("Leaving source_info.get_defaults\n")
 end
 
+function set_properties_visibility(props, property, settings)
+
+  local effect_mode = obslua.obs_data_get_int(settings, "effect_mode")
+  local outline_mode = obslua.obs_data_get_int(settings, "outline_mode")
+  log_debug("in set_properties_visibility with effect_mode=" .. effect_mode)
+
+  obslua.obs_property_set_visible(obslua.obs_properties_get(props, "outline_size"), outline_mode>0)
+  obslua.obs_property_set_visible(obslua.obs_properties_get(props, "outline_color"), outline_mode>=1)
+  obslua.obs_property_set_visible(obslua.obs_properties_get(props, "outline_color_mix_ratio"), outline_mode>=1)
+
+  obslua.obs_property_set_visible(obslua.obs_properties_get(props, "jiggle_speed"), effect_mode==1)
+  obslua.obs_property_set_visible(obslua.obs_properties_get(props, "jiggle_radius"), effect_mode==1)
+
+  obslua.obs_property_set_visible(obslua.obs_properties_get(props, "texture_path"), effect_mode>=2)
+  obslua.obs_property_set_visible(obslua.obs_properties_get(props, "texture_scale"), effect_mode>=2)
+  obslua.obs_property_set_visible(obslua.obs_properties_get(props, "texture_scan_size"), effect_mode>=3)
+
+  return true
+end
 
 -- Gets the property information of this source (Optional)
 source_info.get_properties = function(data)
@@ -316,17 +463,49 @@ source_info.get_properties = function(data)
   local props = obslua.obs_properties_create()
   data.props = props
 
-  -- Texture selection
-  -- obslua.obs_properties_add_color(props, "detection_color", "Color to detect")
+  -- Color detection
   obslua.obs_properties_add_float_slider(props, "hue_min", "Hue min", 0.0, 1.0, 0.001)
   obslua.obs_properties_add_float_slider(props, "hue_max", "Hue max", 0.0, 1.0, 0.001)
   obslua.obs_properties_add_float_slider(props, "saturation_min", "Saturation min", 0.0, 1.0, 0.01)
   obslua.obs_properties_add_float_slider(props, "saturation_max", "Saturation max", 0.0, 1.0, 0.01)
   obslua.obs_properties_add_float_slider(props, "value_min", "Value min", 0.0, 1.0, 0.01)
   obslua.obs_properties_add_float_slider(props, "value_max", "Value max", 0.0, 1.0, 0.01)
+
+  -- Original blending
+  obslua.obs_properties_add_float_slider(props, "unprocessed_alpha", "Alpha of unprocessed part", 0.0, 1.0, 0.1)
+
+  -- Outline mode
+  local p = obslua.obs_properties_add_list(props, "outline_mode", "Outline mode",
+        obslua.OBS_COMBO_TYPE_LIST, obslua.OBS_COMBO_FORMAT_INT)
+  obslua.obs_property_list_add_int(p, "No outline", 0)
+  obslua.obs_property_list_add_int(p, "Solid color", 1)
+  obslua.obs_property_list_add_int(p, "Smooth", 2)
+  obslua.obs_property_set_modified_callback(p, set_properties_visibility)
+
+  -- Outline parameters
+  obslua.obs_properties_add_float_slider(props, "outline_size", "Outline size", 1.0, 5.0, 0.5)
+  obslua.obs_properties_add_color(props, "outline_color", "Outline color")
+  obslua.obs_properties_add_float_slider(props, "outline_color_mix_ratio", "Outline color mix", 0.0, 1.0, 0.1)
+
+  -- Effect mode
+  p = obslua.obs_properties_add_list(props, "effect_mode", "Effect mode",
+        obslua.OBS_COMBO_TYPE_LIST, obslua.OBS_COMBO_FORMAT_INT)
+  obslua.obs_property_list_add_int(p, "No effect", 0)
+  obslua.obs_property_list_add_int(p, "Jiggle", 1)
+  obslua.obs_property_list_add_int(p, "Texture flat static", 2)
+  obslua.obs_property_list_add_int(p, "Texture rounded static", 3)
+  obslua.obs_property_list_add_int(p, "Texture rounded moving", 4)
+  obslua.obs_property_set_modified_callback(p, set_properties_visibility)
+
+  -- Jiggle parameters
+  obslua.obs_properties_add_float_slider(props, "jiggle_radius", "Jiggle radius", 0.0, 30.0, 0.1)
+  obslua.obs_properties_add_float_slider(props, "jiggle_speed", "Jiggle speed", 0.0, 10.0, 0.1)
+
+  -- Texture parameters
   obslua.obs_properties_add_path(props, "texture_path", "Texture path", obslua.OBS_PATH_FILE,
     "Picture (*.png *.bmp *.jpg *.gif)", nil)
   obslua.obs_properties_add_float_slider(props, "texture_scale", "Texture scale", 0.01, 10.0, 0.01)
+  obslua.obs_properties_add_int_slider(props, "texture_scan_size", "Texture scan size", 1, 50, 1)
   
   log_debug("Leaving source_info.get_properties\n")
   return props
@@ -358,30 +537,50 @@ source_info.create = function(settings, source)
   
   -- Compiles shader
   obslua.obs_enter_graphics()
-  data.effect = obslua.gs_effect_create(EFFECT_DEFAULT, "default", nil)
+  local effect_file_path = script_path() .. 'filter-texture-skin.effect.hlsl'
+  log_debug("effect_file_path:", effect_file_path)
+  data.effect = obslua.gs_effect_create_from_file(effect_file_path, nil)
+  if data.effect == nil then
+    log_error("No compilation of development effect file, reverting to internal effect")
+    data.effect = obslua.gs_effect_create(EFFECT_DEFAULT, "default", nil)
+  end
   obslua.obs_leave_graphics()
-  
+
   -- Destroys everything if shader was not compiled properly
   if data.effect == nil then
     log_error("Effect could not be compiled")
     source_info.destroy(data)
     return nil
   end
-  
+
   -- Retrieves the shader uniform variables
   data.params = {}
+  data.params.width = obslua.gs_effect_get_param_by_name(data.effect, "width")
+  data.params.height = obslua.gs_effect_get_param_by_name(data.effect, "height")
+  data.params.time = obslua.gs_effect_get_param_by_name(data.effect, "time")
+
   data.params.hue_min = obslua.gs_effect_get_param_by_name(data.effect, "hue_min")
   data.params.hue_max = obslua.gs_effect_get_param_by_name(data.effect, "hue_max")
   data.params.saturation_min = obslua.gs_effect_get_param_by_name(data.effect, "saturation_min")
   data.params.saturation_max = obslua.gs_effect_get_param_by_name(data.effect, "saturation_max")
   data.params.value_min = obslua.gs_effect_get_param_by_name(data.effect, "value_min")
   data.params.value_max = obslua.gs_effect_get_param_by_name(data.effect, "value_max")
+
+  data.params.unprocessed_alpha = obslua.gs_effect_get_param_by_name(data.effect, "unprocessed_alpha")
+
+  data.params.outline_mode = obslua.gs_effect_get_param_by_name(data.effect, "outline_mode")
+  data.params.outline_size = obslua.gs_effect_get_param_by_name(data.effect, "outline_size")
+  data.params.outline_color = obslua.gs_effect_get_param_by_name(data.effect, "outline_color")
+  data.params.outline_color_mix_ratio = obslua.gs_effect_get_param_by_name(data.effect, "outline_color_mix_ratio")
+
+  data.params.effect_mode = obslua.gs_effect_get_param_by_name(data.effect, "effect_mode")
+  data.params.jiggle_radius = obslua.gs_effect_get_param_by_name(data.effect, "jiggle_radius")
+  data.params.jiggle_speed = obslua.gs_effect_get_param_by_name(data.effect, "jiggle_speed")
   data.params.texture_data = obslua.gs_effect_get_param_by_name(data.effect, "texture_data")
-  data.params.texture_size_x = obslua.gs_effect_get_param_by_name(data.effect, "texture_size_x")
-  data.params.texture_size_y = obslua.gs_effect_get_param_by_name(data.effect, "texture_size_y")
+  data.params.texture_width = obslua.gs_effect_get_param_by_name(data.effect, "texture_width")
+  data.params.texture_height = obslua.gs_effect_get_param_by_name(data.effect, "texture_height")
   data.params.texture_scale = obslua.gs_effect_get_param_by_name(data.effect, "texture_scale")
-  data.params.width = obslua.gs_effect_get_param_by_name(data.effect, "width")
-  data.params.height = obslua.gs_effect_get_param_by_name(data.effect, "height")
+  data.params.texture_scan_size = obslua.gs_effect_get_param_by_name(data.effect, "texture_scan_size")
 
   -- Calls update to initialize the rest of the properties-managed settings
   source_info.update(data, settings)
@@ -422,15 +621,30 @@ source_info.update = function(data, settings)
   end
 
   -- Prepares other parameters in data
-  -- data.detection_color = obslua.obs_data_get_double(settings, "detection_color")
   data.hue_min = obslua.obs_data_get_double(settings, "hue_min")
   data.hue_max = obslua.obs_data_get_double(settings, "hue_max")
   data.saturation_min = obslua.obs_data_get_double(settings, "saturation_min")
   data.saturation_max = obslua.obs_data_get_double(settings, "saturation_max")
   data.value_min = obslua.obs_data_get_double(settings, "value_min")
   data.value_max = obslua.obs_data_get_double(settings, "value_max")
+
+  data.unprocessed_alpha = obslua.obs_data_get_double(settings, "unprocessed_alpha")
+
+  data.outline_mode = obslua.obs_data_get_int(settings, "outline_mode")
+  data.outline_size = obslua.obs_data_get_double(settings, "outline_size")
+  local c = obslua.obs_data_get_int(settings, "outline_color")
+  data.outline_color = 0xff000000 + (c%256)*65536 + (math.floor(c/256)%256)*256 + (math.floor(c/65536)%256)
+  data.outline_color_mix_ratio = obslua.obs_data_get_double(settings, "outline_color_mix_ratio")
+
+  data.effect_mode = obslua.obs_data_get_int(settings, "effect_mode")
+  data.jiggle_radius = obslua.obs_data_get_double(settings, "jiggle_radius")
+  data.jiggle_speed = obslua.obs_data_get_double(settings, "jiggle_speed")
   data.texture_scale = obslua.obs_data_get_double(settings, "texture_scale")
-  
+  data.texture_scan_size = obslua.obs_data_get_int(settings, "texture_scan_size")
+
+  log_debug("Effect mode: " .. tostring(data.effect_mode))
+  log_debug("Outline mode: " .. tostring(data.outline_mode))
+
   log_debug("Leaving source_info.update\n")
 end
 
@@ -460,6 +674,9 @@ source_info.video_render = function(data)
   obslua.gs_effect_set_float(data.params.width, data.width)
   obslua.gs_effect_set_float(data.params.height, data.height)
 
+  -- Time
+  obslua.gs_effect_set_float(data.params.time, obslua.os_gettime_ns()/1e9)
+
   -- HSV thresholds
   obslua.gs_effect_set_float(data.params.hue_min, data.hue_min)
   obslua.gs_effect_set_float(data.params.hue_max, data.hue_max)
@@ -468,13 +685,30 @@ source_info.video_render = function(data)
   obslua.gs_effect_set_float(data.params.value_min, data.value_min)
   obslua.gs_effect_set_float(data.params.value_max, data.value_max)
 
+  -- original blend
+  obslua.gs_effect_set_float(data.params.unprocessed_alpha, data.unprocessed_alpha)
+
+  -- Outline
+  obslua.gs_effect_set_int(data.params.outline_mode, data.outline_mode)
+  obslua.gs_effect_set_float(data.params.outline_size, data.outline_size)
+  obslua.gs_effect_set_color(data.params.outline_color, data.outline_color)
+  obslua.gs_effect_set_float(data.params.outline_color_mix_ratio, data.outline_color_mix_ratio)
+
+  -- Effect Mode
+  obslua.gs_effect_set_int(data.params.effect_mode, data.effect_mode)
+
+  -- Jiggle
+  obslua.gs_effect_set_float(data.params.jiggle_radius, data.jiggle_radius)
+  obslua.gs_effect_set_float(data.params.jiggle_speed, data.jiggle_speed)
+
   -- Texture
-  obslua.gs_effect_set_float(data.params.texture_scale, data.texture_scale)
   if data.texture_image then
     obslua.gs_effect_set_texture(data.params.texture_data, data.texture_image.texture)
-    obslua.gs_effect_set_int(data.params.texture_size_x, data.texture_image.cx)
-    obslua.gs_effect_set_int(data.params.texture_size_y, data.texture_image.cy)
+    obslua.gs_effect_set_int(data.params.texture_width, data.texture_image.cx)
+    obslua.gs_effect_set_int(data.params.texture_height, data.texture_image.cy)
   end
+  obslua.gs_effect_set_float(data.params.texture_scale, data.texture_scale)
+  obslua.gs_effect_set_int(data.params.texture_scan_size, data.texture_scan_size)
   
   obslua.obs_source_process_filter_end(data.source, data.effect, data.width, data.height)
 end
