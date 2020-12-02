@@ -8,13 +8,14 @@ uniform float height = 200.0;
 
 // Constants
 #define PI 3.14159265
-#define MAX_ITERRATIONS 50
+#define MAX_ITERRATIONS 200
 
 // Time
 uniform float time = 0.0;
 
-// Opacity (alpha) of original picture (non-detected parts)
-uniform float unprocessed_alpha = 0.5;
+// Opacity (alpha) of original picture (non-detected parts), and detected parts and outline
+uniform float unprocessed_alpha = 0.3;
+uniform float effect_alpha = 0.5;
 
 // HSV thresholds
 uniform float hue_min = 0.0;
@@ -91,12 +92,12 @@ shader_data vertex_shader_default(shader_data cur)
   return res;
 }
 
-// Returns true if the given RGBA is in HSV ranges
+// Returns true if the given RGBA is in HSV ranges (H is wrapped)
 bool detected(float4 rgba)
 {
   float3 hsv = rgb2hsv(rgba.rgb);
-  return ((hue_min        <= hsv.x && hsv.x <= hue_max && hue_min<hue_max) || 
-          (hue_max        <= hsv.x && hsv.x <= hue_min && hue_max<hue_min)) &&
+  return ((hue_min        <= hsv.x && hsv.x <= hue_max  && hue_min<hue_max)   || 
+         ((hue_min        <= hsv.x || hsv.x <= hue_max) && hue_max<=hue_min)) &&
            saturation_min <= hsv.y && hsv.y <= saturation_max &&
            value_min      <= hsv.z && hsv.z <= value_max;
 }
@@ -110,13 +111,16 @@ float4 pixel_shader_texture_skin(shader_data cur) : TARGET
   // Detects if color is in detection range
   if (detected(smp))
   {
+    // Keeps original before transformation
+    float4 original_smp = smp;
+
     // Searches closest edge
     bool edge_found = false;
     float edge_radius = 0;
     float edge_angle = 0;
     int i;
     if (outline_mode>0)
-      [loop] for(i=0; i<MAX_ITERRATIONS && edge_radius<outline_size && !edge_found; i++)
+      [loop] for(i=1; i<MAX_ITERRATIONS && edge_radius<outline_size && !edge_found; i++)
       {
         // Scans in a spiral around detected point for edges of detected zone
         edge_angle = i*2.0*PI/9.6;
@@ -148,11 +152,13 @@ float4 pixel_shader_texture_skin(shader_data cur) : TARGET
     
 
     // Returns outline color if boundary found
-    float4 original_smp = smp;
     if (outline_mode==1 && edge_found)
-    {
       smp = lerp(smp, outline_color, outline_color_mix_ratio);
-    }
+
+    // No effect, changes alpha only
+    else if(effect_mode==0)
+      smp.a *= effect_alpha;
+
     // Jiggle
     else if(effect_mode==1)
     {
@@ -160,7 +166,9 @@ float4 pixel_shader_texture_skin(shader_data cur) : TARGET
       float radius = jiggle_radius*cos(angle*4.32123);
       float2 posuv = cur.uv + float2(radius*cos(angle)/width, radius*sin(angle)/height);
       smp = image.Sample(linear_clamp, posuv);
+      smp.a *= effect_alpha;
     }
+
     // Texture
     else if (effect_mode>=2)
     {
@@ -185,8 +193,8 @@ float4 pixel_shader_texture_skin(shader_data cur) : TARGET
       }
 
       smp = texture_data.Sample(linear_wrap, pos / float2(texture_width, texture_height) / texture_scale);
+      smp.a *= effect_alpha;
     }
-
 
     // Smooth
     if (outline_mode==2 && edge_found)
@@ -194,7 +202,7 @@ float4 pixel_shader_texture_skin(shader_data cur) : TARGET
                       outline_color_mix_ratio*(1.0-abs(2.0*edge_radius/outline_size-1.0)));
   }
   else
-    smp.a *= unprocessed_alpha;
+    return float4(smp.rgb, smp.a*unprocessed_alpha);
 
   return smp;
 }

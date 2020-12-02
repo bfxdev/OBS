@@ -178,13 +178,14 @@ EFFECT_DEFAULT = [[
   
   // Constants
   #define PI 3.14159265
-  #define MAX_ITERRATIONS 50
+  #define MAX_ITERRATIONS 200
   
   // Time
   uniform float time = 0.0;
   
-  // Opacity (alpha) of original picture (non-detected parts)
-  uniform float unprocessed_alpha = 0.5;
+  // Opacity (alpha) of original picture (non-detected parts), and detected parts and outline
+  uniform float unprocessed_alpha = 0.3;
+  uniform float effect_alpha = 0.5;
   
   // HSV thresholds
   uniform float hue_min = 0.0;
@@ -261,12 +262,12 @@ EFFECT_DEFAULT = [[
     return res;
   }
   
-  // Returns true if the given RGBA is in HSV ranges
+  // Returns true if the given RGBA is in HSV ranges (H is wrapped)
   bool detected(float4 rgba)
   {
     float3 hsv = rgb2hsv(rgba.rgb);
-    return ((hue_min        <= hsv.x && hsv.x <= hue_max && hue_min<hue_max) || 
-            (hue_max        <= hsv.x && hsv.x <= hue_min && hue_max<hue_min)) &&
+    return ((hue_min        <= hsv.x && hsv.x <= hue_max  && hue_min<hue_max)   || 
+           ((hue_min        <= hsv.x || hsv.x <= hue_max) && hue_max<=hue_min)) &&
              saturation_min <= hsv.y && hsv.y <= saturation_max &&
              value_min      <= hsv.z && hsv.z <= value_max;
   }
@@ -280,13 +281,16 @@ EFFECT_DEFAULT = [[
     // Detects if color is in detection range
     if (detected(smp))
     {
+      // Keeps original before transformation
+      float4 original_smp = smp;
+  
       // Searches closest edge
       bool edge_found = false;
       float edge_radius = 0;
       float edge_angle = 0;
       int i;
       if (outline_mode>0)
-        [loop] for(i=0; i<MAX_ITERRATIONS && edge_radius<outline_size && !edge_found; i++)
+        [loop] for(i=1; i<MAX_ITERRATIONS && edge_radius<outline_size && !edge_found; i++)
         {
           // Scans in a spiral around detected point for edges of detected zone
           edge_angle = i*2.0*PI/9.6;
@@ -318,11 +322,13 @@ EFFECT_DEFAULT = [[
       
   
       // Returns outline color if boundary found
-      float4 original_smp = smp;
       if (outline_mode==1 && edge_found)
-      {
         smp = lerp(smp, outline_color, outline_color_mix_ratio);
-      }
+  
+      // No effect, changes alpha only
+      else if(effect_mode==0)
+        smp.a *= effect_alpha;
+  
       // Jiggle
       else if(effect_mode==1)
       {
@@ -330,7 +336,9 @@ EFFECT_DEFAULT = [[
         float radius = jiggle_radius*cos(angle*4.32123);
         float2 posuv = cur.uv + float2(radius*cos(angle)/width, radius*sin(angle)/height);
         smp = image.Sample(linear_clamp, posuv);
+        smp.a *= effect_alpha;
       }
+  
       // Texture
       else if (effect_mode>=2)
       {
@@ -355,8 +363,8 @@ EFFECT_DEFAULT = [[
         }
   
         smp = texture_data.Sample(linear_wrap, pos / float2(texture_width, texture_height) / texture_scale);
+        smp.a *= effect_alpha;
       }
-  
   
       // Smooth
       if (outline_mode==2 && edge_found)
@@ -364,7 +372,7 @@ EFFECT_DEFAULT = [[
                         outline_color_mix_ratio*(1.0-abs(2.0*edge_radius/outline_size-1.0)));
     }
     else
-      smp.a *= unprocessed_alpha;
+      return float4(smp.rgb, smp.a*unprocessed_alpha);
   
     return smp;
   }
@@ -418,11 +426,14 @@ source_info.get_defaults = function(settings)
   obslua.obs_data_set_default_double(settings, "value_max", 1.0)
 
   obslua.obs_data_set_default_double(settings, "unprocessed_alpha", 1.0)
+  obslua.obs_data_set_default_double(settings, "effect_alpha", 1.0)
+  obslua.obs_data_set_default_double(settings, "outline_alpha", 1.0)
 
   obslua.obs_data_set_default_int(settings, "outline_mode", 1)
   obslua.obs_data_set_default_double(settings, "outline_size", 4.0)
   obslua.obs_data_set_default_int(settings, "outline_color", 0xff000000)
   obslua.obs_data_set_default_double(settings, "outline_color_mix_ratio", 0.5)
+
 
   obslua.obs_data_set_default_int(settings, "effect_mode", 1)
   obslua.obs_data_set_default_double(settings, "jiggle_radius", 20.0)
@@ -443,6 +454,7 @@ function set_properties_visibility(props, property, settings)
   obslua.obs_property_set_visible(obslua.obs_properties_get(props, "outline_size"), outline_mode>0)
   obslua.obs_property_set_visible(obslua.obs_properties_get(props, "outline_color"), outline_mode>=1)
   obslua.obs_property_set_visible(obslua.obs_properties_get(props, "outline_color_mix_ratio"), outline_mode>=1)
+  obslua.obs_property_set_visible(obslua.obs_properties_get(props, "outline_alpha"), outline_mode>=1)
 
   obslua.obs_property_set_visible(obslua.obs_properties_get(props, "jiggle_speed"), effect_mode==1)
   obslua.obs_property_set_visible(obslua.obs_properties_get(props, "jiggle_radius"), effect_mode==1)
@@ -470,8 +482,10 @@ source_info.get_properties = function(data)
   obslua.obs_properties_add_float_slider(props, "value_min", "Value min", 0.0, 1.0, 0.01)
   obslua.obs_properties_add_float_slider(props, "value_max", "Value max", 0.0, 1.0, 0.01)
 
-  -- Original blending
+  -- Blending
   obslua.obs_properties_add_float_slider(props, "unprocessed_alpha", "Alpha of unprocessed part", 0.0, 1.0, 0.1)
+  obslua.obs_properties_add_float_slider(props, "effect_alpha", "Alpha of effect part", 0.0, 1.0, 0.1)
+  obslua.obs_properties_add_float_slider(props, "outline_alpha", "Alpha of outline", 0.0, 1.0, 0.1)
 
   -- Outline mode
   local p = obslua.obs_properties_add_list(props, "outline_mode", "Outline mode",
@@ -482,7 +496,7 @@ source_info.get_properties = function(data)
   obslua.obs_property_set_modified_callback(p, set_properties_visibility)
 
   -- Outline parameters
-  obslua.obs_properties_add_float_slider(props, "outline_size", "Outline size", 1.0, 5.0, 0.5)
+  obslua.obs_properties_add_float_slider(props, "outline_size", "Outline size", 1.0, 20.0, 1.0)
   obslua.obs_properties_add_color(props, "outline_color", "Outline color")
   obslua.obs_properties_add_float_slider(props, "outline_color_mix_ratio", "Outline color mix", 0.0, 1.0, 0.1)
 
@@ -504,7 +518,7 @@ source_info.get_properties = function(data)
   obslua.obs_properties_add_path(props, "texture_path", "Texture path", obslua.OBS_PATH_FILE,
     "Picture (*.png *.bmp *.jpg *.gif)", nil)
   obslua.obs_properties_add_float_slider(props, "texture_scale", "Texture scale", 0.01, 10.0, 0.01)
-  obslua.obs_properties_add_int_slider(props, "texture_scan_size", "Texture scan size", 1, 50, 1)
+  obslua.obs_properties_add_int_slider(props, "texture_scan_size", "Texture scan size", 1, 200, 1)
   
   log_debug("Leaving source_info.get_properties\n")
   return props
@@ -566,6 +580,7 @@ source_info.create = function(settings, source)
   data.params.value_max = obslua.gs_effect_get_param_by_name(data.effect, "value_max")
 
   data.params.unprocessed_alpha = obslua.gs_effect_get_param_by_name(data.effect, "unprocessed_alpha")
+  data.params.effect_alpha = obslua.gs_effect_get_param_by_name(data.effect, "effect_alpha")
 
   data.params.outline_mode = obslua.gs_effect_get_param_by_name(data.effect, "outline_mode")
   data.params.outline_size = obslua.gs_effect_get_param_by_name(data.effect, "outline_size")
@@ -628,11 +643,14 @@ source_info.update = function(data, settings)
   data.value_max = obslua.obs_data_get_double(settings, "value_max")
 
   data.unprocessed_alpha = obslua.obs_data_get_double(settings, "unprocessed_alpha")
+  data.effect_alpha = obslua.obs_data_get_double(settings, "effect_alpha")
 
   data.outline_mode = obslua.obs_data_get_int(settings, "outline_mode")
   data.outline_size = obslua.obs_data_get_double(settings, "outline_size")
+  data.outline_alpha = obslua.obs_data_get_double(settings, "outline_alpha")
   local c = obslua.obs_data_get_int(settings, "outline_color")
-  data.outline_color = 0xff000000 + (c%256)*65536 + (math.floor(c/256)%256)*256 + (math.floor(c/65536)%256)
+  data.outline_color = (c%256)*65536 + (math.floor(c/256)%256)*256 + (math.floor(c/65536)%256)
+  data.outline_color = data.outline_color + data.outline_alpha*255 * 256*65536
   data.outline_color_mix_ratio = obslua.obs_data_get_double(settings, "outline_color_mix_ratio")
 
   data.effect_mode = obslua.obs_data_get_int(settings, "effect_mode")
@@ -684,8 +702,9 @@ source_info.video_render = function(data)
   obslua.gs_effect_set_float(data.params.value_min, data.value_min)
   obslua.gs_effect_set_float(data.params.value_max, data.value_max)
 
-  -- original blend
+  -- Blending
   obslua.gs_effect_set_float(data.params.unprocessed_alpha, data.unprocessed_alpha)
+  obslua.gs_effect_set_float(data.params.effect_alpha, data.effect_alpha)
 
   -- Outline
   obslua.gs_effect_set_int(data.params.outline_mode, data.outline_mode)
