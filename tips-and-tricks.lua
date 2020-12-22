@@ -83,19 +83,25 @@ with <strong>strong</strong>, <code>code</code>, <kbd>kbd</kbd> or
 
 -- Description displayed on the Tools->Scripts window
 function script_description()
-    return description
+  print("Entering script_description")
+  print("Leaving script_description")
+  return description
 end
 
 
 -- Called upon settings initialization and modification
 my_settings = nil
 function script_update(settings)
+  print("Entering script_update")
   -- Keep track of current settings
   my_settings = settings  
+
+  print("Leaving script_update")
 end
 
 -- Displays a list of properties
 function script_properties()
+  print("Entering script_properties")
 
   local properties = obslua.obs_properties_create()
 
@@ -124,11 +130,14 @@ function script_properties()
   -- Calls the callback once to set-up current visibility
   obslua.obs_properties_apply_settings(properties, my_settings)
   
+  print("Leaving script_properties")
   return properties
 end
 
 -- Callback on list modification
 function set_visibility(props, property, settings)
+  print("Entering set_visibility")
+
 
   -- Retrieves value selected in list
   local mode = obslua.obs_data_get_int(settings, "mode")
@@ -138,6 +147,7 @@ function set_visibility(props, property, settings)
   obslua.obs_property_set_visible(obslua.obs_properties_get(props, "mycolor"), mode==2)
 
   -- IMPORTANT: returns true to trigger refresh of the properties
+  print("Leaving set_visibility")
   return true
 end
 
