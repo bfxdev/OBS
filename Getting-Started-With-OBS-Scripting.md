@@ -62,18 +62,6 @@ After this long introduction, let's go into the real stuff. At this stage, depen
 
 As an educational example, we want to make a script that can "shake a source". In other words, for a given source already present in OBS, we want to continuously rotate it back and forth according to a given frequency and angular amplitude, such that the source jiggles.
 
-### Source setup
-
-Set a source (an image, your webcam, whatever) and give it a name. For this tutorial, let's call the source "Spaceship" such that it is easily identifiable (adapt the name as convenient).
-
-As we will rotate the source, it is better to have it centered. It is not mandatory but the shake effect looks better if the source rotates around its center than around one of its corners.
-
-To do it: select the source, right-click on it, _Transform_ > _Edit transform.._, for _Positional Alignment_ select _Center_, then _Close_ (changing the alignment will change the position of the source):
-
-![Source setup](images/scripting/source-setup.png)
-
-Please note that the "transform" of a source depends on its actual position in a scene (the same source in another scene would have another transform). Among others, one parameter here is the "Rotation", which will be changed by the script.
-
 ### Hello World
 
 Here we go: use a text editor and create a file named `source-shake.py` or `source-shake.lua` (both Python and Lua versions of the code will be given in the next sections). Write only the following line in the file, which works for Python and Lua:
@@ -90,17 +78,338 @@ Please note that `print` does the job but is not the best choice for logging, co
 
 If this works, you can remove the Hello World line in your file.
 
+### Import of obspython or obslua
+
+At the top of the script, insert a line as following:
+
+- In a Python script, it is mandatory to import the `obspython` module because the interpreter is not embedded. By convention, it is imported as `obs` (and we import already some additional Python modules):
+
+``` Python
+import obspython as obs
+import math, time
+```
+
+- In Lua the `obslua` module is pre-imported, as well as the available standard modules. Again by convention, because it is shorter and some code snippets are then similar in Lua and Python, a global variable called `obs` usually references the module:
+
+``` Lua
+obs = obslua
+```
+
 ### Script description
 
-As a next step, create the function called `script_description` (no arguments) that returns a character string with the description. The script window will look like:
+As a next step, create the function called `script_description` with no arguments, which returns a character string with the description.
 
-![Description](images/scripting/de)
+In Python:
 
-Please note that the description string follows the general Qt format, meaning that a [subset of HTML](https://doc.qt.io/qt-5/richtext-html-subset.html) can be used for formatting. A self-contained [Data URI](https://en.wikipedia.org/wiki/Data_URI_scheme) of a PNG or BMP file can be used as well to show a picture in the description.
+``` Python
+# Description displayed in the Scripts dialog window
+def script_description():
+  return """<center><h2>Source Shake!!</h2></center>
+            <p>Shakes the given source according to the given frequency and amplitude.</p><p>See the
+            <a href="https://github.com/obsproject/obs-studio/wiki/Getting-Started-With-OBS-Scripting">
+            Scripting Wiki page</a> for details on the Python code.</p>"""
+
+```
+
+In Lua:
+
+``` Lua
+-- Description displayed in the Scripts dialog window
+function script_description()
+  return [[<center><h2>Source Shake!!</h2></center>
+           <p>Shakes the given source according to the given frequency and amplitude.</p><p>See the
+           <a href="https://github.com/obsproject/obs-studio/wiki/Getting-Started-With-OBS-Scripting">
+           Scripting Wiki page</a> for details on the Lua code.</p>]]
+end
+```
+
+The script window should now show the description:
+
+![Description](images/scripting/description.png)
+
+Please note that the description string is displayed by Qt, meaning that a [subset of HTML](https://doc.qt.io/qt-5/richtext-html-subset.html) can be used for formatting. A self-contained [Data URI](https://en.wikipedia.org/wiki/Data_URI_scheme) of a PNG or BMP file can be used as well to show a picture in the description.
+
+
+### Source setup
+
+At this point, set a source in OBS (an image, your webcam, whatever) and give it a name. For this tutorial, let's call the source "Spaceship" such that it is easily identifiable (adapt the name as convenient).
+
+As we will rotate the source, it is better to have it centered. It is not mandatory but the shake effect looks better if the source rotates around its center than around one of its corners.
+
+To do it: select the source, right-click on it, _Transform_ > _Edit transform.._, for _Positional Alignment_ select _Center_, then _Close_ (changing the alignment will change the position of the source):
+
+![Source setup](images/scripting/source-setup.png)
+
+Please note that the "transform" of a source depends on its actual position in a given scene. The same source in another scene would have another transform. Note as well the the title of the window _Scene Item Transform_ (more on that in the next section). One parameter here is the "Rotation", which will be changed by the script.
+
+### Finding and rotating the scene item
+
+The basis is in place (we will come back to properties later on) and we want to find how to rotate the source.
+
+A [quick search for "rotation"](https://obsproject.com/docs/search.html?q=rotation) in the OBS API points out one promising function among many results: [`obs_sceneitem_set_rot`](https://obsproject.com/docs/reference-scenes.html?highlight=rotation#c.obs_sceneitem_set_rot) sets the rotation angle of a "scene item" ([`obs_sceneitem_get_rot`](https://obsproject.com/docs/reference-scenes.html?highlight=rotation#c.obs_sceneitem_get_rot) to retrieve the current angle). So actually we cannot directly rotate the source but only its embodiment in a scene, represented by a C structure with type `obs_sceneitem_t`.
+
+On the same page of the OBS API, we can find the function [`obs_find_source`](https://obsproject.com/docs/reference-scenes.html?highlight=sceneitem#c.obs_scene_find_source), or even better the function [`obs_find_source_recursive`](https://obsproject.com/docs/reference-scenes.html?highlight=sceneitem#c.obs_scene_find_source_recursive), which both return a pointer to an `obs_sceneitem_t` object from a scene and a source name, even if hidden in groups for the "recursive" variant.
+
+Now how to find the current scene: once again, a [search for "scene"](https://obsproject.com/docs/search.html?q=scene) gives the function [`obs_frontend_get_current_scene`](https://obsproject.com/docs/reference-frontend-api.html?highlight=scene#c.obs_frontend_get_current_scene) among the first hits. But the function returns a source (everything seems to be a source in OBS). The function [`obs_scene_from_source`](https://obsproject.com/docs/reference-scenes.html?highlight=scene#c.obs_scene_from_source), as well among the search results, makes the conversion.
+
+Let's put everything together. As there is no backup of the original angle set by the user, we need to carefully store the initial angle value to be able to restore the source in its original state. We need 3 functions to:
+
+- retrieve and keep the reference to the scene item (if the related source name can be found at all) and save the initial rotation angle
+- change the rotation angle according to the current time, frequency and amplitude for the shake effect
+- restore the angle to its initial value
+
+For simplicity, global variables are used to store main script states. As each script runs in its own context, no interference with other scripts is expected (a more re-usable version of these functions should pass everything as arguments). The Python code looks like:
+
+``` Python
+# Name of the source to shake
+source_name = "Spaceship"
+
+# Kept reference to scene item
+sceneitem = None
+
+# Initial rotation angle
+initial_angle = 0
+
+# Frequency of oscillations in Hertz
+frequency = 2
+
+# Angular amplitude of oscillations in degrees
+amplitude = 10
+
+# Retrieves the scene item corresponding to source_name in the current scene and stores it in sceneitem,
+# then stores its initial rotation angle in initial_angle. If the source cannot be found then sceneitem
+# is set to None. If any sceneitem was previously initialized then restores its initial rotation angle.
+def init_sceneitem_for_shake():
+  global sceneitem, initial_angle
+  if sceneitem:
+    restore_sceneitem_after_shake()
+  current_scene = obs.obs_scene_from_source(obs.obs_frontend_get_current_scene())
+  sceneitem = obs.obs_scene_find_source_recursive(current_scene, source_name)
+  if sceneitem:
+    initial_angle = obs.obs_sceneitem_get_rot(sceneitem)
+
+# Sets the rotation angle of sceneitem, if previously initialized, to a time-dependent oscillation
+def shake_sceneitem():
+  if sceneitem:
+    new_angle = initial_angle + amplitude*math.sin(time.time()*frequency*2*math.pi)
+    obs.obs_sceneitem_set_rot(sceneitem, new_angle)
+
+# Restores the initial angle of sceneitem, if previously initialized, then sets sceneitem to None
+function restore_sceneitem_after_shake()
+  global sceneitem, initial_angle
+  if sceneitem:
+    obs.obs_sceneitem_set_rot(sceneitem, initial_angle)
+    sceneitem = None
+  end
+end
+```
+
+In Lua:
+
+``` Lua
+-- Name of the source to shake
+source_name = "Spaceship"
+
+-- Kept reference to scene item
+sceneitem = nil
+
+-- Initial rotation angle
+initial_angle = 0
+
+-- Frequency of oscillations in Hertz
+frequency = 2
+
+-- Angular amplitude of oscillations in degrees
+amplitude = 10
+
+-- Retrieves the scene item corresponding to source_name in the current scene and stores it in sceneitem,
+-- then stores its initial rotation angle in initial_angle. If the source cannot be found then sceneitem
+-- is set to nil. If any sceneitem was previously initialized then restores its initial rotation angle.
+function init_sceneitem_for_shake()
+  if sceneitem then
+    restore_sceneitem_after_shake()
+  end
+  local current_scene = obs.obs_scene_from_source(obs.obs_frontend_get_current_scene())
+  sceneitem = obs.obs_scene_find_source_recursive(current_scene, source_name)
+  if sceneitem then
+    initial_angle = obs.obs_sceneitem_get_rot(sceneitem)
+  end
+end
+
+-- Sets the rotation angle of sceneitem, if previously initialized, to a time-dependent oscillation
+function shake_sceneitem()
+  if sceneitem then
+    local new_angle = initial_angle + amplitude*math.sin(os.clock()*frequency*2*math.pi)
+    obs.obs_sceneitem_set_rot(sceneitem, new_angle)
+  end
+end
+
+-- Restores the initial angle of sceneitem, if previously initialized, then sets sceneitem to nil
+function restore_sceneitem_after_shake()
+  if sceneitem then
+    obs.obs_sceneitem_set_rot(sceneitem, initial_angle)
+    sceneitem = nil
+  end
+end
+```
+
+The functions are put into action in the next section.
+
+### Animation
+
+The different [global functions](https://obsproject.com/docs/scripting.html#script-function-exports) defined for a script reflect its life-cycle. In our case, the following ones are interesting:
+
+- `script_update` is a good place for initialization as it is called after any settings change, including once after script load
+- `script_tick` is an obvious choice for the animation, called every frame
+- `script_unload` is one of the places where restoring the original source state makes sense (more about that later on)
+
+The code is then straightforward, in Python:
+
+``` Python
+# Called after change of settings including once after script load
+def script_update(settings):
+  init_sceneitem_for_shake()
+
+# Called every frame
+def script_tick(seconds):
+  shake_sceneitem()
+
+# Called at script unload
+def script_unload():
+  restore_sceneitem_after_shake()
+```
+
+In Lua:
+
+``` Lua
+-- Called after change of settings including once after script load
+function script_update(settings)
+  init_sceneitem_for_shake()
+end
+
+-- Called every frame
+function script_tick(seconds)
+  shake_sceneitem()
+end
+
+-- Called at script unload
+function script_unload()
+  restore_sceneitem_after_shake()
+end
+```
+
+If all the code is in the file, refreshing the scripts should start the animation:
+
+![Shake effect](images/scripting/shake-effect.gif)
+
+The _Edit Transform.._ shows nicely the changes of rotation angle.
+
+### Basic properties and settings
+
+Until now all parameters of the animation are only stored in global variables, time to make them customizable by the user.
+
+
+### Template
+
+In Python:
+
+``` Python
+```
+
+In Lua:
+
+``` Lua
+```
+
+## Troubleshooting
+
+It is common to experience OBS crashes or unexpected behavior during the development. A few hints:
+
+- Scripts are loaded very early when OBS starts, before the GUI appears. Depending on what the script does at start, it may lead to a very long start time (e.g. shader compilation with unrolled loops).
+- If OBS crashes at start due to a script or parameters given to a script, it won't be possible to de-activate the faulty script in the _Scripts_ dialog window. To recover: rename the script, start OBS, remove the faulty script from the list of attached scripts, etc.
+- The log windows are very slow (due to Qt) so that OBS may freeze when too much data is logged at once, or an error is logged in a function called at every frame (namely `script_tick`). It may be necessary to close the OBS window or even kill the process to recover.
+
+## Resources
+
+In addition to the links given throughout the page, these additional resources are very valuable:
+
+- [An extensive OBS Python cheat sheet by upgradeQ](https://github.com/upgradeQ/OBS-Studio-Python-Scripting-Cheatsheet-obspython-Examples-of-API) (thanks to upgradeQ for this collection of snippets, many of them were re-used on this page)
+- The forum page [Tips and tricks for Lua scripts](https://obsproject.com/forum/threads/tips-and-tricks-for-lua-scripts.132256)
+- Example scripts delivered with OBS in `[InstallationFolder]/data/obs-plugins/frontend-tools/scripts`
 
 
 
-### Effect
 
-![shake effect](images/scripting/shake-effect.gif)
+## TODO - Questions/information gathered from Discord
 
+### General
+
+- common type conversion in Lua and Python
+- unique identifier for scenes (or sources), bc obs_source_get_id seems to only return scene
+- internationalization
+- docs for scripting say that we should manually free the properties that we create
+- obs.blog()
+- wondering if there's a way to add extrenal Python library dependencies as part of the imported script, also wondering what's the development loop with scripts — do you need to reimport every time you make a change?
+
+For the full flow of starting a script the first time, the order would be:
+
+--- script is loaded ---
+1. script_defaults
+2. script_load
+3. script_update
+4. script_properties
+5. callbacks (with null data) [note: no script_update immediately preceding the callbacks]
+--- script is clicked on ---
+6. script_properties
+7. script_update
+8. callbacks
+--- then when a property is modified ---
+1. script_update
+2. callbacks
+
+
+### Properties
+
+- obs_properties_apply_settings, refresh after change
+- https://obsproject.com/docs/reference-properties.html#c.obs_properties_add_group 
+- modify a script's setting current value from the script? I thought obs_properties_apply_settings might be it, but that doesn't seem to work. Looks like holding onto a reference to the settings object passed into script_update actually works it just doesn't update the UI in the settings screen unless you leave and come back 
+- modify a source's property everytime there's a transition to a specific scene, is that possible?
+
+### Access global data
+
+- access the data in the stats panel re. streaming / network status via scripting, I want to put some of it into a scene
+
+- scripts are able to change a video capture device's properties?
+
+
+### React to signals
+
+- react to OBS_FRONTEND_EVENT_SCENE_CHANGED and other signals
+- get a "stream stopped" event? (Reason being that, to work properly with our video platform, a user needs to call an API to signal stream completion otherwise we buffer for the length of our RTMP reconnect window.) I realize I can poll every frame, but that seems wasteful. Your service plugin should register a signal listener on the output plugin for the stop signal
+
+### Control
+
+- control playback of a Media Source see https://obsproject.com/docs/reference-sources.html#c.obs_source_info.media_play_pause
+- run a script at the end of a VLC Source playlist, see https://obsproject.com/forum/threads/trigger-after-media-source-playback-ends.118986/ 
+- script in which i'm updating a text source. It all works fine, but the only problem I still have is that in duplicate source mode only the preview text source is updated. What's the best way to update the live text source as well?
+- hides or shows a specific source
+- make a "wrapper" or "derived" source type that hides parameters that my script controls and exposes to the user any parameters from the original source can still customize. e.g., like a "custom text source" where the user has all the options they normally would for a text source, except the actual text is set by my script
+- start 6 videos  (data source) in the same time. How can I do that?
+
+As for now we are recording in mkv the program, which has the signal we want to make replays. Also we have set a preview scene with a VLC source in it:
+
+- Now execute the script. 
+- The script will set to the VLC "Replay" source the mkv file we are recording now.
+- Then will ask you to push F10 to save a time stamp or push F12 to show the timestamps we saved and select the one we want.
+- When a time stamps is selected, the script will refresh  the VLC "Replay" source and will set the video just in the second we selected.
+- Now you can add a NDI filter or a Virtual cam filter to the VLC "Replay" source, and use it as replay source in other PC
+
+### Draw on screen
+
+- gifs in a folder I'd like to display at random by using a command or hotkey but I don't want to have to individually add all of them as sources to obs
+
+### Audio
+
+- enable the microphone in a browser source
+
+- script that will allow a macro to be pressed when my mic hits a certain DB? voicemeeter banana comes with "macro buttons" that allow executing an action when a volume threshold is breached; try that

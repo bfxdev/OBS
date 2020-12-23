@@ -1,66 +1,73 @@
 
-local obs = obslua
+obs = obslua
 
 -- Name of the source to shake
-local source_name = "Spaceship"
-
--- Frequency of oscillations in Hertz
-local frequency = 2
-
--- Amplitude ratio of oscillations
-local amplitude = 0.1
+source_name = "Spaceship"
 
 -- Kept reference to scene item
-local scene_item = nil
+sceneitem = nil
 
--- Original rotation angle to be able to restore it
-local original_angle
+-- Initial rotation angle
+initial_angle = 0
 
--- Gets the scene_item in the current scene corresponding to the given source name
-function init_source_shake(name)
-  assert(scene_item == nil, "Re-definition of scene_item")
+-- Frequency of oscillations in Hertz
+frequency = 2
+
+-- Angular amplitude of oscillations in degrees
+amplitude = 10
+
+-- Retrieves the scene item corresponding to source_name in the current scene and stores it in sceneitem,
+-- then stores its initial rotation angle in initial_angle. If the source cannot be found then sceneitem
+-- is set to nil. If any sceneitem was previously initialized then restores its initial rotation angle.
+function init_sceneitem_for_shake()
+  if sceneitem then
+    restore_sceneitem_after_shake()
+  end
   local current_scene = obs.obs_scene_from_source(obs.obs_frontend_get_current_scene())
-  scene_item = obs.obs_scene_find_source_recursive(current_scene, source_name)
-  if scene_item then
-    original_angle = obs.obs_sceneitem_get_rot(scene_item)
-    return true
-  else
-    return false
+  sceneitem = obs.obs_scene_find_source_recursive(current_scene, source_name)
+  if sceneitem then
+    initial_angle = obs.obs_sceneitem_get_rot(sceneitem)
   end
 end
 
--- Updates with new time-dependent rotation angle
-function update_source_shake()
-  if(scene_item) then
-    local new_angle = original_angle + 90*amplitude*math.sin(os.clock()*frequency*2*math.pi)
-    obs.obs_sceneitem_set_rot(scene_item, new_angle)
+-- Sets the rotation angle of sceneitem, if previously initialized, to a time-dependent oscillation
+function shake_sceneitem()
+  if sceneitem then
+    local new_angle = initial_angle + amplitude*math.sin(os.clock()*frequency*2*math.pi)
+    obs.obs_sceneitem_set_rot(sceneitem, new_angle)
   end
 end
 
--- Restore the source to its initial angle
-function restore_source_shake(name)
-  if scene_item then
-    obs.obs_sceneitem_set_rot(scene_item, original_angle)
-    scene_item = nil
+-- Restores the initial angle of sceneitem, if previously initialized, then sets sceneitem to nil
+function restore_sceneitem_after_shake()
+  if sceneitem then
+    obs.obs_sceneitem_set_rot(sceneitem, initial_angle)
+    sceneitem = nil
   end
 end
+
 
 -- Description displayed in the Scripts dialog window
 function script_description()
   return [[<center><h2>Source Shake!!</h2></center>
-           <p>Shake the given source according to the given frequency and amplitude</p><p>See the
+           <p>Shakes the given source according to the given frequency and amplitude.</p><p>See the
            <a href="https://github.com/obsproject/obs-studio/wiki/Getting-Started-With-OBS-Scripting">
-           Scripting Wiki page</a> for details on the Lua code</p>]]
+           Scripting Wiki page</a> for details on the Lua code.</p>]]
 end
 
+-- Called after change of settings including once after script load
 function script_update(settings)
-  init_source_shake(source_name)
+  init_sceneitem_for_shake()
 end
 
--- Called at each rendered frame
+-- Called every frame
 function script_tick(seconds)
-  update_source_shake()
+  shake_sceneitem()
 end
 
+-- Called at script unload
+function script_unload()
+  restore_sceneitem_after_shake()
+end
 
 
