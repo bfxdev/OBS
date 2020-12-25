@@ -55,8 +55,38 @@ function script_description()
            Scripting Wiki page</a> for details on the Lua code.</p>]]
 end
 
+-- Called to set default values of data settings
+function script_defaults(settings)
+  obs.obs_data_set_default_string(settings, "source_name", "")
+  obs.obs_data_set_default_double(settings, "frequency", 2)
+  obs.obs_data_set_default_int(settings, "amplitude", 10)
+end
+
+-- Called to display the properties GUI
+function script_properties()
+  local props = obs.obs_properties_create()
+
+  local sources = obs.obs_enum_sources()
+  local p = obs.obs_properties_add_list(props, "source_name", "Source name",
+              obs.OBS_COMBO_TYPE_LIST, obs.OBS_COMBO_FORMAT_STRING)
+  for _,source in pairs(sources) do
+    local name = obs.obs_source_get_name(source)
+    obs.obs_property_list_add_string(p, name, name)
+  end
+  obs.source_list_release(sources)
+
+  -- obs.obs_properties_add_text(props, "source_name", "Source name", obs.OBS_TEXT_DEFAULT)
+  obs.obs_properties_add_float_slider(props, "frequency", "Shake frequency", 0.1, 20, 0.1)
+  obs.obs_properties_add_int_slider(props, "amplitude", "Shake amplitude", 0, 90, 1)
+  return props
+end
+
 -- Called after change of settings including once after script load
 function script_update(settings)
+  print("in script_update")
+  source_name = obs.obs_data_get_string(settings, "source_name")
+  frequency = obs.obs_data_get_double(settings, "frequency")
+  amplitude = obs.obs_data_get_int(settings, "amplitude")
   init_sceneitem_for_shake()
 end
 
@@ -65,8 +95,13 @@ function script_tick(seconds)
   shake_sceneitem()
 end
 
+function script_load()
+  print("in script_load")
+end
+
 -- Called at script unload
 function script_unload()
+  print("in script_unload")
   restore_sceneitem_after_shake()
 end
 

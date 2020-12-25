@@ -52,7 +52,7 @@ Scripts are managed through the _Scripts_ dialog window, displayed via the menu 
 
 ![Main scripts window](images/scripting/main-scripts-window.png)
 
-A list of scripts currently attached to OBS is displayed on the left hand side (here two scripts distributed with OBS). On the right hand side, if any, the description and editable properties of the script are shown. A script can be attached by clicking on :heavy_plus_sign: and selecting the related Python or Lua file, detached with :heavy_minus_sign:. The Refresh button reloads all attached scripts and Defaults resets the values of the editable properties to their default values.
+A list of scripts currently attached to OBS is displayed on the left hand side (here two scripts distributed with OBS). On the right hand side, if any, the description and editable properties of the script are shown. A script can be attached by clicking on <kbd>:heavy_plus_sign:</kbd> and selecting the related Python or Lua file, detached with <kbd>:heavy_minus_sign:</kbd>. The <kbd>&#128472;</kbd> or _Reload Scripts_ button reloads all attached scripts and <kbd>Defaults</kbd> resets the values of the editable properties to their default values.
 
 For Python scripts, a decent distribution of Python must be installed by the user, and then the _Python Install Path_ must be selected in the tab _Python Settings_. Please refer to the [OBS scripting documentation](https://obsproject.com/docs/scripting.html) for the supported version of Python (currently only Python 3.6). Depending on the Python installation, locating the installation path can be difficult, e.g. on Windows 10 with Python installed from the Microsoft Store, the installation path is located at `[UserFolder]\AppData\Local\Programs\Python\Python36`.
 
@@ -80,7 +80,7 @@ If this works, you can remove the Hello World line in your file.
 
 ### Import of obspython or obslua
 
-At the top of the script, insert a line as following:
+At the top of the script, insert some line(s) as following:
 
 - In a Python script, it is mandatory to import the `obspython` module because the interpreter is not embedded. By convention, it is imported as `obs` (and we import already some additional Python modules):
 
@@ -123,7 +123,7 @@ function script_description()
 end
 ```
 
-The script window should now show the description:
+After reloading the scripts, the description should now be displayed:
 
 ![Description](images/scripting/description.png)
 
@@ -158,7 +158,7 @@ Let's put everything together. As there is no backup of the original angle set b
 - change the rotation angle according to the current time, frequency and amplitude for the shake effect
 - restore the angle to its initial value
 
-For simplicity, global variables are used to store main script states. As each script runs in its own context, no interference with other scripts is expected (a more re-usable version of these functions should pass everything as arguments). The Python code looks like:
+For simplicity in this tutorial, global variables are used to store script states. As each script runs in its own context, no interference with other scripts is expected (a more re-usable version of these functions should pass everything as arguments). The Python code looks like:
 
 ``` Python
 # Name of the source to shake
@@ -195,13 +195,11 @@ def shake_sceneitem():
     obs.obs_sceneitem_set_rot(sceneitem, new_angle)
 
 # Restores the initial angle of sceneitem, if previously initialized, then sets sceneitem to None
-function restore_sceneitem_after_shake()
+def restore_sceneitem_after_shake():
   global sceneitem, initial_angle
   if sceneitem:
     obs.obs_sceneitem_set_rot(sceneitem, initial_angle)
     sceneitem = None
-  end
-end
 ```
 
 In Lua:
@@ -257,11 +255,11 @@ The functions are put into action in the next section.
 
 ### Animation
 
-The different [global functions](https://obsproject.com/docs/scripting.html#script-function-exports) defined for a script reflect its life-cycle. In our case, the following ones are interesting:
+The different [global script functions](https://obsproject.com/docs/scripting.html#script-function-exports) are defined to let code be executed at different stages of the life-cycle of the script. In our case, the following ones are interesting:
 
-- `script_update` is a good place for initialization as it is called after any settings change, including once after script load
-- `script_tick` is an obvious choice for the animation, called every frame
-- `script_unload` is one of the places where restoring the original source state makes sense (more about that later on)
+- **`script_update(settings)`** is a good place for initialization as it is called after any settings change, including once after script load (`settings` is the data settings object, more about that in the next section)
+- **`script_tick(seconds)`** is an obvious choice for the animation, called every frame (`seconds` is the number of seconds passed since the previous frame)
+- **`script_unload()`** is one of the places where restoring the original source state makes sense (more about that later on)
 
 The code is then straightforward, in Python:
 
@@ -298,15 +296,132 @@ function script_unload()
 end
 ```
 
-If all the code is in the file, refreshing the scripts should start the animation:
+Adapt the code, reload the scripts, and the animation should start:
 
 ![Shake effect](images/scripting/shake-effect.gif)
 
 The _Edit Transform.._ shows nicely the changes of rotation angle.
 
-### Basic properties and settings
+### Properties and data settings
 
-Until now all parameters of the animation are only stored in global variables, time to make them customizable by the user.
+Until now the parameters of the animation are only stored in global variables, time to make them customizable by the user. OBS provides a large set of functions to manage user settings, based on two main objects:
+
+- [Data Settings](https://obsproject.com/docs/reference-settings.html) hold the values, support default values and are automatically saved by OBS for scripts
+- [Properties](https://obsproject.com/docs/reference-properties.html) build the GUI to modify data settings
+
+The global script functions of interest are:
+
+- **`script_defaults(settings)`** to set default values using functions such as [`obs_data_set_default_string(settings, name, value)`](https://obsproject.com/docs/reference-settings.html#c.obs_data_set_default_string), where `settings` is the data settings object and `name` the name of the user setting parameter
+- **`script_properties()`** to build the GUI using functions such as [`obs_properties_add_text(props, name, description, type)`](https://obsproject.com/docs/reference-properties.html#c.obs_properties_add_text), where `props` is the properties object, `name` the name of the related user setting parameter, `description` an HTML short description of the parameter and `type` the type of text entry field (here classical single line string)
+- **`script_update(settings)`** to transfer the modified values of data settings parameters to the relevant variables using functions such as [`obs_data_get_string(settings, name)`](https://obsproject.com/docs/reference-settings.html#c.obs_data_get_string) to retrieve values from the data settings object
+
+By convention, the same names can be used for global variables and for the data settings parameters. Properties GUI elements will use the name to update the values of the related data settings parameters in place, no need for additional update. Many things happen under the hood, including the persistent storage.
+
+One difficulty here is the slight difference between GUI-related properties and data settings. For instance, a decimal number is named `double` in data settings but the GUI element is a `float_slider` (with a min, max and step to guide the user).
+
+Note that `script_update` is re-defined below, in Python:
+
+``` Python
+# Called to set default values of data settings
+def script_defaults(settings):
+  obs.obs_data_set_default_string(settings, "source_name", "")
+  obs.obs_data_set_default_double(settings, "frequency", 2)
+  obs.obs_data_set_default_int(settings, "amplitude", 10)
+
+# Called to display the properties GUI
+def script_properties():
+  props = obs.obs_properties_create()
+  obs.obs_properties_add_text(props, "source_name", "Source name", obs.OBS_TEXT_DEFAULT)
+  obs.obs_properties_add_float_slider(props, "frequency", "Shake frequency", 0.1, 20, 0.1)
+  obs.obs_properties_add_int_slider(props, "amplitude", "Shake amplitude", 0, 90, 1)
+  return props
+
+# Called after change of settings including once after script load
+def script_update(settings):
+  global source_name, frequency, amplitude
+  source_name = obs.obs_data_get_string(settings, "source_name")
+  frequency = obs.obs_data_get_double(settings, "frequency")
+  amplitude = obs.obs_data_get_int(settings, "amplitude")
+  init_sceneitem_for_shake()
+```
+
+In Lua:
+
+``` Lua
+-- Called to set default values of data settings
+function script_defaults(settings)
+  obs.obs_data_set_default_string(settings, "source_name", "")
+  obs.obs_data_set_default_double(settings, "frequency", 2)
+  obs.obs_data_set_default_int(settings, "amplitude", 10)
+end
+
+-- Called to display the properties GUI
+function script_properties()
+  local props = obs.obs_properties_create()
+  obs.obs_properties_add_text(props, "source_name", "Source name", obs.OBS_TEXT_DEFAULT)
+  obs.obs_properties_add_float_slider(props, "frequency", "Shake frequency", 0.1, 20, 0.1)
+  obs.obs_properties_add_int_slider(props, "amplitude", "Shake amplitude", 0, 90, 1)
+  return props
+end
+
+-- Called after change of settings including once after script load
+function script_update(settings)
+  source_name = obs.obs_data_get_string(settings, "source_name")
+  frequency = obs.obs_data_get_double(settings, "frequency")
+  amplitude = obs.obs_data_get_int(settings, "amplitude")
+  init_sceneitem_for_shake()
+end
+```
+
+Once the code is updated, reload the scripts, enter the name of the source, and then properties can be modified live:
+
+![Shake properties](images/scripting/shake-properties.gif)
+
+### Drop-down list of sources
+
+In the previous section, the `obs_properties_add_text` function has been introduced to let the user enter the name of the source manually. Obviously, as OBS knows all source names, any user would expect that the source can be selected in a drop-down list.
+
+A drop-down list property is implemented through the function [`obs_properties_add_list`](https://obsproject.com/docs/reference-properties.html#c.obs_properties_add_list) that returns a list `property` object. In our case it will be non-editable (`OBS_COMBO_TYPE_LIST `) and used to select a string data type (`OBS_COMBO_FORMAT_STRING`).
+
+Once the drop-down list property exists, it must be filled with selectable entries using [`obs_property_list_add_string`](https://obsproject.com/docs/reference-properties.html#c.obs_property_list_add_string). A selectable entry is always a pair of displayed value (`name` argument of `obs_property_list_add_string`, visible to the user) and encoded value (`val`, used for processing). In our case, both values are the same.
+
+Existing sources in OBS are enumerated with the script-specific function [`obs_enum_sources`](https://obsproject.com/docs/scripting.html#obs_enum_sources). It returns a Python/Lua array of references to source objects. We use [`obs_source_get_name`](https://obsproject.com/docs/reference-sources.html#c.obs_source_get_name) to retrieve the name of each source. At the end, [`source_list_release`](https://obsproject.com/docs/scripting.html#source_list_release) must be used to release allocated objects.
+
+In the function `script_properties`, replace the line starting with `obs.obs_properties_add_text` with the following block, in Python:
+
+``` Python
+  sources = obs.obs_enum_sources()
+  p = obs.obs_properties_add_list(props, "source_name", "Source name",
+              obs.OBS_COMBO_TYPE_LIST, obs.OBS_COMBO_FORMAT_STRING)
+  for source in sources:
+    name = obs.obs_source_get_name(source)
+    obs.obs_property_list_add_string(p, name, name)
+  obs.source_list_release(sources)
+```
+
+In Lua:
+
+``` Lua
+  local sources = obs.obs_enum_sources()
+  local p = obs.obs_properties_add_list(props, "source_name", "Source name",
+              obs.OBS_COMBO_TYPE_LIST, obs.OBS_COMBO_FORMAT_STRING)
+  for _,source in pairs(sources) do
+    local name = obs.obs_source_get_name(source)
+    obs.obs_property_list_add_string(p, name, name)
+  end
+  obs.source_list_release(sources)
+```
+
+Update the code, reload the scripts, then the drop-down list should be visible:
+
+![drop down list](images/scripting/drop-down-list.png)
+
+### Improving script life-cycle
+
+
+
+
+### Activate animation with a hotkey
 
 
 ### Template
@@ -320,6 +435,10 @@ In Lua:
 
 ``` Lua
 ```
+
+## Code snippets
+
+
 
 ## Troubleshooting
 
@@ -337,19 +456,16 @@ In addition to the links given throughout the page, these additional resources a
 - The forum page [Tips and tricks for Lua scripts](https://obsproject.com/forum/threads/tips-and-tricks-for-lua-scripts.132256)
 - Example scripts delivered with OBS in `[InstallationFolder]/data/obs-plugins/frontend-tools/scripts`
 
-
-
-
 ## TODO - Questions/information gathered from Discord
 
 ### General
 
 - common type conversion in Lua and Python
 - unique identifier for scenes (or sources), bc obs_source_get_id seems to only return scene
-- internationalization
+- internationalization / localization
 - docs for scripting say that we should manually free the properties that we create
 - obs.blog()
-- wondering if there's a way to add extrenal Python library dependencies as part of the imported script, also wondering what's the development loop with scripts — do you need to reimport every time you make a change?
+- wondering if there's a way to add external Python library dependencies as part of the imported script, also wondering what's the development loop with scripts — do you need to reimport every time you make a change?
 
 For the full flow of starting a script the first time, the order would be:
 

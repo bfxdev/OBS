@@ -35,13 +35,11 @@ def shake_sceneitem():
     obs.obs_sceneitem_set_rot(sceneitem, new_angle)
 
 # Restores the initial angle of sceneitem, if previously initialized, then sets sceneitem to None
-function restore_sceneitem_after_shake()
+def restore_sceneitem_after_shake():
   global sceneitem, initial_angle
   if sceneitem:
     obs.obs_sceneitem_set_rot(sceneitem, initial_angle)
     sceneitem = None
-  end
-end
 
 # Description displayed in the Scripts dialog window
 def script_description():
@@ -50,8 +48,35 @@ def script_description():
             <a href="https://github.com/obsproject/obs-studio/wiki/Getting-Started-With-OBS-Scripting">
             Scripting Wiki page</a> for details on the Python code.</p>"""
 
+# Called to set default values of data settings
+def script_defaults(settings):
+  obs.obs_data_set_default_string(settings, "source_name", "")
+  obs.obs_data_set_default_double(settings, "frequency", 2)
+  obs.obs_data_set_default_int(settings, "amplitude", 10)
+
+# Called to display the properties GUI
+def script_properties():
+  props = obs.obs_properties_create()
+
+  sources = obs.obs_enum_sources()
+  p = obs.obs_properties_add_list(props, "source_name", "Source name",
+              obs.OBS_COMBO_TYPE_LIST, obs.OBS_COMBO_FORMAT_STRING)
+  for source in sources:
+    name = obs.obs_source_get_name(source)
+    obs.obs_property_list_add_string(p, name, name)
+  obs.source_list_release(sources)
+
+  #obs.obs_properties_add_text(props, "source_name", "Source name", obs.OBS_TEXT_DEFAULT)
+  obs.obs_properties_add_float_slider(props, "frequency", "Shake frequency", 0.1, 20, 0.1)
+  obs.obs_properties_add_int_slider(props, "amplitude", "Shake amplitude", 0, 90, 1)
+  return props
+
 # Called after change of settings including once after script load
 def script_update(settings):
+  global source_name, frequency, amplitude
+  source_name = obs.obs_data_get_string(settings, "source_name")
+  frequency = obs.obs_data_get_double(settings, "frequency")
+  amplitude = obs.obs_data_get_int(settings, "amplitude")
   init_sceneitem_for_shake()
 
 # Called every frame
