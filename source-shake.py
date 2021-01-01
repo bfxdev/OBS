@@ -43,6 +43,7 @@ def restore_sceneitem_after_shake():
 
 # Description displayed in the Scripts dialog window
 def script_description():
+  print("in script_description")
   return """<center><h2>Source Shake!!</h2></center>
             <p>Shakes the given source according to the given frequency and amplitude.</p><p>See the
             <a href="https://github.com/obsproject/obs-studio/wiki/Getting-Started-With-OBS-Scripting">
@@ -50,12 +51,14 @@ def script_description():
 
 # Called to set default values of data settings
 def script_defaults(settings):
+  print("in script_defaults")
   obs.obs_data_set_default_string(settings, "source_name", "")
   obs.obs_data_set_default_double(settings, "frequency", 2)
   obs.obs_data_set_default_int(settings, "amplitude", 10)
 
 # Called to display the properties GUI
 def script_properties():
+  print("in script_properties")
   props = obs.obs_properties_create()
 
   sources = obs.obs_enum_sources()
@@ -73,6 +76,7 @@ def script_properties():
 
 # Called after change of settings including once after script load
 def script_update(settings):
+  print("in script_update")
   global source_name, frequency, amplitude
   source_name = obs.obs_data_get_string(settings, "source_name")
   frequency = obs.obs_data_get_double(settings, "frequency")
@@ -85,4 +89,11 @@ def script_tick(seconds):
 
 # Called at script unload
 def script_unload():
+  print("in script_unload")
   restore_sceneitem_after_shake()
+
+def script_load(settings):
+  print("in script_load")
+
+def script_save(settings):
+  print("in script_save")
