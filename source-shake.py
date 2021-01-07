@@ -49,6 +49,16 @@ def script_description():
             <a href="https://github.com/obsproject/obs-studio/wiki/Getting-Started-With-OBS-Scripting">
             Scripting Wiki page</a> for details on the Python code.</p>"""
 
+def script_tick(seconds):
+  current_scene_as_source = obs.obs_frontend_get_current_scene()
+  if current_scene_as_source:
+    current_scene = obs.obs_scene_from_source(current_scene_as_source)
+    scene_item = obs.obs_scene_find_source_recursive(current_scene, "Spaceship")
+    if scene_item:
+      obs.obs_sceneitem_set_rot(scene_item, 10*math.sin(12*time.time()))
+    obs.obs_source_release(current_scene_as_source)
+
+"""
 # Called to set default values of data settings
 def script_defaults(settings):
   print("in script_defaults")
@@ -97,3 +107,4 @@ def script_load(settings):
 
 def script_save(settings):
   print("in script_save")
+"""

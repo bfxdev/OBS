@@ -1,6 +1,6 @@
 This page proposes a tutorial for Python and Lua scripting. As an educational example, we want to make a script that can "shake a source". In other words, for a given source already present in OBS and displayed on the current scene, we want to continuously rotate it back and forth according to a given frequency and angular amplitude, such that the source jiggles.
 
-Depending how you came to this page, it is advisable to take a look at the [OBS scripting documentation](https://obsproject.com/docs/scripting.html) if not already done.
+Depending how you came to this page, it is advisable now to take a look at the [OBS scripting documentation](https://obsproject.com/docs/scripting.html) and the [scripting introduction on the Wiki](Getting-Started-With-OBS-Scripting.md) if not already done.
 
 ### Hello World
 
@@ -48,7 +48,6 @@ def script_description():
             <p>Shakes the given source according to the given frequency and amplitude.</p><p>See the
             <a href="https://github.com/obsproject/obs-studio/wiki/Getting-Started-With-OBS-Scripting">
             Scripting Wiki page</a> for details on the Python code.</p>"""
-
 ```
 
 In Lua:
@@ -63,12 +62,11 @@ function script_description()
 end
 ```
 
-After reloading the scripts, the description should now be displayed:
+After reloading the script, the description should now be displayed:
 
 ![Description](images/scripting/source-shake-description.png)
 
 Please note that the description string is displayed by Qt, meaning that a [subset of HTML](https://doc.qt.io/qt-5/richtext-html-subset.html) can be used for formatting. A self-contained [Data URI](https://en.wikipedia.org/wiki/Data_URI_scheme) of a PNG or BMP file can be used as well to show a picture in the description.
-
 
 ### Source setup
 
@@ -82,177 +80,169 @@ To do it: select the source, right-click on it, _Transform_ > _Edit transform.._
 
 Please note that the "transform" of a source depends on its actual position in a given scene. The same source in another scene would have another transform. Note as well the the title of the window _Scene Item Transform_ (more on that in the next section). One parameter here is the "Rotation", which will be changed by the script.
 
-### Finding and rotating the scene item
+### Finding the relevant OBS API functions
 
-The basis is in place (we will come back to properties later on) and we want to find how to rotate the source.
+The basis is in place (we will come back to properties later on) and we want to find out how to rotate the source. When writing code for OBS, a very time-consuming task is to browse the huge OBS API to determine which functions or combinations of functions are required to reach OBS data.
 
 A [quick search for "rotation"](https://obsproject.com/docs/search.html?q=rotation) in the OBS API points out one promising function among many results: [`obs_sceneitem_set_rot`](https://obsproject.com/docs/reference-scenes.html?highlight=rotation#c.obs_sceneitem_set_rot) sets the rotation angle of a "scene item" ([`obs_sceneitem_get_rot`](https://obsproject.com/docs/reference-scenes.html?highlight=rotation#c.obs_sceneitem_get_rot) to retrieve the current angle). So actually we cannot directly rotate the source but only its embodiment in a scene, represented by a C structure with type `obs_sceneitem_t`.
 
-On the same page of the OBS API, we can find the function [`obs_find_source`](https://obsproject.com/docs/reference-scenes.html?highlight=sceneitem#c.obs_scene_find_source), or even better the function [`obs_find_source_recursive`](https://obsproject.com/docs/reference-scenes.html?highlight=sceneitem#c.obs_scene_find_source_recursive), which both return a pointer to an `obs_sceneitem_t` object from a scene and a source name, even if hidden in groups for the "recursive" variant.
+On the same page of the OBS API, we can find the function [`obs_find_source`](https://obsproject.com/docs/reference-scenes.html?highlight=sceneitem#c.obs_scene_find_source), or even better the function [`obs_find_source_recursive`](https://obsproject.com/docs/reference-scenes.html?highlight=sceneitem#c.obs_scene_find_source_recursive) to scan groups too, which both return a pointer to an `obs_sceneitem_t` object from a scene and a source name.
 
-Now how to find the current scene: once again, a [search for "scene"](https://obsproject.com/docs/search.html?q=scene) gives the function [`obs_frontend_get_current_scene`](https://obsproject.com/docs/reference-frontend-api.html?highlight=scene#c.obs_frontend_get_current_scene) among the first hits. But the function returns a source (everything seems to be a source in OBS). The function [`obs_scene_from_source`](https://obsproject.com/docs/reference-scenes.html?highlight=scene#c.obs_scene_from_source), as well among the search results, makes the conversion.
+Now how to find the current scene? Once again, a [search for "scene"](https://obsproject.com/docs/search.html?q=scene) gives the function [`obs_frontend_get_current_scene`](https://obsproject.com/docs/reference-frontend-api.html?highlight=scene#c.obs_frontend_get_current_scene) among the first hits. But the function returns a source (everything seems to be a source in OBS). The function [`obs_scene_from_source`](https://obsproject.com/docs/reference-scenes.html?highlight=scene#c.obs_scene_from_source), as well among the search results, makes the conversion.
 
-Let's put everything together. As there is no backup of the original angle set by the user, we need to carefully store the initial angle value to be able to restore the source in its original state. We need 3 functions to:
+:warning: `obs_frontend_get_current_scene` returns a "_new reference_ to the currently active scene". Like for some other functions, _new reference_ means that the data returned by the function needs to be explicitly released, here with [`obs_source_release`](https://obsproject.com/docs/reference-sources.html#c.obs_source_release).
 
-- retrieve and keep the reference to the scene item (if the related source name can be found at all) and save the initial rotation angle
-- change the rotation angle according to the current time, frequency and amplitude for the shake effect
-- restore the angle to its initial value
+### Shake it
 
-For simplicity in this tutorial, global variables are used to store script states. As each script runs in its own context, no interference with other scripts is expected (a more re-usable version of these functions should pass everything as arguments). The Python code looks like:
+We know now how to find a scene item corresponding to a source in the current scene, how to change its rotation angle through several OBS functions, and from the [documentation of the "Script Function Exports"](https://obsproject.com/docs/scripting.html#script-function-exports) we know that `script_tick` is called every frame.
+
+Time to write a quick and dirty animation function, in Python:
 
 ``` Python
-# Name of the source to shake
-source_name = "Spaceship"
-
-# Kept reference to scene item
-sceneitem = None
-
-# Initial rotation angle
-initial_angle = 0
-
-# Frequency of oscillations in Hertz
-frequency = 2
-
-# Angular amplitude of oscillations in degrees
-amplitude = 10
-
-# Retrieves the scene item corresponding to source_name in the current scene and stores it in sceneitem,
-# then stores its initial rotation angle in initial_angle. If the source cannot be found then sceneitem
-# is set to None. If any sceneitem was previously initialized then restores its initial rotation angle.
-def init_sceneitem_for_shake():
-  global sceneitem, initial_angle
-  if sceneitem:
-    restore_sceneitem_after_shake()
-  current_scene = obs.obs_scene_from_source(obs.obs_frontend_get_current_scene())
-  sceneitem = obs.obs_scene_find_source_recursive(current_scene, source_name)
-  if sceneitem:
-    initial_angle = obs.obs_sceneitem_get_rot(sceneitem)
-
-# Sets the rotation angle of sceneitem, if previously initialized, to a time-dependent oscillation
-def shake_sceneitem():
-  if sceneitem:
-    new_angle = initial_angle + amplitude*math.sin(time.time()*frequency*2*math.pi)
-    obs.obs_sceneitem_set_rot(sceneitem, new_angle)
-
-# Restores the initial angle of sceneitem, if previously initialized, then sets sceneitem to None
-def restore_sceneitem_after_shake():
-  global sceneitem, initial_angle
-  if sceneitem:
-    obs.obs_sceneitem_set_rot(sceneitem, initial_angle)
-    sceneitem = None
+def script_tick(seconds):
+  current_scene_as_source = obs.obs_frontend_get_current_scene()
+  if current_scene_as_source:
+    current_scene = obs.obs_scene_from_source(current_scene_as_source)
+    scene_item = obs.obs_scene_find_source_recursive(current_scene, "Spaceship")
+    if scene_item:
+      obs.obs_sceneitem_set_rot(scene_item, 10*math.sin(12*time.time()))
+    obs.obs_source_release(current_scene_as_source)
 ```
 
 In Lua:
 
 ``` Lua
--- Name of the source to shake
-source_name = "Spaceship"
-
--- Kept reference to scene item
-sceneitem = nil
-
--- Initial rotation angle
-initial_angle = 0
-
--- Frequency of oscillations in Hertz
-frequency = 2
-
--- Angular amplitude of oscillations in degrees
-amplitude = 10
-
--- Retrieves the scene item corresponding to source_name in the current scene and stores it in sceneitem,
--- then stores its initial rotation angle in initial_angle. If the source cannot be found then sceneitem
--- is set to nil. If any sceneitem was previously initialized then restores its initial rotation angle.
-function init_sceneitem_for_shake()
-  if sceneitem then
-    restore_sceneitem_after_shake()
+function script_tick(seconds)
+  local current_scene_as_source = obs.obs_frontend_get_current_scene()
+  if current_scene_as_source then
+    local current_scene = obs.obs_scene_from_source(current_scene_as_source)
+    local scene_item = obs.obs_scene_find_source_recursive(current_scene, "Spaceship")
+    if scene_item then
+      obs.obs_sceneitem_set_rot(scene_item, 10*math.sin(12*os.clock()))
+    end
+    obs.obs_source_release(current_scene_as_source)
   end
-  local current_scene = obs.obs_scene_from_source(obs.obs_frontend_get_current_scene())
-  sceneitem = obs.obs_scene_find_source_recursive(current_scene, source_name)
+end
+```
+
+The actual animation depends on the time in seconds, implemented in the line `obs.obs_sceneitem_set_rot(scene_item, 10*math.sin(12*time.time()))` in Python, where `10` is the amplitude of the oscillations (&plusmn; 10 degrees) and `12` a frequency factor (for _12/2&pi;_ oscillations per second).
+
+Add the function above, reload the script, and the animation should start:
+
+![Shake effect](images/scripting/source-shake-effect.gif)
+
+The _Edit Transform.._ window shows nicely the changes of rotation angle.
+
+### Better rotation and restore functions
+
+The function defined in the previous section works well, is robust against some modifications of the source (moving, renaming, adding in another scene, etc), it starts when OBS starts, but it is far from perfect:
+
+- The scene item oscillates around the angle 0, not taking into account a non-zero initial rotation angle
+- After the animation, there is no way to restore the source in its initial position, such that on exit OBS saves the last animated position
+
+First of all, the initial rotation angle of the scene item needs to be stored before touching it, as well as the scene item itself, in order to be able to restore everything whenever necessary. Then, we should keep the function called from `script_tick` such that it re-determines the scene item corresponding to the source name at every frame, hence following any change of the source or its scene item triggered by the user.
+
+The logic is then:
+
+- If the scene item corresponding to the source name can be found at a given frame, and it is the same as in the previous frame, then there is no need for any restoration
+- If the scene item cannot be found or is different than in the previous frame, and a scene item was found and modified at the previous frame, then the angle of the previously found scene item needs to be restored.
+
+This is a rather naive approach because it assumes that restoring the initial angle is always possible whatever happened to the scene item in between, but let's see how it behaves.
+
+Two functions are necessary, one called at every frame and one to restore the initial angle.
+
+For simplicity in this tutorial, global variables are used directly by the functions (a more re-usable version of these functions should pass everything as arguments). Each script runs in its own context, so no interference with other scripts is expected. The global variables hold values that will be defined as editable properties in the next sections: source name, oscillation frequency, oscillation amplitude and an effect activation flag.
+
+After re-factoring the function defined in the previous section, the Python code looks like:
+
+:boom: STILL CRASHING WITH THIS CODE :boom:
+
+``` Python
+```
+
+In Lua:
+
+``` Lua
+-- Global variables holding the values of data settings / properties
+source_name = "Spaceship"  -- Name of the source to shake
+frequency = 2              -- Frequency of oscillations in Hertz
+amplitude = 10             -- Angular amplitude of oscillations in degrees
+is_active = true           -- True if the shake effect is currently active
+
+-- Global variables for temporary data
+shaken_sceneitem = nil     -- Reference to the modified scene item
+shaken_sceneitem_angle = 0 -- Initial rotation angle, used as well for oscillations
+
+-- Rotates the scene item corresponding to source_name in the current scene
+function shake_source()
+
+  -- Tries to find the scene item corresponding to source_name
+  local sceneitem = nil
+  local current_scene_as_source = obs.obs_frontend_get_current_scene()
+  if current_scene_as_source then
+    local current_scene = obs.obs_scene_from_source(current_scene_as_source)
+    sceneitem = obs.obs_scene_find_source_recursive(current_scene, source_name)
+    obs.obs_source_release(current_scene_as_source)
+  end
+
   if sceneitem then
-    initial_angle = obs.obs_sceneitem_get_rot(sceneitem)
+    if sceneitem ~= shaken_sceneitem then
+      print("not the same")
+      reset_source_after_shake()
+      shaken_sceneitem = sceneitem
+      shaken_sceneitem_angle = obs.obs_sceneitem_get_rot(sceneitem)
+    end
+
+    local angle = shaken_sceneitem_angle + amplitude*math.sin(os.clock()*frequency*2*math.pi)
+    obs.obs_sceneitem_set_rot(sceneitem, angle)
+
+  else
+    reset_source_after_shake()
+  end
+
+end
+
+-- Restores the original rotation angle on the scene item after shake
+function reset_source_after_shake()
+  print("in reset")
+  if shaken_sceneitem then
+    obs.obs_sceneitem_set_rot(shaken_sceneitem, shaken_sceneitem_angle)
+    shaken_sceneitem = nil
   end
 end
 
--- Sets the rotation angle of sceneitem, if previously initialized, to a time-dependent oscillation
-function shake_sceneitem()
-  if sceneitem then
-    local new_angle = initial_angle + amplitude*math.sin(os.clock()*frequency*2*math.pi)
-    obs.obs_sceneitem_set_rot(sceneitem, new_angle)
-  end
-end
-
--- Restores the initial angle of sceneitem, if previously initialized, then sets sceneitem to nil
-function restore_sceneitem_after_shake()
-  if sceneitem then
-    obs.obs_sceneitem_set_rot(sceneitem, initial_angle)
-    sceneitem = nil
+-- Called every frame
+function script_tick(seconds)
+  if is_active then
+    shake_source()
+  else
+    reset_source_after_shake()
   end
 end
 ```
 
 The functions are put into action in the next section.
 
-### Animation
+### Proper scene item save at OBS closure and script reload
 
 The different [global script functions](https://obsproject.com/docs/scripting.html#script-function-exports) are defined to let code be executed at different stages of the life-cycle of the script. In our case, the following script functions are interesting:
 
-- **`script_update(settings)`** is a good place for initialization as it is called after any settings change, including once after script load (`settings` is the data settings object, more about that later on)
-- **`script_tick(seconds)`** is an obvious choice for the animation, called every frame (`seconds` is the number of seconds passed since the previous frame)
-- **`script_unload()`** is one of the places where restoring the original source state makes sense (more about that later on)
-
-The code is then straightforward, in Python:
-
-``` Python
-# Called after change of settings including once after script load
-def script_update(settings):
-  init_sceneitem_for_shake()
-
-# Called every frame
-def script_tick(seconds):
-  shake_sceneitem()
-
-# Called at script unload
-def script_unload():
-  restore_sceneitem_after_shake()
-```
+:boom: To be re-written
 
 In Lua:
 
 ``` Lua
--- Called after change of settings including once after script load
-function script_update(settings)
-  init_sceneitem_for_shake()
-end
-
--- Called every frame
-function script_tick(seconds)
-  shake_sceneitem()
+-- Called before data settings are saved
+function script_save(settings)
+  reset_source_after_shake()
+  obs.obs_save_sources()
 end
 
 -- Called at script unload
 function script_unload()
-  restore_sceneitem_after_shake()
+  reset_source_after_shake()
 end
 ```
-
-Adapt the code, reload the scripts, and the animation should start:
-
-![Shake effect](images/scripting/source-shake-effect.gif)
-
-The _Edit Transform.._ window shows nicely the changes of rotation angle.
-
-### Fixes for OBS start and stop
-
-The script seems to work as expected as long as OBS is running, i.e. it can be detached, re-attached, reloaded, etc. But a significant flaw remains: at OBS startup the effect does not start automatically (at least a script reload is necessary) and a crash may occur when OBS is closed (followed by a crash when OBS is started again, recovered by a second start, the exact behavior may differ with a later version of OBS).
-
-This misbehavior is due to the early initialization of scripts during the OBS startup, before the scenes and sources are set up, and late unloading.
-
-For the startup, an event 
-
-
-
-
 
 ### Properties and data settings
 
@@ -272,6 +262,8 @@ By convention, the same names can be used for global variables and for the data 
 One difficulty here is the slight difference between GUI-related properties and data settings. For instance, a decimal number is named `double` in data settings while the GUI element is a `float_slider` (with a min, max and step to guide the user). A `string` in data settings is edited with a `text` property on the GUI.
 
 Add the functions and redefine `script_update` as following, in Python:
+
+:boom: code to be adapted again
 
 ``` Python
 # Called to set default values of data settings
@@ -296,6 +288,8 @@ def script_update(settings):
   amplitude = obs.obs_data_get_int(settings, "amplitude")
   init_sceneitem_for_shake()
 ```
+
+:boom: code to be adapted again
 
 In Lua:
 
@@ -369,8 +363,9 @@ Update the code, reload the scripts, then the drop-down list should be visible:
 ![drop down list](images/scripting/source-shake-drop-down-list.png)
 
 
-
 ### Activate animation with a hotkey
+
+:boom: to be written
 
 ---
 

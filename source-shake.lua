@@ -8,37 +8,44 @@ amplitude = 10             -- Angular amplitude of oscillations in degrees
 is_active = true           -- True if the shake effect is currently active
 
 -- Global variables for temporary data
-sceneitem = nil            -- Reference to the scene item of the source in the current scene
-initial_angle = nil        -- Initial rotation angle, used as well for oscillations
+shaken_sceneitem = nil     -- Reference to the modified scene item
+shaken_sceneitem_angle = 0 -- Initial rotation angle, used as well for oscillations
 
--- Rotates the scene item corresponding to "source_name" in the current scene, if it can be found.
--- Stores a reference to it in "sceneitem", and stores in "initial_angle" its original rotation
--- angle, when found for the first time. Nothing happens if the source cannot be found.
+-- Rotates the scene item corresponding to source_name in the current scene
 function shake_source()
-  -- Tries to retrieve sceneitem and initial_angle if not already done
-  if not sceneitem then
-    local current_scene_as_source = obs.obs_frontend_get_current_scene()
-    if current_scene_as_source then
-      local current_scene = obs.obs_scene_from_source(current_scene_as_source)
-      sceneitem = obs.obs_scene_find_source_recursive(current_scene, source_name)
-      if sceneitem then
-        initial_angle = obs.obs_sceneitem_get_rot(sceneitem)
-      end
-      obs.obs_source_release(current_scene_as_source)
-    end
+
+  -- Tries to find the scene item corresponding to source_name
+  local sceneitem = nil
+  local current_scene_as_source = obs.obs_frontend_get_current_scene()
+  if current_scene_as_source then
+    local current_scene = obs.obs_scene_from_source(current_scene_as_source)
+    sceneitem = obs.obs_scene_find_source_recursive(current_scene, source_name)
+    obs.obs_source_release(current_scene_as_source)
   end
-  -- Oscillates the scene item around its initial rotation angle
+
   if sceneitem then
-    local new_angle = initial_angle + amplitude*math.sin(os.clock()*frequency*2*math.pi)
-    obs.obs_sceneitem_set_rot(sceneitem, new_angle)
+    if sceneitem ~= shaken_sceneitem then
+      print("not the same")
+      reset_source_after_shake()
+      shaken_sceneitem = sceneitem
+      shaken_sceneitem_angle = obs.obs_sceneitem_get_rot(sceneitem)
+    end
+
+    local angle = shaken_sceneitem_angle + amplitude*math.sin(os.clock()*frequency*2*math.pi)
+    obs.obs_sceneitem_set_rot(sceneitem, angle)
+
+  else
+    reset_source_after_shake()
   end
+
 end
 
--- Restores the original rotation angle on the scene item after shake, and sets sceneitem to nil
+-- Restores the original rotation angle on the scene item after shake
 function reset_source_after_shake()
-  if sceneitem then
-    obs.obs_sceneitem_set_rot(sceneitem, initial_angle)
-    sceneitem = nil
+  print("in reset")
+  if shaken_sceneitem then
+    obs.obs_sceneitem_set_rot(shaken_sceneitem, shaken_sceneitem_angle)
+    shaken_sceneitem = nil
   end
 end
 
@@ -50,6 +57,7 @@ function script_description()
            <a href="https://github.com/obsproject/obs-studio/wiki/Getting-Started-With-OBS-Scripting">
            Scripting Wiki page</a> for details on the Lua code.</p>]]
 end
+
 
 -- Called to set default values of data settings
 function script_defaults(settings)

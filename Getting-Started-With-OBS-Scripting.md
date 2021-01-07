@@ -109,7 +109,7 @@ Data settings are saved automatically at OBS closure, it is not necessary for th
 
 Once OBS startup is completed, `script_properties()` is called by OBS if the script is selected in the _Scripts_ window (selecting another script would always call the related `script_properties` function).
 
-The function has to return an `obs_properties_t` object created using [obs_properties_create](https://obsproject.com/docs/reference-properties.html#c.obs_properties_create). The properties object will be typically filled with GUI elements though [`obs_properties_add_*`](https://obsproject.com/docs/reference-properties.html?highlight=obs_properties_add#c.obs_properties_add_bool) functions, and will be released by OBS when necessary.
+The function has to return an `obs_properties_t` object created using [`obs_properties_create`](https://obsproject.com/docs/reference-properties.html#c.obs_properties_create) and filled with GUI elements though [`obs_properties_add_*`](https://obsproject.com/docs/reference-properties.html?highlight=obs_properties_add#c.obs_properties_add_bool) functions. The object will be released by OBS when necessary.
 
 A callback function can be set to each property using [`obs_property_set_modified_callback`](https://obsproject.com/docs/reference-properties.html#c.obs_property_set_modified_callback).
 
