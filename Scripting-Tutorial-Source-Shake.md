@@ -1,4 +1,4 @@
-This page proposes a tutorial for Python and Lua scripting. As an educational example, we want to make a script that can "shake a source". In other words, for a given source already present in OBS and displayed on the current scene, we want to continuously rotate it back and forth according to a given frequency and angular amplitude, such that the source jiggles.
+This page proposes a tutorial for Python and Lua scripting. As an educational example, we want to make a script that can "shake a source" when the user clicks on a hotkey. In other words, for a given source already present in OBS and displayed on the current scene, we want to continuously rotate it back and forth according to a given frequency and angular amplitude, such that the source jiggles, when the user presses a key continuously.
 
 Depending how you came to this page, it is advisable now to take a look at the [OBS scripting documentation](https://obsproject.com/docs/scripting.html) and the [scripting introduction on the Wiki](Getting-Started-With-OBS-Scripting.md) if not already done.
 
@@ -82,7 +82,7 @@ Please note that the "transform" of a source depends on its actual position in a
 
 ### Finding the relevant OBS API functions
 
-The basis is in place (we will come back to properties later on) and we want to find out how to rotate the source. When writing code for OBS, a very time-consuming task is to browse the huge OBS API to determine which functions or combinations of functions are required to reach OBS data.
+The basis is in place (we will come back to properties and hotkey later on) and we want to find out how to rotate the source. When writing code for OBS, a very time-consuming task is to browse the huge OBS API to determine which functions or combinations of functions are required to reach OBS data.
 
 A [quick search for "rotation"](https://obsproject.com/docs/search.html?q=rotation) in the OBS API points out one promising function among many results: [`obs_sceneitem_set_rot`](https://obsproject.com/docs/reference-scenes.html?highlight=rotation#c.obs_sceneitem_set_rot) sets the rotation angle of a "scene item" ([`obs_sceneitem_get_rot`](https://obsproject.com/docs/reference-scenes.html?highlight=rotation#c.obs_sceneitem_get_rot) to retrieve the current angle). So actually we cannot directly rotate the source but only its embodiment in a scene, represented by a C structure with type `obs_sceneitem_t`.
 
@@ -90,7 +90,7 @@ On the same page of the OBS API, we can find the function [`obs_find_source`](ht
 
 Now how to find the current scene? Once again, a [search for "scene"](https://obsproject.com/docs/search.html?q=scene) gives the function [`obs_frontend_get_current_scene`](https://obsproject.com/docs/reference-frontend-api.html?highlight=scene#c.obs_frontend_get_current_scene) among the first hits. But the function returns a source (everything seems to be a source in OBS). The function [`obs_scene_from_source`](https://obsproject.com/docs/reference-scenes.html?highlight=scene#c.obs_scene_from_source), as well among the search results, makes the conversion.
 
-:warning: `obs_frontend_get_current_scene` returns a "_new reference_ to the currently active scene". Like for some other functions, _new reference_ means that the data returned by the function needs to be explicitly released, here with [`obs_source_release`](https://obsproject.com/docs/reference-sources.html#c.obs_source_release).
+:warning: `obs_frontend_get_current_scene` returns a "_new reference_ to the currently active scene". Like for some other functions, _new reference_ means that the data returned by the function needs to be explicitly released, here with [`obs_source_release`](https://obsproject.com/docs/reference-sources.html#c.obs_source_release). OBS will crash if the source is not released (as of OBS 26.1).
 
 ### Shake it
 
@@ -125,7 +125,7 @@ function script_tick(seconds)
 end
 ```
 
-The actual animation depends on the time in seconds, implemented in the line `obs.obs_sceneitem_set_rot(scene_item, 10*math.sin(12*time.time()))` in Python, where `10` is the amplitude of the oscillations (&plusmn; 10 degrees) and `12` a frequency factor (for _12/2&pi;_ oscillations per second).
+The animation depends on the time in seconds, implemented in the line `obs.obs_sceneitem_set_rot(scene_item, 10*math.sin(12*time.time()))` in Python, where `10` is the amplitude of the oscillations (&plusmn; 10 degrees) and `12` a frequency factor (for _12/2&pi;_ oscillations per second).
 
 Add the function above, reload the script, and the animation should start:
 
@@ -135,23 +135,18 @@ The _Edit Transform.._ window shows nicely the changes of rotation angle.
 
 ### Better rotation and restore functions
 
-The function defined in the previous section works well, is robust against some modifications of the source (moving, renaming, adding in another scene, etc), it starts when OBS starts, but it is far from perfect:
+The function defined in the previous section works well, is robust against some modifications of the source (moving, renaming, adding in another scene, etc) but it is far from perfect:
 
 - The scene item oscillates around the angle 0, not taking into account a non-zero initial rotation angle
 - After the animation, there is no way to restore the source in its initial position, such that on exit OBS saves the last animated position
 
-First of all, the initial rotation angle of the scene item needs to be stored before touching it, as well as the scene item itself, in order to be able to restore everything whenever necessary. Then, we should keep the function called from `script_tick` such that it re-determines the scene item corresponding to the source name at every frame, hence following any change of the source or its scene item triggered by the user.
+Consequently, the initial rotation angle of the scene item needs to be stored before touching it, as well as the scene item itself, in order to be able to restore everything when necessary.
 
-The logic is then:
-
-- If the scene item corresponding to the source name can be found at a given frame, and it is the same as in the previous frame, then there is no need for any restoration
-- If the scene item cannot be found or is different than in the previous frame, and a scene item was found and modified at the previous frame, then the angle of the previously found scene item needs to be restored.
-
-This is a rather naive approach because it assumes that restoring the initial angle is always possible whatever happened to the scene item in between, but let's see how it behaves.
+We keep the search for the scene item at every frame in order to better follow changes of the source or its scene item triggered by the user. The logic is to restore the original angle of the previously changed scene item whenever it changed, when the animation is not active or when we are in an exit phase. This is a rather naive approach because it assumes that restoring the initial angle is always possible whatever happened to the scene item in between, but let's see how it behaves.
 
 Two functions are necessary, one called at every frame and one to restore the initial angle.
 
-For simplicity in this tutorial, global variables are used directly by the functions (a more re-usable version of these functions should pass everything as arguments). Each script runs in its own context, so no interference with other scripts is expected. The global variables hold values that will be defined as editable properties in the next sections: source name, oscillation frequency, oscillation amplitude and an effect activation flag.
+For simplicity in this tutorial, global variables are used directly by the functions (a more re-usable version of these functions should pass everything as arguments). Each script runs in its own context, so no interference with other scripts is expected. The global variables hold values that will be defined as editable properties in the next sections: source name, oscillation frequency and oscillation amplitude. We define already an activity flag for the hotkey.
 
 After re-factoring the function defined in the previous section, the Python code looks like:
 

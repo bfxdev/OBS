@@ -22,15 +22,14 @@ Scripting is a way to add functionality to OBS but it is not the only one. Havin
 
 ## Comparison of Python and Lua for scripting in OBS
 
-Lua is by far less popular and less powerful than Python, but it is simpler on purpose (to reduce the footprint in the embedding executable) and better integrated in OBS (as of v26.1):
+Lua is by far less popular and less powerful than Python, but it is a bit simpler (on purpose, to reduce complexity and footprint in the embedding executable) and better integrated in OBS (as of v26.1):
 
 | Criteria | [Python](https://www.python.org) | [Lua](https://www.lua.org) |
 |-------|--------|-----|
-| Usage | Wide usage for everything | Sparse usage as embedded scripting extension (e.g. in [Wireshark](https://gitlab.com/wireshark/wireshark/-/wikis/Lua), [VLC](https://www.videolan.org/developers/vlc/share/lua/README.txt), etc) |
-| Standard library | [Full-featured standard library](https://docs.python.org/3.6/library) | [Poor standard library](https://www.lua.org/manual/5.1) (use the OBS API or [FFI](https://luajit.org/ext_ffi.html) to fill the gaps) |
+| General usage | Wide usage for everything, [full-featured standard library](https://docs.python.org/3.6/library), etc | Sparse usage mainly as embedded scripting extension (e.g. in [Wireshark](https://gitlab.com/wireshark/wireshark/-/wikis/Lua), [VLC](https://www.videolan.org/developers/vlc/share/lua/README.txt), [RPM](https://rpm.org/user_doc/lua.html), etc), [poor standard library](https://www.lua.org/manual/5.1) (use the OBS API or [FFI](https://luajit.org/ext_ffi.html) to fill the gaps) |
 | Additional modules | Supported e.g. with pip | Supported for pure Lua modules, probably possible but complex for modules with binary |
 | Interpreter | Not embedded | Fully embedded, based on [LuaJIT](http://luajit.org) |
-| New source types | Not supported | [Supported with source_info](https://obsproject.com/docs/scripting.html#script-sources-lua-only) |
+| Supported [libobs modules](https://obsproject.com/docs/reference-modules.html) | None | [Sources](https://obsproject.com/docs/scripting.html#script-sources-lua-only) only |
 
 ## API documentation
 
@@ -48,7 +47,7 @@ A bare text editor is the only thing you need to get started, but prefer the IDE
 
 Two tutorials are proposed in this Wiki:
 
-- Start with the [**Source Shake tutorial**](Scripting-Tutorial-Source-Shake.md) that shows how to animate a source displayed in a scene with customizable properties, in Python and Lua
+- Start with the [**Source Shake tutorial**](Scripting-Tutorial-Source-Shake.md) that shows how to animate a source displayed in a scene with a hotkey and customizable properties, in Python and Lua
 - The [**Halftone Filter tutorial**](Scripting-Tutorial-Halftone-Filter.md) is an example of shader-based video filter in Lua
 
 Other tutorial resources (feel free to add something):
@@ -76,7 +75,7 @@ Nearly all of wrapper functions are generated automatically by [SWIG](http://www
 
 A script must define some [global script functions](https://obsproject.com/docs/scripting.html#script-function-exports) called by the scripting environment at different stages of the script life-cycle and at different execution phases of OBS. The following steps are performed wherever the related global script functions are implemented.
 
-### OBS startup
+### Global script functions called at OBS startup
 
 When a script was previously added to OBS, at startup:
 
@@ -88,15 +87,19 @@ When a script was previously added to OBS, at startup:
 
 Please note that:
 
-- The values of the data settings during OBS startup reflect the state saved at previous OBS closure, and are already set in `settings` when `script_defaults`, `script_load` and `script_update` are called
-- Default values set through `script_defaults` are later available through [`obs_data_get_default_*`](https://obsproject.com/docs/reference-settings.html?highlight=obs_data_get_default#c.obs_data_get_default_string) functions but should have no effect during OBS startup because all values should be already set (saved at previous OBS closure)
+- The values of the data settings available in `settings` during OBS startup reflect the state saved at previous OBS closure (properties changed by the user), and are already set in `settings` when `script_defaults`, `script_load` and `script_update` are called
+- Because OBS does not store the values of properties that were not changed by the user, i.e. properties still set to their default values, such values are not available in `settings` when `script_defaults` is called at OBS startup (and are available as set by `script_defaults` later in `script_load` and `script_update`)
 - During OBS startup, the steps 1 to 5 are performed _before_ loading the scenes and sources in the frontend (before `OBS_FRONTEND_EVENT_FINISHED_LOADING` is emitted). This is especially important in `script_update` if sources or scenes are looked up.
 
-### Normal OBS use
+Check how OBS saves properties in the user's JSON configuration file (at `[UserFolder]\AppData\Roaming\obs-studio\basic\scenes` under Windows) to better understand what is going on.
 
-During OBS execution, once a script is initialized, `script_tick(seconds)` is called at every rendered frame (`seconds` is the time in seconds passed since the previous frame). Be very careful with the code in `script_tick`, OBS may rapidly become unresponsive if some error is logged at each frame.
+### Global script function called every frame
 
-### OBS closure
+During OBS execution, once a script is initialized, `script_tick(seconds)` is called every rendered frame (`seconds` is the time in seconds passed since the previous frame). Consider using a timer instead of a recurrent test in `script_tick` if possible.
+
+:warning: Be very careful with the code in `script_tick`, OBS may rapidly become unresponsive if some error or text is logged every frame.
+
+### Global script functions called at OBS closure
 
 Two global script functions are called when OBS is closed:
 
@@ -105,7 +108,7 @@ Two global script functions are called when OBS is closed:
 
 Data settings are saved automatically at OBS closure, it is not necessary for the script to call any function to save data settings (and not necessary to implement `script_save` nor `script_unload` to trigger OBS to save data set by a script).
 
-### Displaying and changing script properties
+### Global script functions for editable properties
 
 Once OBS startup is completed, `script_properties()` is called by OBS if the script is selected in the _Scripts_ window (selecting another script would always call the related `script_properties` function).
 
@@ -124,9 +127,9 @@ Please note that:
 - :bulb: A callback function set on a property with  has to return true to trigger the refresh of the displayed properties (no new call to `script_properties`)
 - If another property or data setting is modified per script, e.g. in `script_update`, then its callback is not triggered automatically, use [`obs_properties_apply_settings`](https://obsproject.com/docs/reference-properties.html#c.obs_properties_apply_settings) to trigger all callbacks (e.g. in `script_update` with a properties object saved in a global variable in `script_properties`)
 
-### Other script management operations
+### Global script functions call sequence for other operations
 
-The other operations available on the _Scripts_ window trigger more complex sequences (described in this section as in OBS v26.1, the behavior may change in the future).
+The management operations available on the _Scripts_ window trigger more complex sequences (described in this section as in OBS v26.1, the behavior may change in the future).
 
 Adding a script:
 
@@ -152,14 +155,15 @@ Removing a script just triggers a call to `script_unload` (_not_ `script_save`).
 
 Resetting to defaults starts with a call to `script_update` followed by the same steps as for removing and then re-adding a script (data settings not available).
 
-Reloading a script is the same as removing and then re-adding a script, except that data settings are available all the time.
-
+Reloading a script is the same as removing and then re-adding a script, except that the values of data settings are available during the complete sequence.
 
 ## Troubleshooting
 
-It is common to experience OBS crashes or unexpected behavior during the development. A few hints:
+It is common to experience OBS crashes or unexpected behavior during the development. A few hints (feel free to add your own!):
 
 - Scripts are loaded very early when OBS starts, before the GUI appears. Depending on what the script does at start, it may lead to a very long start time (e.g. shader compilation with unrolled loops).
 - If OBS crashes at start due to a script, or wrong parameters given to a script, it won't be possible to de-activate the faulty script in the _Scripts_ dialog window. To recover: rename the script, start OBS, remove the faulty script from the list of attached scripts, etc.
-- Logging can be very slow (even if no log window is actually displayed), so that OBS may freeze when too much data is logged at once, or may become unresponsive after a couple of minutes. This is especially true when data is logged at every frame, e.g. when a recurrent error occurs in `script_tick`. It may be necessary to close the OBS window or even kill the process to recover.
-- Many functions in OBS allocate data that needs to be released. This is the meaning of the warning in the documentation: _release/destroy objects you reference or create via the API_. For instance, a call to [`obs_get_current_scene`](https://obsproject.com/docs/reference-frontend-api.html?#c.obs_frontend_get_current_scene) must be followed by a call to [`obs_source_release`](https://obsproject.com/docs/reference-sources.html#c.obs_source_release) otherwise OBS may crash on exit (with "Freeing OBS context data" as last log entry).  As a rule of thumb, if the API documentation states "Returns: A new reference ..." then a call to a release function is probably necessary (credits to J. Buchanan for this helpful synthesis).
+- OBS will tend to keep any defined/changed property in the user's JSON configuration file, even if the related property does not exist any more in a later version of the script. Removing a script and then re-adding it (and set again the related properties) will clean-up such ghost properties.
+- OBS may freeze when too much data is logged at once, or may become unresponsive after a couple of minutes. This is especially true when data is logged at every frame, e.g. when a recurrent error occurs in `script_tick`. It may be necessary to close the OBS window or even kill the process to recover.
+- Many functions in OBS allocate data that needs to be released. This is the meaning of the warning in the documentation: _release/destroy objects you reference or create via the API_. For instance, a call to [`obs_get_current_scene`](https://obsproject.com/docs/reference-frontend-api.html?#c.obs_frontend_get_current_scene) must be followed by a call to [`obs_source_release`](https://obsproject.com/docs/reference-sources.html#c.obs_source_release) otherwise OBS may crash on exit (with "Freeing OBS context data" as last log entry).  The need to release objects is not always documented. As a rule of thumb, if the API documentation states "Returns: A new reference ..." then a call to a release function is probably necessary (credits to J. Buchanan for this helpful synthesis).
+- The [effects](https://obsproject.com/docs/graphics.html#creating-effects) parser misses often unbalanced brackets, without any log (credits to skeletonbow for this general remark). It is recommended to use an IDE able to detect such issues in HLSL (using the extension `.hlsl` on the effect file name may help).
