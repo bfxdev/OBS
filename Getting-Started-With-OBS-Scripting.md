@@ -29,7 +29,7 @@ Lua is by far less popular and less powerful than Python, but it is a bit simple
 | General usage | Wide usage for everything, [full-featured standard library](https://docs.python.org/3.6/library), etc | Sparse usage mainly as embedded scripting extension (e.g. in [Wireshark](https://gitlab.com/wireshark/wireshark/-/wikis/Lua), [VLC](https://www.videolan.org/developers/vlc/share/lua/README.txt), [RPM](https://rpm.org/user_doc/lua.html), etc), [poor standard library](https://www.lua.org/manual/5.1) (use the OBS API or [FFI](https://luajit.org/ext_ffi.html) to fill the gaps) |
 | Additional modules | Supported e.g. with pip | Supported for pure Lua modules, probably possible but complex for modules with binary |
 | Interpreter | Not embedded | Fully embedded, based on [LuaJIT](http://luajit.org) |
-| Supported [libobs modules](https://obsproject.com/docs/reference-modules.html) | None | [Sources](https://obsproject.com/docs/scripting.html#script-sources-lua-only) only |
+| Supported [libobs modules](https://obsproject.com/docs/reference-modules.html) | None | Sources using [source_info](https://obsproject.com/docs/scripting.html#script-sources-lua-only) |
 
 ## API documentation
 
@@ -124,7 +124,7 @@ When the value of a property is changed, the sequence is:
 Please note that:
 
 - :bulb: The description of a property supports [Qt-style formatting](https://doc.qt.io/qt-5/richtext-html-subset.html)
-- :bulb: A callback function set on a property with  has to return true to trigger the refresh of the displayed properties (no new call to `script_properties`)
+- :bulb: A callback function set on a property with `obs_property_set_modified_callback` has to [return true to trigger the refresh of the properties widget](https://obsproject.com/docs/plugins.html?highlight=return%20true#properties) (no new call to `script_properties`)
 - If another property or data setting is modified per script, e.g. in `script_update`, then its callback is not triggered automatically, use [`obs_properties_apply_settings`](https://obsproject.com/docs/reference-properties.html#c.obs_properties_apply_settings) to trigger all callbacks (e.g. in `script_update` with a properties object saved in a global variable in `script_properties`)
 
 ### Global script functions call sequence for other operations
