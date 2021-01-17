@@ -86,8 +86,8 @@ function script_defaults(settings)
   obs.obs_data_set_default_int(settings, "amplitude", 10)
 end
 
--- Fills the given property object with the names of all sources plus an empty one
-function populate_property_list_with_source_names(list_property)
+-- Fills the given list property object with the names of all sources plus an empty one
+function populate_list_property_with_source_names(list_property)
   local sources = obs.obs_enum_sources()
   obs.obs_property_list_clear(list_property)
   obs.obs_property_list_add_string(list_property, "", "")
@@ -100,20 +100,20 @@ end
 
 -- Called to display the properties GUI
 function script_properties()
-  print("in script_properties")
   props = obs.obs_properties_create()
 
-  local p = obs.obs_properties_add_list(props, "source_name", "Source name",
+  -- Drop-down list of sources
+  local list_property = obs.obs_properties_add_list(props, "source_name", "Source name",
               obs.OBS_COMBO_TYPE_LIST, obs.OBS_COMBO_FORMAT_STRING)
-  populate_property_list_with_source_names(p)
-
-  obs.obs_properties_add_button(props, "button", "Refresh list of sources",
-    function() populate_property_list_with_source_names(p) return true end)
-
+  populate_list_property_with_source_names(list_property)
   -- obs.obs_properties_add_text(props, "source_name", "Source name", obs.OBS_TEXT_DEFAULT)
+
+  -- Button to refresh the drop-down list
+  obs.obs_properties_add_button(props, "button", "Refresh list of sources",
+    function() populate_list_property_with_source_names(list_property) return true end)
+
   obs.obs_properties_add_float_slider(props, "frequency", "Shake frequency", 0.1, 20, 0.1)
   obs.obs_properties_add_int_slider(props, "amplitude", "Shake amplitude", 0, 90, 1)
-
   return props
 end
 
@@ -125,6 +125,10 @@ function script_update(settings)
   amplitude = obs.obs_data_get_int(settings, "amplitude")
 end
 
+
+-- Global animation activity flag
+is_active = false
+
 -- Called every frame
 function script_tick(seconds)
   if is_active then
@@ -134,13 +138,20 @@ function script_tick(seconds)
   end
 end
 
--- Global variables for the hotkey
-is_active = false                      -- True if the shake effect is currently active
-hotkey_id = obs.OBS_INVALID_HOTKEY_ID  -- Identifier of the hotkey set by OBS
-
 -- Callback for the hotkey
 function on_shake_hotkey(pressed)
   is_active = pressed
+end
+
+-- Identifier of the hotkey set by OBS
+hotkey_id = obs.OBS_INVALID_HOTKEY_ID
+
+-- Called at script load
+function script_load(settings)
+	hotkey_id = obs.obs_hotkey_register_frontend(script_path(), "Source Shake", on_shake_hotkey)
+	local hotkey_save_array = obs.obs_data_get_array(settings, "shake_hotkey")
+	obs.obs_hotkey_load(hotkey_id, hotkey_save_array)
+  obs.obs_data_array_release(hotkey_save_array)
 end
 
 -- Called before data settings are saved
@@ -148,17 +159,10 @@ function script_save(settings)
   restore_sceneitem_after_shake()
   obs.obs_save_sources()
 
+  -- Hotkey save
   local hotkey_save_array = obs.obs_hotkey_save(hotkey_id)
 	obs.obs_data_set_array(settings, "shake_hotkey", hotkey_save_array)
 	obs.obs_data_array_release(hotkey_save_array)
-end
-
--- Called at script load
-function script_load(settings)
-	hotkey_id = obs.obs_hotkey_register_frontend("OBS_KEY_SHAKE", "Source Shake", on_shake_hotkey)
-	local hotkey_save_array = obs.obs_data_get_array(settings, "shake_hotkey")
-	obs.obs_hotkey_load(hotkey_id, hotkey_save_array)
-  obs.obs_data_array_release(hotkey_save_array)
 end
 
 -- Called at script unload

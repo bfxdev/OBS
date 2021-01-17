@@ -2,6 +2,10 @@ This page proposes a tutorial for Python and Lua scripting. As an educational ex
 
 Depending how you came to this page, it is advisable now to take a look at the [OBS scripting documentation](https://obsproject.com/docs/scripting.html) and the [scripting introduction on the Wiki](Getting-Started-With-OBS-Scripting.md) if not already done.
 
+If you cannot wait and want to see how the Source Shake effect behaves, the complete scripts are available, [source-shake.py](images/scripting/source-shake.py) in Python and [source-shake.lua](images/scripting/source-shake.lua) in Lua.
+
+Let's go for a ride!
+
 ### Hello World
 
 Use a text editor and create a file named `source-shake.py` or `source-shake.lua` (both Python and Lua versions of the code will be given in the next sections). For now write only the following line in the file, which works for Python and Lua:
@@ -332,77 +336,67 @@ We are now done with saving and restoring the angle, all events should be covere
 
 Fortunately, OBS provides a [sophisticated set of scene signals](https://obsproject.com/docs/reference-scenes.html#scene-signals) to handle such events, one of them is `item_remove`. It is not well documented but the callback of this signal is called _before_ the object is finally destroyed, as of OBS 26.1 (need to add logging in `obs_sceneitem_destroy` in `obs-scene.c` and recompile OBS to really check this behavior..).
 
-We will use [`signal_handler_connect`](https://obsproject.com/docs/scripting.html#signal_handler_connect) to setup a callback in `save_sceneitem_for_shake` (with some additional function te re-determine the scene as source to get the signal handler). We keep a reference to the signal handler as a global variable to later disconnect the signal in `restore_sceneitem_after_shake`, in Python the save/restore part becomes:
+We start by defining the callback function that will just call `restore_sceneitem_after_shake`. The parameter `calldata` is not used, in Python:
 
 ``` Python
-# Global variables to restore the scene item after shake
-shaken_sceneitem = None     # Reference to the modified scene item
-shaken_sceneitem_angle = 0  # Initial rotation angle, used as well for oscillations
-shaken_scene_handler = None # Signal handler of the scene kept to restore
-
 # Callback for item_remove signal
 def on_shaken_sceneitem_removed(calldata):
-  print("in on_shaken_sceneitem_removed")
   restore_sceneitem_after_shake()
-
-# Saves the original rotation angle of the given sceneitem and connects item_remove signal
-def save_sceneitem_for_shake(sceneitem):
-  global shaken_sceneitem, shaken_sceneitem_angle, shaken_scene_handler
-  shaken_sceneitem = sceneitem
-  shaken_sceneitem_angle = obs.obs_sceneitem_get_rot(sceneitem)
-
-  # Handles scene item deletion
-  scene_as_source = obs.obs_scene_get_source(obs.obs_sceneitem_get_scene(sceneitem))
-  shaken_scene_handler = obs.obs_source_get_signal_handler(scene_as_source)
-  obs.signal_handler_connect(shaken_scene_handler, "item_remove", on_shaken_sceneitem_removed)
-
-# Restores the original rotation angle on the scene item and disconnects item_remove signal
-def restore_sceneitem_after_shake():
-  global shaken_sceneitem, shaken_sceneitem_angle
-  if shaken_sceneitem:
-    obs.obs_sceneitem_set_rot(shaken_sceneitem, shaken_sceneitem_angle)
-
-    obs.signal_handler_disconnect(shaken_scene_handler, "item_remove", on_shaken_sceneitem_removed)
-
-    shaken_sceneitem = None
 ```
 
 In Lua:
 
 ``` Lua
--- Global variables to restore the scene item after shake
-shaken_sceneitem = nil     -- Reference to the modified scene item
-shaken_sceneitem_angle = 0 -- Initial rotation angle, used as well for oscillations
-shaken_scene_handler = nil -- Signal handler of the scene kept to restore
-
 -- Callback for item_remove signal
 function on_shaken_sceneitem_removed(calldata)
   restore_sceneitem_after_shake()
 end
+```
 
--- Saves the original rotation angle of the given sceneitem and connects item_remove signal
-function save_sceneitem_for_shake(sceneitem)
-  shaken_sceneitem = sceneitem
-  shaken_sceneitem_angle = obs.obs_sceneitem_get_rot(sceneitem)
+We will use a signal handler to connect the signal, and keep a reference to it as a global variable to disconnect the signal, in Python:
 
+``` Python
+shaken_scene_handler = None # Signal handler of the scene kept to restore
+```
+
+In Lua:
+
+``` Lua
+shaken_scene_handler = nil -- Signal handler of the scene kept to restore
+```
+
+The function [`signal_handler_connect`](https://obsproject.com/docs/scripting.html#signal_handler_connect) to setup a callback in `save_sceneitem_for_shake` (with some additional function te re-determine the scene as source to get the signal handler), keeping the reference to the signal handler. Add the connection of the signal at the end of the `save_sceneitem_for_shake` function, in Python:
+
+``` Python
+  # Handles scene item deletion
+  global shaken_scene_handler
+  scene_as_source = obs.obs_scene_get_source(obs.obs_sceneitem_get_scene(sceneitem))
+  shaken_scene_handler = obs.obs_source_get_signal_handler(scene_as_source)
+  obs.signal_handler_connect(shaken_scene_handler, "item_remove", on_shaken_sceneitem_removed)
+```
+
+In Lua:
+
+``` Lua
   -- Handles scene item deletion
   local scene_as_source = obs.obs_scene_get_source(obs.obs_sceneitem_get_scene(sceneitem))
   shaken_scene_handler = obs.obs_source_get_signal_handler(scene_as_source)
   obs.signal_handler_connect(shaken_scene_handler, "item_remove", on_shaken_sceneitem_removed)
-end
-
--- Restores the original rotation angle on the scene item and disconnects item_remove signal
-function restore_sceneitem_after_shake()
-  if shaken_sceneitem then
-    --print("Restoring scene item with ID=" .. tostring(obs.obs_sceneitem_get_id(shaken_sceneitem)))
-    obs.obs_sceneitem_set_rot(shaken_sceneitem, shaken_sceneitem_angle)
-
-    obs.signal_handler_disconnect(shaken_scene_handler, "item_remove", shaken_sceneitem_remove_callback)
-
-    shaken_sceneitem = nil
-  end
-end
 ```
+
+Finally add the disconnection at the end of in `restore_sceneitem_after_shake`, before the line that sets `shaken_sceneitem` to `None`, in Python:
+
+``` Python
+    obs.signal_handler_disconnect(shaken_scene_handler, "item_remove", on_shaken_sceneitem_removed)
+```
+
+Add this line before the line that sets `shaken_sceneitem` to `nil` at the end of `restore_sceneitem_after_shake`, in Lua:
+
+``` Lua
+    obs.signal_handler_disconnect(shaken_scene_handler, "item_remove", shaken_sceneitem_remove_callback)
+```
+
+This long change is nothing spectacular but shows how to catch an OBS event and avoid potential crashes.
 
 ### Properties and data settings
 
@@ -416,10 +410,12 @@ Until now the parameters of the animation are only stored in global variables .T
 The global script functions of interest are:
 
 - **`script_defaults(settings)`** to set default values using functions such as [`obs_data_set_default_string(settings, name, value)`](https://obsproject.com/docs/reference-settings.html#c.obs_data_set_default_string), where `settings` is the data settings object and `name` the name of the user setting parameter
-- **`script_properties()`** to build the GUI using functions such as [`obs_properties_add_text(props, name, description, type)`](https://obsproject.com/docs/reference-properties.html#c.obs_properties_add_text), where `props` is the properties object, `name` the name of the related user setting parameter, `description` an HTML short description of the parameter and `type` the type of text entry field (here classical single line string)
-- **`script_update(settings)`** to transfer the modified values of data settings parameters to the relevant variables using functions such as [`obs_data_get_string(settings, name)`](https://obsproject.com/docs/reference-settings.html#c.obs_data_get_string) to retrieve values from the data settings object
+- **`script_properties()`** to build and return the GUI properties object, using functions such as [`obs_properties_add_text(props, name, description, type)`](https://obsproject.com/docs/reference-properties.html#c.obs_properties_add_text), where `props` is the properties object, `name` the name of the related user setting parameter, `description` an HTML short description of the parameter and `type` the type of text entry field (here classical single line string)
+- **`script_update(settings)`** to transfer the values from the data settings parameters to the relevant variables using functions such as [`obs_data_get_string(settings, name)`](https://obsproject.com/docs/reference-settings.html#c.obs_data_get_string) (the function is called systematically once during script loading for a first initialization of the variables)
 
-As a kind of convention in this tutorial, the same names are used for global variables and for the related data settings parameters. The property objects take care of updating the values of the data settings if changed by the user, and the values are stored persistently without additional effort. The code is straightforward, in Python:
+As a kind of convention in this tutorial, the same names are used for global variables and for the related data settings parameters (there is no obligation to do so).
+
+The property objects will take care of updating the values of the data settings if changed by the user, and the values are stored persistently without additional effort. The code is straightforward for our 3 settings/properties, in Python:
 
 ``` Python
 # Called to set default values of data settings
@@ -473,7 +469,10 @@ function script_update(settings)
 end
 ```
 
-Please note that there is always a slight difference between GUI-related properties and data settings in the OBS API. For example, a decimal number is named `double` in data settings while the GUI element is a `float_slider` (with a min, max and step to guide the user). A `string` in data settings is edited with a `text` property on the GUI.
+Please note:
+
+- `restore_sceneitem_after_shake` is called at the beginning of `script_update` in case the source name was changed
+- There is always a slight difference between GUI-related properties and data settings in the OBS API. For example, a decimal number is named `double` in data settings while the GUI element is a `float_slider` (with a min, max and step to guide the user). A `string` in data settings is edited with a `text` property on the GUI.
 
 Once the code is updated, reload the script, enter the name of the source, and then properties can be modified live:
 
@@ -483,70 +482,217 @@ Once the code is updated, reload the script, enter the name of the source, and t
 
 In the previous section, the `obs_properties_add_text` function has been introduced to let the user enter the name of the source manually. Obviously, as OBS knows all source names, any user would expect that the source can be selected in a drop-down list.
 
-A drop-down list property is implemented through the function [`obs_properties_add_list`](https://obsproject.com/docs/reference-properties.html#c.obs_properties_add_list) that returns a list `property` object. In our case it will be non-editable (`OBS_COMBO_TYPE_LIST`) and used to select a string data type (`OBS_COMBO_FORMAT_STRING`).
-
-Once the drop-down list property exists, it must be filled with selectable entries using [`obs_property_list_add_string`](https://obsproject.com/docs/reference-properties.html#c.obs_property_list_add_string). A selectable entry is always a pair of displayed value (`name` argument of `obs_property_list_add_string`, visible to the user) and encoded value (`val`, used for processing). In our case, both values are the same.
+A drop-down list property is implemented through the function `obs_properties_add_list` that returns a list `property` object. Once the drop-down list property exists, it must be populated with selectable entries using [`obs_property_list_add_string`](https://obsproject.com/docs/reference-properties.html#c.obs_property_list_add_string). A selectable entry is always a pair of displayed value (`name` argument of `obs_property_list_add_string`, visible to the user) and encoded value (`val`, used for processing). In our case, both values are the same.
 
 Existing sources in OBS are enumerated with the script-specific function [`obs_enum_sources`](https://obsproject.com/docs/scripting.html#obs_enum_sources). It returns a Python/Lua array of references to source objects. We use [`obs_source_get_name`](https://obsproject.com/docs/reference-sources.html#c.obs_source_get_name) to retrieve the name of each source. At the end, [`source_list_release`](https://obsproject.com/docs/scripting.html#source_list_release) must be used to release allocated objects.
 
-In the function `script_properties`, replace the line starting with `obs.obs_properties_add_text` with the following block, in Python:
+We start by defining a self-contained function that reads the list of sources and populates them in the given list property object. It adds as well an empty entry to manage the default value of `source_name` set in `script_defaults`, in Python:
 
 ``` Python
+# Fills the given list property object with the names of all sources plus an empty one
+def populate_list_property_with_source_names(list_property):
   sources = obs.obs_enum_sources()
-  p = obs.obs_properties_add_list(props, "source_name", "Source name",
-              obs.OBS_COMBO_TYPE_LIST, obs.OBS_COMBO_FORMAT_STRING)
+  obs.obs_property_list_clear(list_property)
+  obs.obs_property_list_add_string(list_property, "", "")
   for source in sources:
     name = obs.obs_source_get_name(source)
-    obs.obs_property_list_add_string(p, name, name)
+    obs.obs_property_list_add_string(list_property, name, name)
   obs.source_list_release(sources)
 ```
 
 In Lua:
 
 ``` Lua
+-- Fills the given list property object with the names of all sources plus an empty one
+function populate_list_property_with_source_names(list_property)
   local sources = obs.obs_enum_sources()
-  local p = obs.obs_properties_add_list(props, "source_name", "Source name",
-              obs.OBS_COMBO_TYPE_LIST, obs.OBS_COMBO_FORMAT_STRING)
+  obs.obs_property_list_clear(list_property)
+  obs.obs_property_list_add_string(list_property, "", "")
   for _,source in pairs(sources) do
     local name = obs.obs_source_get_name(source)
-    obs.obs_property_list_add_string(p, name, name)
+    obs.obs_property_list_add_string(list_property, name, name)
   end
   obs.source_list_release(sources)
+end
 ```
 
-Update the code, reload the scripts, then the drop-down list should be visible:
+Then we re-define the property related to `source_name` with a drop-down list property implemented through the function [`obs_properties_add_list`](https://obsproject.com/docs/reference-properties.html#c.obs_properties_add_list) that returns a list `property` object. In our case it will be non-editable (`OBS_COMBO_TYPE_LIST`) and used to select a string data type (`OBS_COMBO_FORMAT_STRING`).
+
+In `script_properties`, replace the line related to `source_name` (commented out below) with the following lock, in Python:
+
+``` Python
+  # Drop-down list of sources
+  list_property = obs.obs_properties_add_list(props, "source_name", "Source name",
+              obs.OBS_COMBO_TYPE_LIST, obs.OBS_COMBO_FORMAT_STRING)
+  populate_list_property_with_source_names(list_property)
+  # obs.obs_properties_add_text(props, "source_name", "Source name", obs.OBS_TEXT_DEFAULT)
+```
+
+In Lua:
+
+``` Lua
+  -- Drop-down list of sources
+  local list_property = obs.obs_properties_add_list(props, "source_name", "Source name",
+              obs.OBS_COMBO_TYPE_LIST, obs.OBS_COMBO_FORMAT_STRING)
+  populate_list_property_with_source_names(list_property)
+  -- obs.obs_properties_add_text(props, "source_name", "Source name", obs.OBS_TEXT_DEFAULT)
+```
+
+Update the code, reload the script, then the drop-down list should be visible:
 
 ![drop down list](images/scripting/source-shake-drop-down-list.png)
 
+### Button to refresh the drop-down list
 
-### Activate animation with a hotkey
+If a source is added or renamed, the list of sources needs to be refreshed. An easy way to do it is to reload the script but it may not always be wished if some resources need to be de-allocated then re-allocated (this is not strictly the case in the Source Shake script, this section shows just an alternative method).
 
-:boom: to be written
+In general, `script_properties` is called once at the first time the properties widget needs to be displayed (e.g. script first addition or first display of the _Scripts_ window). After that, the properties can be modified by the user or by script, and there is no new call to `script_properties`. But the widget is refreshed only if _one of the callbacks set on a property returns true_. This mechanism works for the callbacks set using [`obs_property_set_modified_callback`](https://obsproject.com/docs/reference-properties.html#c.obs_property_set_modified_callback) (e.g. to adapt the visibility of properties depending on other properties) and for the callbacks of buttons.
 
----
-
-#### Template formatting
-
-In Python:
+Hence another way to refresh the entries of the drop-down list is to define a button that will trigger the update of the list and return true. The new property is defined using the script-specific function [`obs_properties_add_button`](https://obsproject.com/docs/scripting.html#obs_properties_add_button). The callback takes 2 parameters that will not be used. It is placed just under the property of the drop-down list in `script_properties`, in Python (`list_property` is a reference on the drop-down list property, see previous section):
 
 ``` Python
+  # Button to refresh the drop-down list
+  obs.obs_properties_add_button(props, "button", "Refresh list of sources",
+    lambda props,prop: True if populate_list_property_with_source_names(list_property) else True)
+```
+
+Admire the very compact lambda/closure construction that really insists on the return value `True`!
+
+In Lua the same construction is possible and easier to understand (no need to give the callback arguments):
+
+``` Lua
+  -- Button to refresh the drop-down list
+  obs.obs_properties_add_button(props, "button", "Refresh list of sources",
+    function() populate_list_property_with_source_names(list_property) return true end)
+```
+
+The buttons should now show up under the drop-down list property:
+
+![refresh button](images/scripting/source-shake-refresh-button.png)
+
+Please note that if a source is renamed or deleted, the old value of `source_name` is kept. The widget of the drop-down list will default to the first entry, which is empty, such that it looks like no source is selected and actually no source is animated because the old name cannot be found in the list of sources, so everything seems normal. There are some cases where this small inconsistency could be visible, e.g. if the user delete a source, then add another source with the same name, this other source will get animated although the selection list would probably show no selected source. This could be solved by re-checking in `shake_source` if `source_name` is in the list returned by `enum_sources`, then set `source_name` to an empty string if not. But as the case is highly improbable, let's consider that as a feature!
+
+Strangely, there is no known method in OBS to trigger a refresh except the properties management functions used by the refresh button. This is probably the only workaround so far.
+
+### Hotkey
+
+Since the beginning of the tutorial, the description mentions the Hotkey, time to implement it.
+
+A hotkey is registered in OBS through [`obs_hotkey_register_frontend`](https://obsproject.com/docs/scripting.html#obs_hotkey_register_frontend) using some identifiers and a callback. Registering the hotkey does not set the key combination, which is set by the user in the settings of OBS. But as the selected key combination is not really part of the settings of the script, OBS will not store it in the user's configuration file automatically. This settings storage is actually the complex part of adding a hotkey to a script, especially because arrays are involved.
+
+Let's start at the beginning. Up to now the shake effect is active all the time, so we need a global activity flag and need to change `script_tick` to either animate the source with `shake_source` or restore the original angle with `restore_sceneitem_after_shake`, in Python:
+
+``` Python
+# Global animation activity flag
+is_active = False
+
+# Called every frame
+def script_tick(seconds):
+  if is_active:
+    shake_source()
+  else:
+    restore_sceneitem_after_shake()
 ```
 
 In Lua:
 
 ``` Lua
+-- Global animation activity flag
+is_active = false
+
+-- Called every frame
+function script_tick(seconds)
+  if is_active then
+    shake_source()
+  else
+    restore_sceneitem_after_shake()
+  end
+end
 ```
 
-
-
-
-In Python:
+The callback of a hotkey has a boolean argument `pressed` set to true if the key combination is pressed, false if it was released. The callback is typically called once for the key press, once for the release. The `is_active` flag will just take the value of `pressed`, in Python:
 
 ``` Python
+# Callback for the hotkey
+def on_shake_hotkey(pressed):
+  global is_active
+  is_active = pressed
 ```
 
 In Lua:
 
 ``` Lua
+-- Callback for the hotkey
+function on_shake_hotkey(pressed)
+  is_active = pressed
+end
 ```
 
+Now let's look at the difficult stuff. A key combination is represented by an array containing the main key plus optional modifiers such as "shift" or "control". Such an array is stored within a data settings object, is created or read if already existing using [`obs_data_get_array`](https://obsproject.com/docs/reference-settings.html#c.obs_data_get_array) (released by [`obs_data_array_release`](https://obsproject.com/docs/reference-settings.html#c.obs_data_array_release)), and is stored with [`obs_data_set_array`](https://obsproject.com/docs/reference-settings.html#c.obs_data_set_array).
+
+Two (so far undocumented) functions are provided to load/save the hotkey:
+
+- `obs_hotkey_save(id)` returns the key combination array set in OBS for a given hotkey `id`
+- `obs_hotkey_load(id, data)` loads into OBS the key combination array `data` for the given hotkey `id`
+
+The hotkey ID is returned by [`obs_hotkey_register_frontend`](https://obsproject.com/docs/scripting.html#obs_hotkey_register_frontend). It must be kept as a global variable to make the link between loaded and saved data. The hotkey is typically registered in `script_load`, where the key combination is read from the data settings and loaded into OBS, in Python:
+
+``` Python
+# Identifier of the hotkey set by OBS
+hotkey_id = obs.OBS_INVALID_HOTKEY_ID
+
+# Called at script load
+def script_load(settings):
+  global hotkey_id
+  hotkey_id = obs.obs_hotkey_register_frontend(script_path(), "Source Shake", on_shake_hotkey)
+  hotkey_save_array = obs.obs_data_get_array(settings, "shake_hotkey")
+  obs.obs_hotkey_load(hotkey_id, hotkey_save_array)
+  obs.obs_data_array_release(hotkey_save_array)
+```
+
+In Lua:
+
+``` Lua
+-- Identifier of the hotkey set by OBS
+hotkey_id = obs.OBS_INVALID_HOTKEY_ID
+
+-- Called at script load
+function script_load(settings)
+  hotkey_id = obs.obs_hotkey_register_frontend(script_path(), "Source Shake", on_shake_hotkey)
+  local hotkey_save_array = obs.obs_data_get_array(settings, "shake_hotkey")
+  obs.obs_hotkey_load(hotkey_id, hotkey_save_array)
+  obs.obs_data_array_release(hotkey_save_array)
+end
+```
+
+Please note that [`script_path`](https://obsproject.com/docs/scripting.html#script_path) is used as name in `obs_hotkey_register_frontend`. The advantage is that each copy of the same script (renamed or in a different directory) can have its own hotkey.
+
+Saving the hotkey settings is similar to the load part, add the following block at the end of the `script_save` function, in Python:
+
+``` Python
+  # Hotkey save
+  hotkey_save_array = obs.obs_hotkey_save(hotkey_id)
+  obs.obs_data_set_array(settings, "shake_hotkey", hotkey_save_array)
+  obs.obs_data_array_release(hotkey_save_array)
+```
+
+In Lua:
+
+``` Lua
+  -- Hotkey save
+  local hotkey_save_array = obs.obs_hotkey_save(hotkey_id)
+  obs.obs_data_set_array(settings, "shake_hotkey", hotkey_save_array)
+  obs.obs_data_array_release(hotkey_save_array)
+```
+
+Adapt the code, reload the script. The source should stop moving and the table in _Settings_ > _Hotkeys_ should show the new hotkey:
+
+![hotkeys](images/scripting/source-shake-hotkeys.png)
+
+Define a key combination (here a simple comma) and play with the hotkey!
+
+## Concluding words
+
+This tutorial starts from an immediate quick-and-dirty solution to a nicely integrated, robust and customizable video effect. Several aspects of the OBS API are put into practice to show the main concepts and the overall logic of the API. But it only scratches the surface, there are still tons of functions in OBS.
+
+Have fun with scripting!
