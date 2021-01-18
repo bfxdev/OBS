@@ -1,10 +1,14 @@
 
 obs = obslua
 
--- Global variables holding the values of data settings / properties
-source_name = "Spaceship"  -- Name of the source to shake
-frequency = 2              -- Frequency of oscillations in Hertz
-amplitude = 10             -- Angular amplitude of oscillations in degrees
+-- Description displayed in the Scripts dialog window
+function script_description()
+  return [[<center><h2>Source Shake!!</h2></center>
+           <p>Shake a source in the current scene when a hotkey is pressed. Go to <em>Settings
+           </em> then <em>Hotkeys</em> to select the key combination.</p><p>Check the <a href=
+           "https://github.com/obsproject/obs-studio/wiki/Scripting-Tutorial-Source-Shake">
+           Source Shake Scripting Tutorial</a> on the OBS Wiki for more information.</p>]]
+end
 
 -- Global variables to restore the scene item after shake
 shaken_sceneitem = nil     -- Reference to the modified scene item
@@ -51,6 +55,11 @@ function get_sceneitem_from_source_name_in_current_scene(name)
   return result_sceneitem
 end
 
+-- Global variables holding the values of data settings / properties
+source_name = ""           -- Name of the source to shake
+frequency = 2              -- Frequency of oscillations in Hertz
+amplitude = 10             -- Angular amplitude of oscillations in degrees
+
 -- Animates the scene item corresponding to source_name in the current scene
 function shake_source()
   local sceneitem = get_sceneitem_from_source_name_in_current_scene(source_name)
@@ -69,14 +78,9 @@ function shake_source()
   end
 end
 
--- Description displayed in the Scripts dialog window
-function script_description()
-  print("in script_description")
-  return [[<center><h2>Source Shake!!</h2></center>
-           <p>Shake a source in the current scene when a hotkey is pressed. Go to <em>Settings
-           </em> then <em>Hotkeys</em> to select the key combination.</p><p>Check the <a href=
-           "https://github.com/obsproject/obs-studio/wiki/Scripting-Tutorial-Source-Shake">
-           Source Shake Scripting Tutorial</a> on the OBS Wiki for more information.</p>]]
+-- Called at script unload
+function script_unload()
+  restore_sceneitem_after_shake()
 end
 
 -- Called to set default values of data settings
@@ -165,8 +169,3 @@ function script_save(settings)
 	obs.obs_data_array_release(hotkey_save_array)
 end
 
--- Called at script unload
-function script_unload()
-  restore_sceneitem_after_shake()
-  -- obs.obs_hotkey_unregister(shake_on_hotkey)
-end

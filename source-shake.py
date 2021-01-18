@@ -16,7 +16,6 @@ shaken_scene_handler = None # Signal handler of the scene kept to restore
 
 # Callback for item_remove signal
 def on_shaken_sceneitem_removed(calldata):
-  print("in on_shaken_sceneitem_removed")
   restore_sceneitem_after_shake()
 
 # Saves the original rotation angle of the given sceneitem and connects item_remove signal
@@ -52,7 +51,7 @@ def get_sceneitem_from_source_name_in_current_scene(name):
   return result_sceneitem
 
 # Global variables holding the values of data settings / properties
-source_name = "Spaceship"  # Name of the source to shake
+source_name = ""           # Name of the source to shake
 frequency = 2              # Frequency of oscillations in Hertz
 amplitude = 10             # Angular amplitude of oscillations in degrees
 
@@ -115,7 +114,6 @@ def script_update(settings):
   source_name = obs.obs_data_get_string(settings, "source_name")
   frequency = obs.obs_data_get_double(settings, "frequency")
   amplitude = obs.obs_data_get_int(settings, "amplitude")
-
 
 # Global animation activity flag
 is_active = False
