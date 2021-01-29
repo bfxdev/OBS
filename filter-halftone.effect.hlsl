@@ -45,8 +45,8 @@ SamplerState linear_wrap
 // Helper structure used as input/output argument for vertex and fragment shaders
 struct shader_data
 {
-	float4 pos : POSITION;  // Homogeneous coordinates XYZW
-	float2 uv  : TEXCOORD0; // UV coordinates in a texture
+    float4 pos : POSITION;  // Homogeneous coordinates XYZW
+    float2 uv  : TEXCOORD0; // UV coordinates in a texture
 };
 
 // Default vertex shader used to compute position of rendered pixels and pass UV

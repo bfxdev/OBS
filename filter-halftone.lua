@@ -63,29 +63,26 @@ source_info.destroy = function(data)
 end
 
 
--- Returns the width of the source, this callback is required if this is a video source and is synchronous
+-- Returns the width of the source
 source_info.get_width = function(data)
   return data.width
 end
 
--- Returns the height of the source, this callback is required if this is a video source and is synchronous
+-- Returns the height of the source
 source_info.get_height = function(data)
   return data.height
 end
 
 -- Called when rendering the source with the graphics subsystem
--- If this is a filter source, it wraps source draw calls (for example applying a custom effect with custom parameters
---   to a source). In this case, it’s highly recommended to use the obs_source_process_filter_begin() and
---   obs_source_process_filter_end() functions to automatically handle effect-based filter processing. However, you
---   can implement custom draw handling as desired as well.
--- See https://obsproject.com/docs/graphics.html#rendering-video-effect-filters
 source_info.video_render = function(data)
 
-  local target = obs.obs_filter_get_target(data.source)
-  data.width = obs.obs_source_get_base_width(target)
-  data.height = obs.obs_source_get_base_height(target)
+  local parent = obs.obs_filter_get_target(data.source)
+  data.width = obs.obs_source_get_base_width(parent)
+  data.height = obs.obs_source_get_base_height(parent)
 
   obslua.obs_source_process_filter_begin(data.source, obslua.GS_RGBA, obslua.OBS_NO_DIRECT_RENDERING)
+
+  -- Effect parameters initialization goes here
 
   obslua.obs_source_process_filter_end(data.source, data.effect, data.width, data.height)
 end
