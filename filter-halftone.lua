@@ -49,6 +49,11 @@ source_info.create = function(settings, source)
     return nil
   end
 
+  -- Retrieves the shader uniform variables
+  data.params = {}
+  data.params.width = obslua.gs_effect_get_param_by_name(data.effect, "width")
+  data.params.height = obslua.gs_effect_get_param_by_name(data.effect, "height")
+
   return data
 end
 
@@ -77,12 +82,17 @@ end
 source_info.video_render = function(data)
 
   local parent = obs.obs_filter_get_target(data.source)
+  if data.width ~= obs.obs_source_get_base_width(parent) then
+    print("new width: " .. tostring(obs.obs_source_get_base_width(parent)))
+  end
   data.width = obs.obs_source_get_base_width(parent)
   data.height = obs.obs_source_get_base_height(parent)
 
   obslua.obs_source_process_filter_begin(data.source, obslua.GS_RGBA, obslua.OBS_NO_DIRECT_RENDERING)
 
   -- Effect parameters initialization goes here
+  obslua.gs_effect_set_int(data.params.width, data.width)
+  obslua.gs_effect_set_int(data.params.height, data.height)
 
   obslua.obs_source_process_filter_end(data.source, data.effect, data.width, data.height)
 end
@@ -133,10 +143,6 @@ Filter removed:
 
 ]]
 
-
-source_info.destroy = function(data)
-  print("In source_info.destroy")
-end
 
 source_info.update = function(data, settings)
   print("In source_info.update")
@@ -306,7 +312,7 @@ end
 source_info.video_render = function(data)
   obslua.obs_source_process_filter_begin(data.source, obslua.GS_RGBA, obslua.OBS_NO_DIRECT_RENDERING)
 
-  -- Scale
+  -- Size
   obslua.gs_effect_set_int(data.params.width, data.width)
   obslua.gs_effect_set_int(data.params.height, data.height)
 

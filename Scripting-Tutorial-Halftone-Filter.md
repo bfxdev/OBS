@@ -1,11 +1,15 @@
 
 # Scripting Tutorial Halftone Filter
 
-This tutorial describes the implementation of a "halftone" filter as a Lua script for OBS. Such a filter appears in the list of filters and can be added as part of a filter chain to any video source. As effect, the filter mimics the [halftone technique](https://en.wikipedia.org/wiki/Halftone), used for printing with a reduced set on ink colors arranged in patterns. It is based on [dithering](https://en.wikipedia.org/wiki/Dither) with a carefully designed texture.
+This tutorial describes the implementation of a "halftone" filter as a Lua script for OBS. Such a filter appears in the list of filters and can be added as part of a filter chain to any video source. As effect, the filter mimics the [halftone technique](https://en.wikipedia.org/wiki/Halftone), used for printing with a reduced set of ink colors arranged in patterns. It is based on [dithering](https://en.wikipedia.org/wiki/Dither) with a carefully designed texture.
+
+## First part - 4 Shades of Grey
+
+The tutorial is divided into two parts. In this first part, we create a minimal script that implements a simple rendering effect. Such a script with its effect file can be easily re-used as starting point for new projects.
 
 ### Script creation
 
-As described in the [Source Shake tutorial](https://github.com/obsproject/obs-studio/wiki/Scripting-Tutorial-Source-Shake), create a script file named `filter-halftone.lua` with this content:
+Similarly to the [Source Shake tutorial](https://github.com/obsproject/obs-studio/wiki/Scripting-Tutorial-Source-Shake), create a script file named `filter-halftone.lua` with this content:
 
 ``` Lua
 obs = obslua
@@ -104,7 +108,7 @@ The effect file `filter-halftone.effect.hlsl` is mentioned in the code, it will 
 
 Namely, the function [`source_info.video_render`](https://obsproject.com/docs/reference-sources.html#c.obs_source_info.video_render) is called each frame to render the output of the filter in the graphics context (no need to call `obs_enter_graphics`). To render an effect, first [`obs_source_process_filter_begin`](https://obsproject.com/docs/reference-sources.html#c.obs_source_process_filter_begin) is called, then the effect parameters can be set, and then [`obs_source_process_filter_end`](https://obsproject.com/docs/reference-sources.html#c.obs_source_process_filter_end) is called to draw.
 
-Determining the width and height to pass to `obs_source_process_filter_end` is somehow tricky in OBS, because the filter is itself in a chain of filters, where the resolution could theoretically change at any stage. The usual method is to retrieve the "parent source" of the filter with [`obs_filter_get_parent`](https://obsproject.com/docs/reference-sources.html#c.obs_filter_get_parent), i.e. "the source being filtered", and then to use the so far undocumented functions `obs_source_get_base_width` and `obs_source_get_base_height`.
+Determining the width and height to pass to `obs_source_process_filter_end` is somehow tricky in OBS, because the filter is itself in a chain of filters, where the resolution could theoretically change at any stage. The usual method is to retrieve the "parent source" of the filter with [`obs_filter_get_parent`](https://obsproject.com/docs/reference-sources.html#c.obs_filter_get_parent), i.e. "the source being filtered", and then to use the so far undocumented functions `obs_source_get_base_width` and `obs_source_get_base_height`. Note that some filters reference the next source in the chain using `obs_filter_get_target`, not the source being filtered (it may make a difference depending on the use case).
 
 In addition, two additional functions `source_info.get_width` and `source_info.get_height` must be defined to provide the values to OBS whenever necessary. The functions will re-use the values determined in `source_info.video_render`.
 
@@ -137,7 +141,7 @@ end
 
 Add the code blocks to the Lua script, but no need to reload for now, the effect file is still missing.
 
-### Preliminary effect file
+### Simple HLSL luminance effect file
 
 The Lua code is in place, now create a new file called `filter-halftone.effect.hlsl` in the same directory as the Lua script.
 
@@ -145,7 +149,7 @@ The Lua code is in place, now create a new file called `filter-halftone.effect.h
 
 An [effect file](https://docs.microsoft.com/en-us/windows/win32/direct3d11/d3d11-effect-format) follows a strict syntax and structure. It is a mix of static data definitions and code. These constraints are necessary to allow the compilation for the GPU and the massively parallel execution. The various parts are described below.
 
-Our effect file starts with macro definitions that will allow writing HLSL-compliant code instead of the dialect understood by OBS, in order to support a full syntax check in the IDE. Indeed, the keywords `sampler_state` and `texture2d` are specific to OBS. Using such macros is of course not mandatory (and not so common looking at other OBS effect files):
+Our effect file starts with macro definitions that will allow writing HLSL-compliant code instead of the effect dialect understood by OBS, in order to support a full syntax check in the IDE. Indeed, the keywords `sampler_state` and `texture2d` are specific to effects in OBS. Using such macros is of course not mandatory (and not so common looking at other OBS effect files):
 
 ``` HLSL
 // OBS-specific syntax adaptation to HLSL standard to avoid errors reported by the code editor
@@ -176,60 +180,75 @@ SamplerState linear_clamp
 };
 ```
 
-After that, a very specific data structure is defined to specify which parameters are given to the vertex shader, and passed from the vertex shader to the pixel shader. It includes [semantics](https://docs.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-semantics) defining the intended use of the parameters of the structure, necessary for the rendering pipeline of the GPU ([supported semantics](https://obsproject.com/docs/graphics.html#effect-vertex-pixel-semantics) in the OBS API reference):
+After that, two very specific data structures are defined to specify which parameters are given to the vertex shader, and passed from the vertex shader to the pixel shader. In this tutorial these structures are artificially separated for better understanding and more generality. In most effects, both structures are defined in only one structure.
+
+The structures require for each parameter a [semantics](https://docs.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-semantics) identifier giving the intended use of the parameter. [Supported semantics](https://obsproject.com/docs/graphics.html#effect-vertex-pixel-semantics) are documented in the OBS API reference. Semantics are necessary for the graphics pipeline of the GPU:
 
 ``` HLSL
-// Helper structure used as input/output argument for vertex and fragment shaders
-struct shader_data
+// Data type of the input of the vertex shader
+struct vertex_data
 {
-    float4 pos : POSITION;  // Homogeneous coordinates XYZW
-    float2 uv  : TEXCOORD0; // UV coordinates in a texture
+    float4 pos : POSITION;  // Homogeneous space coordinates XYZW
+    float2 uv  : TEXCOORD0; // UV coordinates in the source picture
+};
+
+// Data type of the output returned by the vertex shader, and used as input 
+// for the pixel shader after interpolation for each pixel
+struct pixel_data
+{
+    float4 pos : POSITION;  // Homogeneous screen coordinates XYZW
+    float2 uv  : TEXCOORD0; // UV coordinates in the source picture
 };
 ```
 
-The `shader_data` structure is then used first as argument for the function implementing the Vertex Shader. As the GPU rendering pipeline model is based on drawing 3D triangles with a dynamic texture, OBS renders quads (2 triangles) on the screen filled pixel-by-pixel by the pixel shader. The vertex shader is only used to compute the screen coordinates of the 4 vertices of the quad, according to the transform of the source. The classical method to transform vertices is a [multiplication through a 4x4 matrix in homogeneous coordinates](http://www.it.hiof.no/~borres/j3d/math/threed/p-threed.html) (don't be afraid, it is not necessary to understand this for the filter):
+Before going further, some words about the classical 3D rendering pipeline. Roughly speaking, it comprises these main steps:
+
+- The application, here OBS, set-ups all data structures (textures, data parameters, arrays, etc) necessary for the computation and then feeds the 3D coordinates of triangles into the vertex shader together with various vertex attributes such as UV coordinate of the vertex mapped to a texture or a color assigned to this vertex, all part of the `vertex_data` structure.
+- Each time a `vertex_data` structure is available in the GPU, the _vertex shader_ is called and returns a `pixel_data` structure corresponding to the pixel under the vertex as seen on the screen. During this call, the vertex shader transforms the 3D world coordinates of the vertex into screen coordinates, and transforms the other vertex attributes if necessary.
+- Then many complex steps are performed by the GPU to determine how far the surface of each triangle is visible on the screen, up to each visible pixel.
+- Each time the GPU determines that a pixel of a triangle is visible, it calls the _pixel shader_ with a `pixel_data` structure as argument that corresponds to the position of the pixel. In order to provide position-specific values for each pixel of the triangle, the GPU interpolates values from the values of the 3 structures returned for the 3 vertices of the triangle by the vertex shader.
+
+To render sources, OBS follows the same model and renders simply quads (2 triangles) on the screen, where each vertex has the UV mapping of the source picture as attribute. The vertex shader is only used to compute the screen coordinates of the 4 vertices of the quad, according to the transform of the source, and to pass the UV coordinates to the pixel shader. The classical method for the transformation of world coordinates into screen coordinates is a [multiplication through the "View-Projection" 4x4 matrix in homogeneous coordinates](http://www.it.hiof.no/~borres/j3d/math/threed/p-threed.html) (don't be afraid, it is not necessary to understand homogeneous coordinates for the tutorial):
 
 ``` HLSL
-// Default vertex shader used to compute position of rendered pixels and pass UV
-shader_data vertex_shader_default(shader_data cur)
+// Vertex shader used to compute position of rendered pixels and pass UV
+pixel_data vertex_shader_halftone(vertex_data vertex)
 {
-    shader_data res;
-    res.pos = mul(float4(cur.pos.xyz, 1.0), ViewProj);
-    res.uv  = cur.uv;
-    return res;
+    pixel_data pixel;
+    pixel.pos = mul(float4(vertex.pos.xyz, 1.0), ViewProj);
+    pixel.uv  = vertex.uv;
+    return pixel;
 }
 ```
 
-The vertex shader will remain like this in most cases with OBS. Modifying it would alter the proper location of displayed sources on the screen, but interesting results could be achieved. Actually the Source Shake animation could be implemented as well just in the vertex shader.
+The vertex shader will remain like this in most cases with OBS. Altering the 3D transformation would change the proper location of displayed sources on the screen. Note that interesting results could be achieved, e.g. actually the Source Shake animation could be certainly implemented as a smart modification of the View-Projection matrix.
 
-The real heart of a video filter effect is in the Pixel Shader:
+Please note the well-adapted HLSL syntax `vertex.pos.xyz` here. `pos` is a `vertex` member with vector type `float4`. Adding the suffix `.xyz` is sufficient to convert it to a temporary `float3` vector with the values of the components `x`, `y` and `z` of `pos`. Then `float4(vertex.pos.xyz, 1.0)` is again a `float4` vector with the 3 first components of `vertex.pos.xyz` and `1.0` as fourth component. The HLSL syntax, which is by the way very similar to GLSL used in OpenGL, has this special feature that makes it very compact for matrix and vector operations.
+
+Now the real heart of the video filter effect is in the Pixel Shader. The main principle of a pixel shader is very simple: this is a function that computes a color at a given pixel position. The pixel shader function is called for every single pixel within the draw area.
+
+As a simple gray shading effect, we want to compute the "luminance" of the source pixel (i.e. its brightness or luminous intensity), and use it for each RGB component of the output color:
 
 ``` HLSL
-// Specific pixel shader for the halftone effect
-float4 pixel_shader_halftone(shader_data cur) : TARGET
+// Pixel shader used to compute an RGBA color at a given pixel position
+float4 pixel_shader_halftone(pixel_data pixel) : TARGET
 {
-    float4 smp = image.Sample(linear_clamp, cur.uv);
-    float level = round(smp.r + smp.g + smp.b) / 3.0;
-    return float4(level, level, level, smp.a);
+    float4 source_sample = image.Sample(linear_clamp, pixel.uv);
+    float luminance = dot(source_sample.rgb, float3(0.299, 0.587, 0.114));
+    return float4(luminance.xxx, source_sample.a);
 }
 ```
 
-The main principle of a pixel shader is very simple: this is a function that computes a color at a given pixel position. The pixel shader function is called for every single pixel within the draw area.
+Please again admire the incredibly compact syntax:
 
-The color is returned as a `float4` containing the values of the RGBA components between 0.0 and 1.0. The position of the pixel is provided through the `shader_data` structure:
+- On the first line, the `source_sample` variable receives the RGBA color of the pixel at `pixel.uv` in the source picture in UV coordinates, following a sampling method given by `linear_clamp`. Attention: here `.uv` is just a `float2` member of the structure `pixel`, not a suffix to access particular vector components.
+- On the second line, the [relative luminance](https://en.wikipedia.org/wiki/Relative_luminance) is computed as a [dot product](https://en.wikipedia.org/wiki/Dot_product) of the `float3` vector of the RGB components of `sample_color` and the constant `float3` vector _(0.299, 0.587, 0.114)_. The expression is equivalent to `source_sample.r*0.299 + source_sample.g*0.587 + source_sample.b*0.114`. Suffices `r`, `g`, `b`, `a` can be used like `x`, `y`, `z`, `w` to access particular vector components. It is necessary to write `source_sample.rgb` here because it is a `float4` vector and we want to exclude the `a` component from the dot product.
+- On the third line, a `float4` vector is built with three time the `luminance` value and then the original alpha value of the source color as fourth component. The color is returned as a `float4` containing the values of the RGBA components between 0.0 and 1.0.
 
-- `cur.pos.xy` gives the screen pixel coordinates (i.e. it changes if the user moves the filtered source)
-- `cur.uv` gives the UV coordinates of the input picture seen as a texture (i.e. independent of the position and scaling of the filtered source)
+The position of the pixel is provided through the `pixel_data` structure:
 
-UV coordinates are between 0.0 and 1.0, with the upper left corner of the picture is at position (0.0,0.0) and the bottom right corner at (1.0,1.0). This is what we want to use to reference the source pixels.
-
-In the pixel shader above:
-
-- `smp` receive the RGBA color of the pixel at `cur.uv` in the input source, following a sampling method given by `linear_clamp`
-- a value `level` is computed by adding all RGB components between 0.0 and 1.0, giving a value from 0.0 to 3.0, then rounding it to obtain either 3.0, 2.0, 1.0 or 0.0, and then dividing it by 3.0 to normalize these values between 0.0 and 1.0
-- the returned color is a grey with an intensity given by `level`, and takes the original alpha value `smp.a`
-
-The expected result of the pixel shader is to re-draw the input picture in 4 levels of gray, with an intensity given by the average of the RGB components at any pixel position.
+- `pixel.pos` is a `float4` vector resulting from the computation in the vertex shader and further interpolation. In the pixel shader `pixel.pos.xy` may contain the absolute position on screen of the pixel being rendered (i.e. values change if the user moves the source with the mouse). Now if the source is itself scaled with a setting of _Scale filtering_ different than _Disable_, or if some other filter needs to render in a texture as an intermediate step, then `pixel.pos.xy` may contain some other pixel coordinates corresponding to the internal texture used to render the output of our filter before further processing. In addition, as `pixel.pos` is in homogeneous coordinates, normally it is necessary to divide `x` and `y` by the `w` components (which should be always equal to 1 here as there is no 3D). Long story short, it is not recommended to use `pixel.pos` directly.
+- `pixel.uv` gives the interpolated UV coordinates of the pixel in the source picture as a `float2` vector, i.e. it does not depend on the position or scaling of the source. As UV coordinates, `pixel.uv.x` and `pixel.uv.y` have values in range 0.0 to 1.0, with the upper left corner of the source picture is at position (0.0,0.0) and the bottom right corner at (1.0,1.0). This is what we want to use to reference the source pixels. In addition, the UV coordinates can be used directly to retrieve the pixel color from the `image` texture.
 
 The final part of the effect file is the definition of the "techniques". Here again the structure will be similar in most effects, typically with one pass and one technique:
 
@@ -238,19 +257,105 @@ technique Draw
 {
     pass
     {
-        vertex_shader = vertex_shader_default(cur);
-        pixel_shader  = pixel_shader_halftone(cur);
+        vertex_shader = vertex_shader_halftone(vertex);
+        pixel_shader  = pixel_shader_halftone(pixel);
     }
 }
 ```
 
-Add the code blocks in the HLSL file, then restart OBS, normally the source should be now displayed in 4 colors:
+Add all the code blocks in the HLSL file, then restart OBS, normally the source should be displayed in black and white:
 
-![filter halftone 4 colors](images/scripting/filter-halftone-4-colors.png)
+![filter halftone luminance](images/scripting/filter-halftone-luminance.png)
 
-This is not the nicest half-toning effect, but it works! Additional computations will be necessary in the pixel shader to improve the effect.
+Well, this is not really a halftone picture here, but it clearly shows the expected shades of gray according to the luminance. The example picture is very dark. And actually our simple computation of the luminance is wrong as it does not take into account the "gamma compression" of RGB components.
 
-Nevertheless, it s a good starting point. The complete source code is available for re-use as a script skeleton for any new video filter development.
+### Gamma compression and correction
+
+Colors are typically encoded with 8 bits for each RGB component, i.e. in range 0 to 255, corresponding to the range 0.0 to 1.0 in HLSL. But because the human eye has a [non-linear perception of the light intensity](http://blog.johnnovak.net/2016/09/21/what-every-coder-should-know-about-gamma/) emitted by the monitor, the values encoded in the RGB components do not grow linearly with the intensity, they follow a power law instead. The power law for encoding and decoding uses typically an exponent _2.2_ or _1/2.2_.
+
+This non-linearity of the RGB components is of course an issue in a video filter if a computation is performed assuming they are encoded in a linear way.
+
+The two operations of [gamma correction](https://en.wikipedia.org/wiki/Gamma_correction) are called first _gamma compression_, i.e. encoding of an RGB component proportional to the light intensity into a value to be displayed to a human eye, with an exponent lower than 1, and _gamma expansion_ with an exponent greater than 1.
+
+Let's call _gamma_ the exponent used for color decoding (greater than 1) with a value of _2.2_. We can use simplified formulas for gamma encoding:
+
+_encoded_value = linear_value <sup>1/gamma</sup>_
+
+And for gamma decoding:
+
+_linear_value = encoded_value <sup>gamma</sup>_
+
+Please note that such formulas keep values nicely between 0.0 and 1.0.
+
+Now to come back to the halftone filter, we noted that the example picture is a bit too dark, and we know that changing the "gamma" of a picture change its overall luminosity. So we can introduce a gamma computation for 2 purposes: use of linear values for more exact calculations and a somehow abusively named "gamma correction" of the source picture.
+
+Namely, a gamma decoding including a manual "correction" would look like this, performed _before_ any computation on the RGB color components:
+
+_linear_value = encoded_value <sup>gamma+correction</sup>_
+
+Let's do it in the code, starting with the definition of a global constant `GAMMA` and a uniform variable `gamma_correction` with a default value:
+
+``` HLSL
+// Constants
+#define GAMMA 2.2
+
+// General properties
+uniform float gamma_correction = -1.2;
+```
+
+Experiment and adapt the default value of `gamma_correction` to your source. It will be defined as an OBS property later on.
+
+Then we introduce the gamma encoding and decoding functions, and re-write the pixel shader to use it:
+
+``` HLSL
+float3 decode_gamma(float3 color)
+{
+    return pow(color, GAMMA + gamma_correction);
+}
+
+float3 encode_gamma(float3 color)
+{
+    return pow(color, 1.0/GAMMA);
+}
+
+// Pixel shader used to compute an RGBA color at a given pixel position
+float4 pixel_shader_halftone(pixel_data pixel) : TARGET
+{
+    float4 source_sample = image.Sample(linear_clamp, pixel.uv);
+    float3 linear_color = decode_gamma(source_sample.rgb);
+
+    float luminance = dot(linear_color, float3(0.299, 0.587, 0.114));
+    float3 result = luminance.xxx;
+
+    return float4(encode_gamma(result), source_sample.a);
+}
+```
+
+Add all the code blocks in the HLSL file, then _restart OBS_ (only reloading the script would not help, because the effect remains cached and would not be re-compiled). Depending on the value you select for `gamma_correction`, the filtered picture should have a different overall luminosity:
+
+![filter halftone gamma corrected luminance](images/scripting/filter-halftone-gamma-corrected-luminance.png)
+
+The picture is a bit better now.
+
+### Source picture size
+
+
+
+### Adding properties
+
+This version is definitely a good starting point for further development. The complete [source code of this first part](Scripting-Tutorial-Halftone-Filter-Listing.md) is available.
+
+
+
+## Second part - Dithering with texture
+
+
+
+
+
+
+https://lettier.github.io/3d-game-shaders-for-beginners/gamma-correction.html
+
 
 ``` Lua
 ```
