@@ -80,8 +80,8 @@ source_info.create = function(settings, source)
   -- Compiles the effect
   obs.obs_enter_graphics()
   local effect_file_path = script_path() .. 'filter-halftone.effect.hlsl'
-  data.effect = obslua.gs_effect_create_from_file(effect_file_path, nil)
-  obslua.obs_leave_graphics()
+  data.effect = obs.gs_effect_create_from_file(effect_file_path, nil)
+  obs.obs_leave_graphics()
 
   -- Calls the destroy function if the effect was not compiled properly
   if data.effect == nil then
@@ -96,10 +96,10 @@ end
 -- Destroys and release resources linked to the custom data
 source_info.destroy = function(data)
   if data.effect ~= nil then
-    obslua.obs_enter_graphics()
-    obslua.gs_effect_destroy(data.effect)
+    obs.obs_enter_graphics()
+    obs.gs_effect_destroy(data.effect)
     data.effect = nil
-    obslua.obs_leave_graphics()
+    obs.obs_leave_graphics()
   end
 end
 ```
@@ -131,11 +131,11 @@ source_info.video_render = function(data)
   data.width = obs.obs_source_get_base_width(parent)
   data.height = obs.obs_source_get_base_height(parent)
 
-  obslua.obs_source_process_filter_begin(data.source, obslua.GS_RGBA, obslua.OBS_NO_DIRECT_RENDERING)
+  obs.obs_source_process_filter_begin(data.source, obs.GS_RGBA, obs.OBS_NO_DIRECT_RENDERING)
 
   -- Effect parameters initialization goes here
 
-  obslua.obs_source_process_filter_end(data.source, data.effect, data.width, data.height)
+  obs.obs_source_process_filter_end(data.source, data.effect, data.width, data.height)
 end
 ```
 
@@ -337,11 +337,112 @@ Add all the code blocks in the HLSL file, then _restart OBS_ (only reloading the
 
 The picture is a bit better now.
 
-### Source picture size
+### Width and height from Lua to the shader
 
+Whatever the final form, the halftone effect is based on a pattern applied pixel-by-pixel to the source picture. While it is easy to transform the color of a single pixel, if the position of the pixel is necessary to recognize in which part of a pattern the pixel is located, then the UV coordinates alone are not sufficient in the general case, it is necessary to know the size of the source picture. More about the calculations in the next section.
 
+In this section we will first see how to make the values of `width` and `height` available in the shader from the Lua code. Strangely, OBS does not foresee these parameters in effect files by default. We start with the definition of `uniform` variables in the effect file:
+
+``` HLSL
+// Size of the source picture
+uniform int width;
+uniform int height;
+```
+
+Only uniform variables can be changed from the Lua code. Once an effect is compiled, the function [`gs_effect_get_param_by_name`](https://obsproject.com/docs/reference-libobs-graphics-effects.html#c.gs_effect_get_param_by_name) provides the necessary `gs_eparam` structure where the value can be set. The effect parameters can be retrieved right after effect compilation in `source_info.create`:
+
+``` Lua
+  -- Retrieves the shader uniform variables
+  data.params = {}
+  data.params.width = obs.gs_effect_get_param_by_name(data.effect, "width")
+  data.params.height = obs.gs_effect_get_param_by_name(data.effect, "height")
+```
+
+Finally the values are set with [`gs_effect_set_int`](https://obsproject.com/docs/reference-libobs-graphics-effects.html#c.gs_effect_set_int) between `obs_source_process_filter_begin` and `obs_source_process_filter_end` in in `source_info.video_render`:
+
+``` Lua
+  -- Effect parameters initialization goes here
+  obs.gs_effect_set_int(data.params.width, data.width)
+  obs.gs_effect_set_int(data.params.height, data.height)
+```
+
+Add the code, restart OBS, for now no difference is expected, the interesting things start in the net section.
+
+### Luminance perturbation
+
+Now that the size of the picture is available, we can start to use pixel coordinates for formulas. Namely, we want to add a little perturbation on the computed luminance according to the formula _sin(x)*sin(y)_. The form of this classic formula looks like:
+
+![filter halftone ](images/scripting/filter-halftone-perturbation-curve.png)
+
+The formula will be such that:
+
+- It adds to the luminance a small negative or positive value with a given amplitude
+- The scale of the form can be changed, with a scale of 1.0 corresponding to an oscillation long of 1 pixel
+
+If we name the parameters of the formula simply _scale_ and _amplitude_, assuming _x_ and _y_ are in pixels, the angle for the oscillations on _x_ is given by _2\*&pi;\*x/scale_ (the bigger the _scale_, the longer the oscillations). The sine function returns values between -1.0 and 1.0, so the _amplitude_ can be just multiplied to the product of sine.
+
+The final parameterized formula will be:
+
+_perturbation = amplitude\*sin(2\*&pi;\*x/scale)\*sin(2\*&pi;\*y/scale)_
+
+For the coordinates _x_ and _y_ in pixels, as we have the _width_ and _height_ plus the UV coordinates, the formula are simply _x = U * width_ and _y = V * height_ if we call the UV coordinates _U_ and _V_ here.
+
+In the code, we will use a more compact form with a component-by-component multiplication of `pixel.uv` with `float2(width,height)`. Re-write the center part of the pixel shader (between the decoding and encoding lines) with:
+
+``` HLSL
+    float luminance = dot(linear_color, float3(0.299, 0.587, 0.114));
+    float2 position = pixel.uv * float2(width, height);
+    float perturbation = amplitude * sin(2.0*PI*position.x/scale) * sin(2.0*PI*position.y/scale);
+    float3 result = (luminance + perturbation).xxx;
+```
+
+At the top of the file, do not forget to define a new constant for `PI` and the new uniform variables `scale` and `amplitude` with default values:
+
+``` HLSL
+// Constants
+#define PI 3.141592653589793238
+
+// General properties
+uniform float amplitude = 0.2;
+uniform float scale = 8.0;
+```
+
+Add the code, restart OBS, now the effect should look like this:
+
+![filter halftone perturbation](images/scripting/filter-halftone-perturbation.png)
+
+It slowly starts to look like a halftone.
+
+### Reducing the number of colors
+
+Until now we use a continuous luminance. The next step is to mimic a reduced number of inks on a printed paper.
+
+For a given value of luminance from 0.0 to 1.0, we can multiply the value by a constant factor and then round the product to obtain a certain number of integer values. For example, with a factor of 3, we obtain the values 0, 1, 2 and 3. The we re-divide by 3 to obtain 4 luminance values with values 0.0, 0.33, 0.66 and 1.0. It can be generalized to _n_ colors by multiplying/dividing by _n-1_.
+
+The computation is really simple to implement. We start by adding a global uniform number of colors:
+
+``` HLSL
+uniform int number_of_colors = 4.0;
+```
+
+And we add a single line in the pixel shader, just before the gamma encoding:
+
+``` HLSL
+    result = round((number_of_colors-1)*result)/(number_of_colors-1);
+```
+
+Add the code, restart OBS, now the effect should look like this:
+
+![filter halftone 4 colors](images/scripting/filter-halftone-4-colors.png)
+
+Here we are! The sine-based halftone effect is completely implemented now. It has many parameters set with default values. To finish the filter we need to let the user set the parameters.
 
 ### Adding properties
+
+The effect is already satisfactory, we now want to improve the user experience.
+
+
+
 
 This version is definitely a good starting point for further development. The complete [source code of this first part](Scripting-Tutorial-Halftone-Filter-Listing.md) is available.
 

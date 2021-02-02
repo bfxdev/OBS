@@ -16,7 +16,10 @@ uniform int height;
 
 // General properties
 uniform float gamma_correction = -1.2;
-uniform float dithering_amplitude = 0.5;
+uniform float amplitude = 0.2;
+uniform float scale = 8.0;
+uniform int number_of_colors = 4.0;
+
 
 /*
 uniform float intensity_level = 0.5;
@@ -106,8 +109,6 @@ float4 compute_linear_halftone(float4 linear_color, float x, float y)
 */
     //int x = pixel.uv.x * width;
     //int y = pixel.uv.y * height;
-    //float x = pixel.pos.x / pixel.pos.w;
-    //float y = pixel.pos.y / pixel.pos.w;
 
 // Pixel shader used to compute an RGBA color at a given pixel position
 float4 pixel_shader_halftone(pixel_data pixel) : TARGET
@@ -116,12 +117,17 @@ float4 pixel_shader_halftone(pixel_data pixel) : TARGET
     float3 linear_color = decode_gamma(source_sample.rgb);
 
     float luminance = dot(linear_color, float3(0.299, 0.587, 0.114));
-    float3 result = luminance.xxx;
+    float2 position = pixel.uv * float2(width, height);
+    float perturbation = amplitude * sin(2.0*PI*position.x/scale) * sin(2.0*PI*position.y/scale);
+    float3 result = (luminance + perturbation).xxx;
+
+    result = round((number_of_colors-1)*result)/(number_of_colors-1);
 
     return float4(encode_gamma(result), source_sample.a);
-    //return float4(encode_gamma(result), source_sample.a);
-    //return float4(pixel.pos.x/500.0, pixel.pos.y/200.0, 1.0, 1.0);
 }
+
+
+    //return float4(pixel.pos.x/500.0, pixel.pos.y/200.0, 1.0, 1.0);
 
 /*{
     float4 source_sample = image.Sample(linear_clamp, pixel.uv);
