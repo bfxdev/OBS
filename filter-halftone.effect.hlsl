@@ -15,7 +15,7 @@ uniform int width;
 uniform int height;
 
 // General properties
-uniform float gamma_correction = -1.2;
+uniform float gamma_correction = 1.2;
 uniform float amplitude = 0.2;
 uniform float scale = 8.0;
 uniform int number_of_colors = 4.0;
@@ -77,38 +77,13 @@ pixel_data vertex_shader_halftone(vertex_data vertex)
 
 float3 decode_gamma(float3 color)
 {
-    return pow(color, GAMMA + gamma_correction);
+    return pow(color, GAMMA - gamma_correction);
 }
 
 float3 encode_gamma(float3 color)
 {
     return pow(color, 1.0/GAMMA);
 }
-
-/*
-float4 compute_linear_halftone(float4 linear_color, int x, int y)
-{
-    float luminance = 0.299*linear_color.r + 0.587*linear_color.g + 0.114*linear_color.b;
-    float level = round(linear_color.r + linear_color.g + linear_color.b) / 3.0;
-    //float level = round(luminance*3.0)/3.0;
-    //float level = luminance;
-    return float4(level, level, level, linear_color.a);
-}
-*/
-/*
-float4 compute_linear_halftone(float4 linear_color, float x, float y)
-{
-    float luminance = 0.299*linear_color.r + 0.587*linear_color.g + 0.114*linear_color.b;
-
-    float perturbation = 0.5*cos(x*2.0*PI/6.0)*sin(y*2.0*PI/6.0);
-
-    float level = round(3.0*(luminance+perturbation))/3.0;
-
-    return float4(level, level, level, linear_color.a);
-}
-*/
-    //int x = pixel.uv.x * width;
-    //int y = pixel.uv.y * height;
 
 // Pixel shader used to compute an RGBA color at a given pixel position
 float4 pixel_shader_halftone(pixel_data pixel) : TARGET
@@ -125,16 +100,6 @@ float4 pixel_shader_halftone(pixel_data pixel) : TARGET
 
     return float4(encode_gamma(result), source_sample.a);
 }
-
-
-    //return float4(pixel.pos.x/500.0, pixel.pos.y/200.0, 1.0, 1.0);
-
-/*{
-    float4 source_sample = image.Sample(linear_clamp, pixel.uv);
-    float level = round(source_sample.r + source_sample.g + source_sample.b) / 3.0;
-    return float4(level, level, level, source_sample.a);
-}*/
-
 
 /*
 // Black-and-white pixel shader

@@ -40,7 +40,8 @@ end
 
 -- Creates the implementation data for the source
 source_info.create = function(settings, source)
-  -- Initializes the custom data table
+
+-- Initializes the custom data table
   local data = {}
   data.source = source -- Keeps a reference to this filter as a source object
   data.width = 1       -- Dummy value during initialization phase
@@ -49,8 +50,8 @@ source_info.create = function(settings, source)
   -- Compiles the effect
   obs.obs_enter_graphics()
   local effect_file_path = script_path() .. 'filter-halftone.effect.hlsl'
-  data.effect = obslua.gs_effect_create_from_file(effect_file_path, nil)
-  obslua.obs_leave_graphics()
+  data.effect = obs.gs_effect_create_from_file(effect_file_path, nil)
+  obs.obs_leave_graphics()
 
   -- Calls the destroy function if the effect was not compiled properly
   if data.effect == nil then
@@ -59,19 +60,31 @@ source_info.create = function(settings, source)
     return nil
   end
 
+  -- Retrieves the shader uniform variables
+  data.params = {}
+  data.params.width = obs.gs_effect_get_param_by_name(data.effect, "width")
+  data.params.height = obs.gs_effect_get_param_by_name(data.effect, "height")
+
+  data.params.gamma_correction = obs.gs_effect_get_param_by_name(data.effect, "gamma_correction")
+  data.params.amplitude = obs.gs_effect_get_param_by_name(data.effect, "amplitude")
+  data.params.scale = obs.gs_effect_get_param_by_name(data.effect, "scale")
+  data.params.number_of_colors = obs.gs_effect_get_param_by_name(data.effect, "number_of_colors")
+
+  -- Calls update to initialize the rest of the properties-managed settings
+  source_info.update(data, settings)
+
   return data
 end
 
 -- Destroys and release resources linked to the custom data
 source_info.destroy = function(data)
   if data.effect ~= nil then
-    obslua.obs_enter_graphics()
-    obslua.gs_effect_destroy(data.effect)
+    obs.obs_enter_graphics()
+    obs.gs_effect_destroy(data.effect)
     data.effect = nil
-    obslua.obs_leave_graphics()
+    obs.obs_leave_graphics()
   end
 end
-
 
 -- Returns the width of the source
 source_info.get_width = function(data)
@@ -86,15 +99,48 @@ end
 -- Called when rendering the source with the graphics subsystem
 source_info.video_render = function(data)
 
-  local parent = obs.obs_filter_get_parent(data.source)
+  local parent = obs.obs_filter_get_target(data.source)
   data.width = obs.obs_source_get_base_width(parent)
   data.height = obs.obs_source_get_base_height(parent)
 
-  obslua.obs_source_process_filter_begin(data.source, obslua.GS_RGBA, obslua.OBS_NO_DIRECT_RENDERING)
+  obs.obs_source_process_filter_begin(data.source, obs.GS_RGBA, obs.OBS_NO_DIRECT_RENDERING)
 
   -- Effect parameters initialization goes here
+  obs.gs_effect_set_int(data.params.width, data.width)
+  obs.gs_effect_set_int(data.params.height, data.height)
 
-  obslua.obs_source_process_filter_end(data.source, data.effect, data.width, data.height)
+  obs.gs_effect_set_float(data.params.gamma_correction, data.gamma_correction)
+  obs.gs_effect_set_float(data.params.amplitude, data.amplitude)
+  obs.gs_effect_set_float(data.params.scale, data.scale)
+  obs.gs_effect_set_int(data.params.number_of_colors, data.number_of_colors)
+
+  obs.obs_source_process_filter_end(data.source, data.effect, data.width, data.height)
+end
+
+-- Sets the default settings for this source
+source_info.get_defaults = function(settings)
+  obs.obs_data_set_default_double(settings, "gamma_correction", 0.0)
+  obs.obs_data_set_default_double(settings, "scale", 5.0)
+  obs.obs_data_set_default_double(settings, "amplitude", 0.2)
+  obs.obs_data_set_default_int(settings, "number_of_colors", 4)
+end
+
+-- Gets the property information of this source
+source_info.get_properties = function(data)
+  local props = obs.obs_properties_create()
+  obs.obs_properties_add_float_slider(props, "gamma_correction", "Gamma correction", -2.0, 2.0, 0.1)
+  obs.obs_properties_add_float_slider(props, "scale", "Pattern scale", 0.01, 10.0, 0.01)
+  obs.obs_properties_add_float_slider(props, "amplitude", "Perturbation amplitude", 0.0, 2.0, 0.01)
+  obs.obs_properties_add_int_slider(props, "number_of_colors", "Number of colors", 2, 10, 1)
+  return props
+end
+
+-- Updates the internal data for this source upon settings change
+source_info.update = function(data, settings)
+  data.gamma_correction = obs.obs_data_get_double(settings, "gamma_correction")
+  data.scale = obs.obs_data_get_double(settings, "scale")
+  data.amplitude = obs.obs_data_get_double(settings, "amplitude")
+  data.number_of_colors = obs.obs_data_get_int(settings, "number_of_colors")
 end
 ```
 
@@ -105,9 +151,23 @@ end
 #define SamplerState sampler_state
 #define Texture2D texture2d
 
+// Constants
+#define GAMMA 2.2
+#define PI 3.141592653589793238
+
 // Uniform variables set by OBS (required)
 uniform float4x4 ViewProj; // View-projection matrix used in the vertex shader
 uniform Texture2D image;   // Texture containing the source picture
+
+// Size of the source picture
+uniform int width;
+uniform int height;
+
+// General properties
+uniform float gamma_correction = 1.2;
+uniform float amplitude = 0.2;
+uniform float scale = 8.0;
+uniform int number_of_colors = 4.0;
 
 // Interpolation method and wrap mode for sampling a texture
 SamplerState linear_clamp
@@ -118,38 +178,62 @@ SamplerState linear_clamp
     BorderColor = 00000000; // Used only with Border edges (optional)
 };
 
-// Helper structure used as input/output argument for vertex and fragment shaders
-struct shader_data
+// Data type of the input of the vertex shader
+struct vertex_data
 {
-    float4 pos : POSITION;  // Homogeneous coordinates XYZW
-    float2 uv  : TEXCOORD0; // UV coordinates in a texture
+    float4 pos : POSITION;  // Homogeneous space coordinates XYZW
+    float2 uv  : TEXCOORD0; // UV coordinates in the source picture
 };
 
-// Default vertex shader used to compute position of rendered pixels and pass UV
-shader_data vertex_shader_default(shader_data cur)
+// Data type of the output returned by the vertex shader, and used as input 
+// for the pixel shader after interpolation for each pixel
+struct pixel_data
 {
-    shader_data res;
-    res.pos = mul(float4(cur.pos.xyz, 1.0), ViewProj);
-    res.uv  = cur.uv;
-    return res;
+    float4 pos : POSITION;  // Homogeneous screen coordinates XYZW
+    float2 uv  : TEXCOORD0; // UV coordinates in the source picture
+};
+
+// Vertex shader used to compute position of rendered pixels and pass UV
+pixel_data vertex_shader_halftone(vertex_data vertex)
+{
+    pixel_data pixel;
+    pixel.pos = mul(float4(vertex.pos.xyz, 1.0), ViewProj);
+    pixel.uv  = vertex.uv;
+    return pixel;
 }
 
-// Specific pixel shader for the halftone effect
-float4 pixel_shader_halftone(shader_data cur) : TARGET
+float3 decode_gamma(float3 color)
 {
-    float4 smp = image.Sample(linear_clamp, cur.uv);
-    float level = round(smp.r + smp.g + smp.b) / 3.0;
-    return float4(level, level, level, smp.a);
+    return pow(color, GAMMA - gamma_correction);
+}
+
+float3 encode_gamma(float3 color)
+{
+    return pow(color, 1.0/GAMMA);
+}
+
+// Pixel shader used to compute an RGBA color at a given pixel position
+float4 pixel_shader_halftone(pixel_data pixel) : TARGET
+{
+    float4 source_sample = image.Sample(linear_clamp, pixel.uv);
+    float3 linear_color = decode_gamma(source_sample.rgb);
+
+    float luminance = dot(linear_color, float3(0.299, 0.587, 0.114));
+    float2 position = pixel.uv * float2(width, height);
+    float perturbation = amplitude * sin(2.0*PI*position.x/scale) * sin(2.0*PI*position.y/scale);
+    float3 result = (luminance + perturbation).xxx;
+
+    result = round((number_of_colors-1)*result)/(number_of_colors-1);
+
+    return float4(encode_gamma(result), source_sample.a);
 }
 
 technique Draw
 {
     pass
     {
-        vertex_shader = vertex_shader_default(cur);
-        pixel_shader  = pixel_shader_halftone(cur);
+        vertex_shader = vertex_shader_halftone(vertex);
+        pixel_shader  = pixel_shader_halftone(pixel);
     }
 }
 ```
-
-

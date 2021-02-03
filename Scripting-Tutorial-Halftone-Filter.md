@@ -289,9 +289,9 @@ Please note that such formulas keep values nicely between 0.0 and 1.0.
 
 Now to come back to the halftone filter, we noted that the example picture is a bit too dark, and we know that changing the "gamma" of a picture change its overall luminosity. So we can introduce a gamma computation for 2 purposes: use of linear values for more exact calculations and a somehow abusively named "gamma correction" of the source picture.
 
-Namely, a gamma decoding including a manual "correction" would look like this, performed _before_ any computation on the RGB color components:
+Namely, a gamma decoding including a subtractive "correction" would look like this, performed _before_ any computation on the RGB color components (with a minus such that positive values increase the luminosity):
 
-_linear_value = encoded_value <sup>gamma+correction</sup>_
+_linear_value = encoded_value <sup>gamma-correction</sup>_
 
 Let's do it in the code, starting with the definition of a global constant `GAMMA` and a uniform variable `gamma_correction` with a default value:
 
@@ -300,7 +300,7 @@ Let's do it in the code, starting with the definition of a global constant `GAMM
 #define GAMMA 2.2
 
 // General properties
-uniform float gamma_correction = -1.2;
+uniform float gamma_correction = 1.2;
 ```
 
 Experiment and adapt the default value of `gamma_correction` to your source. It will be defined as an OBS property later on.
@@ -310,7 +310,7 @@ Then we introduce the gamma encoding and decoding functions, and re-write the pi
 ``` HLSL
 float3 decode_gamma(float3 color)
 {
-    return pow(color, GAMMA + gamma_correction);
+    return pow(color, GAMMA - gamma_correction);
 }
 
 float3 encode_gamma(float3 color)
@@ -463,27 +463,87 @@ With reduced size it still behaves well:
 
 ![filter halftone unzoom scale filtering disable](images/scripting/filter-halftone-unzoom-scale-filtering-disable.png)
 
-The sine-based halftone effect is completely implemented now. It has many parameters set with default values. To finish the filter we need to let the user set the parameters.
+The sine-based halftone effect is completely implemented now. It has many parameters set with default values but the user cannot set these parameters so far.
 
 ### Adding properties
 
-The effect is already satisfactory, we now want to improve the user experience.
+The effect is already satisfactory, we now want to improve the user experience by creating properties for the uniform variables that we already have in the effect file: `gamma_correction`, `amplitude`, `scale` and `number_of_colors`.
 
+By convention, we will name all instances of the variables or properties with the sames names as in the effect file, i.e. for the effect parameters, the data settings and the variables of the `data` structure.
 
+Similarly to what is described in the Source Shake tutorial, we first have to define default values in [`source_info.get_defaults`](https://obsproject.com/docs/reference-sources.html#c.obs_source_info.get_defaults). Default values are chosen such that applying them to a new source would give a reasonable result (no extreme values, no pre-defined corrections):
 
+``` Lua
+-- Sets the default settings for this source
+source_info.get_defaults = function(settings)
+  obs.obs_data_set_default_double(settings, "gamma_correction", 0.0)
+  obs.obs_data_set_default_double(settings, "scale", 5.0)
+  obs.obs_data_set_default_double(settings, "amplitude", 0.2)
+  obs.obs_data_set_default_int(settings, "number_of_colors", 4)
+end
+```
 
-This version is definitely a good starting point for further development. The complete [source code of this first part](Scripting-Tutorial-Halftone-Filter-Listing.md) is available.
+Then we define the properties as sliders in [`source_info.get_properties`](https://obsproject.com/docs/reference-sources.html#c.obs_source_info.get_properties), which builds and returns a properties structure:
 
+``` Lua
+-- Gets the property information of this source
+source_info.get_properties = function(data)
+  local props = obs.obs_properties_create()
+  obs.obs_properties_add_float_slider(props, "gamma_correction", "Gamma correction", -2.0, 2.0, 0.1)
+  obs.obs_properties_add_float_slider(props, "scale", "Pattern scale", 0.01, 10.0, 0.01)
+  obs.obs_properties_add_float_slider(props, "amplitude", "Perturbation amplitude", 0.0, 2.0, 0.01)
+  obs.obs_properties_add_int_slider(props, "number_of_colors", "Number of colors", 2, 10, 1)
+  return props
+end
+```
 
+Once a property is changed, the [`source_info.update`](https://obsproject.com/docs/reference-sources.html#c.obs_source_info.update) function is called. This is where we will transfer the values from data settings to the `data` structure used to hold values until they are set in the shader:
+
+``` Lua
+-- Updates the internal data for this source upon settings change
+source_info.update = function(data, settings)
+  data.gamma_correction = obs.obs_data_get_double(settings, "gamma_correction")
+  data.scale = obs.obs_data_get_double(settings, "scale")
+  data.amplitude = obs.obs_data_get_double(settings, "amplitude")
+  data.number_of_colors = obs.obs_data_get_int(settings, "number_of_colors")
+end
+```
+
+Next, like for `width` and `height`, we need to store the effect parameters and we call once `source_info.update` to initialize the members of the `data` structure (do not forget it, otherwise OBS will try to use non-initialized data in `source_info.video_render` and log errors every frame). This block comes at the end of the `source_info.create` function, after effect compilation:
+
+``` Lua
+  data.params.gamma_correction = obs.gs_effect_get_param_by_name(data.effect, "gamma_correction")
+  data.params.amplitude = obs.gs_effect_get_param_by_name(data.effect, "amplitude")
+  data.params.scale = obs.gs_effect_get_param_by_name(data.effect, "scale")
+  data.params.number_of_colors = obs.gs_effect_get_param_by_name(data.effect, "number_of_colors")
+
+  -- Calls update to initialize the rest of the properties-managed settings
+  source_info.update(data, settings)
+```
+
+And finally we transfer the values from the `data` structure into the effect parameters in `source_info.video_render`:
+
+``` Lua
+  obs.gs_effect_set_float(data.params.gamma_correction, data.gamma_correction)
+  obs.gs_effect_set_float(data.params.amplitude, data.amplitude)
+  obs.gs_effect_set_float(data.params.scale, data.scale)
+  obs.gs_effect_set_int(data.params.number_of_colors, data.number_of_colors)
+```
+
+Well, that's a lot. Each variable appears 7 times in different forms! Every line above has a justification, and this is the way OBS manages the persistency of settings, default values, display of properties, etc, and that for any filter instance added to any source. Let's say it is worth the pain but it calls for a proper object-oriented design to avoid writing so many times the same of code.
+
+Add the pieces of code, restart OBS, open the _Filters_ of the source, it should look like this (here in 2 colors):
+
+![filter halftone properties](images/scripting/filter-halftone-properties.png)
+
+Playing with the parameters of a video filter and seeing the result immediately is quite satisfying.Note the aliasing effects in the preview, it seems that there is nothing foreseen to avoid it.
+
+This first part is completed. This version is definitely a good starting point for further development. The complete [source code of this first part](Scripting-Tutorial-Halftone-Filter-Listing.md) is available.
 
 ## Second part - Dithering with texture
 
+In this second part we will see how to use additional textures.
 
-
-
-
-
-https://lettier.github.io/3d-game-shaders-for-beginners/gamma-correction.html
 
 
 ``` Lua

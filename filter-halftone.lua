@@ -54,6 +54,14 @@ source_info.create = function(settings, source)
   data.params.width = obs.gs_effect_get_param_by_name(data.effect, "width")
   data.params.height = obs.gs_effect_get_param_by_name(data.effect, "height")
 
+  data.params.gamma_correction = obs.gs_effect_get_param_by_name(data.effect, "gamma_correction")
+  data.params.amplitude = obs.gs_effect_get_param_by_name(data.effect, "amplitude")
+  data.params.scale = obs.gs_effect_get_param_by_name(data.effect, "scale")
+  data.params.number_of_colors = obs.gs_effect_get_param_by_name(data.effect, "number_of_colors")
+
+  -- Calls update to initialize the rest of the properties-managed settings
+  source_info.update(data, settings)
+
   return data
 end
 
@@ -81,9 +89,6 @@ end
 source_info.video_render = function(data)
 
   local parent = obs.obs_filter_get_target(data.source)
-  if data.width ~= obs.obs_source_get_base_width(parent) then
-    print("new width: " .. tostring(obs.obs_source_get_base_width(parent)))
-  end
   data.width = obs.obs_source_get_base_width(parent)
   data.height = obs.obs_source_get_base_height(parent)
 
@@ -93,7 +98,41 @@ source_info.video_render = function(data)
   obs.gs_effect_set_int(data.params.width, data.width)
   obs.gs_effect_set_int(data.params.height, data.height)
 
+  obs.gs_effect_set_float(data.params.gamma_correction, data.gamma_correction)
+  obs.gs_effect_set_float(data.params.amplitude, data.amplitude)
+  obs.gs_effect_set_float(data.params.scale, data.scale)
+  obs.gs_effect_set_int(data.params.number_of_colors, data.number_of_colors)
+
   obs.obs_source_process_filter_end(data.source, data.effect, data.width, data.height)
+end
+
+-- Sets the default settings for this source
+source_info.get_defaults = function(settings)
+  print("In source_info.get_defaults")
+  obs.obs_data_set_default_double(settings, "gamma_correction", 0.0)
+  obs.obs_data_set_default_double(settings, "scale", 5.0)
+  obs.obs_data_set_default_double(settings, "amplitude", 0.2)
+  obs.obs_data_set_default_int(settings, "number_of_colors", 4)
+end
+
+-- Gets the property information of this source
+source_info.get_properties = function(data)
+  print("In source_info.get_properties")
+  local props = obs.obs_properties_create()
+  obs.obs_properties_add_float_slider(props, "gamma_correction", "Gamma correction", -2.0, 2.0, 0.1)
+  obs.obs_properties_add_float_slider(props, "scale", "Pattern scale", 0.01, 10.0, 0.01)
+  obs.obs_properties_add_float_slider(props, "amplitude", "Perturbation amplitude", 0.0, 2.0, 0.01)
+  obs.obs_properties_add_int_slider(props, "number_of_colors", "Number of colors", 2, 10, 1)
+  return props
+end
+
+-- Updates the internal data for this source upon settings change
+source_info.update = function(data, settings)
+  print("In source_info.update")
+  data.gamma_correction = obs.obs_data_get_double(settings, "gamma_correction")
+  data.scale = obs.obs_data_get_double(settings, "scale")
+  data.amplitude = obs.obs_data_get_double(settings, "amplitude")
+  data.number_of_colors = obs.obs_data_get_int(settings, "number_of_colors")
 end
 
 
@@ -140,12 +179,12 @@ Filter removed:
 21:33:37.314: [Lua: filter-halftone.lua] In source_info.save
 21:33:37.315: [Lua: filter-halftone.lua] In source_info.save
 
-]]
 
 
 source_info.update = function(data, settings)
   print("In source_info.update")
 end
+
 
 source_info.activate = function(data)
   print("In source_info.activate")
@@ -170,6 +209,7 @@ end
 source_info.load = function(data)
   print("In source_info.load")
 end
+]]
 
 
 --[[
