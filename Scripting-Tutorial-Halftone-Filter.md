@@ -435,7 +435,35 @@ Add the code, restart OBS, now the effect should look like this:
 
 ![filter halftone 4 colors](images/scripting/filter-halftone-4-colors.png)
 
-Here we are! The sine-based halftone effect is completely implemented now. It has many parameters set with default values. To finish the filter we need to let the user set the parameters.
+Here we are! It is nice to see what a simple sine-based perturbation plus rounding can do. The active part of the effect is just a couple of lines long.
+
+And now it is also very interesting to check how the effect behaves with different kinds of scale filtering (context menu of the source in OBS, then _Scale Filtering_).
+
+First example, the scale filtering _Point_ does not perform any interpolation after zoom and shows square-formed pixels:
+
+![filter halftone zoom scale filtering point](images/scripting/filter-halftone-zoom-scale-filtering-point.png)
+
+Typically, as we use a periodic pattern in the effect, "aliasing" artifacts may appear if we reduce the size of the picture:
+
+![filter halftone unzoom scale filtering point](images/scripting/filter-halftone-unzoom-scale-filtering-point.png)
+
+With a scale filtering set to _Bicubic_, the interpolation after scaling shows anti-aliasing:
+
+![filter halftone zoom scale filtering bicubic](images/scripting/filter-halftone-zoom-scale-filtering-bicubic.png)
+
+With reduced size, the aliasing is not completely gone but at least reduced:
+
+![filter halftone unzoom scale filtering bicubic](images/scripting/filter-halftone-unzoom-scale-filtering-bicubic.png)
+
+Now a very interesting effect appears when the scale filtering is set to _Disable_ on a strongly zoomed picture (attention it may not work if other filters are in the chain of the source). The pixel shader works directly on the screen (the output is not rendered into an intermediate texture for later scaling), so it renders every single pixel in the screen space, at a sub-pixel level for the source picture. As we use continuous mathematical functions, and sample the source picture using a `Linear` interpolation with `linear_clamp`,  the curves drawn by the pixel shader hide completely the pixel grid of the source picture. It looks like a vector drawing:
+
+![filter halftone zoom scale filtering disable](images/scripting/filter-halftone-zoom-scale-filtering-disable.png)
+
+With reduced size it still behaves well:
+
+![filter halftone unzoom scale filtering disable](images/scripting/filter-halftone-unzoom-scale-filtering-disable.png)
+
+The sine-based halftone effect is completely implemented now. It has many parameters set with default values. To finish the filter we need to let the user set the parameters.
 
 ### Adding properties
 
