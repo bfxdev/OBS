@@ -54,10 +54,13 @@ source_info.create = function(settings, source)
   data.params.width = obs.gs_effect_get_param_by_name(data.effect, "width")
   data.params.height = obs.gs_effect_get_param_by_name(data.effect, "height")
 
-  data.params.gamma_correction = obs.gs_effect_get_param_by_name(data.effect, "gamma_correction")
+  data.params.gamma_shift = obs.gs_effect_get_param_by_name(data.effect, "gamma_shift")
   data.params.amplitude = obs.gs_effect_get_param_by_name(data.effect, "amplitude")
   data.params.scale = obs.gs_effect_get_param_by_name(data.effect, "scale")
-  data.params.number_of_colors = obs.gs_effect_get_param_by_name(data.effect, "number_of_colors")
+  data.params.number_of_color_levels = obs.gs_effect_get_param_by_name(data.effect, "number_of_color_levels")
+
+  data.params.pattern_texture = obs.gs_effect_get_param_by_name(data.effect, "pattern_texture")
+  data.params.pattern_size = obs.gs_effect_get_param_by_name(data.effect, "pattern_size")
 
   -- Calls update to initialize the rest of the properties-managed settings
   source_info.update(data, settings)
@@ -98,10 +101,20 @@ source_info.video_render = function(data)
   obs.gs_effect_set_int(data.params.width, data.width)
   obs.gs_effect_set_int(data.params.height, data.height)
 
-  obs.gs_effect_set_float(data.params.gamma_correction, data.gamma_correction)
+  obs.gs_effect_set_float(data.params.gamma_shift, data.gamma_shift)
   obs.gs_effect_set_float(data.params.amplitude, data.amplitude)
   obs.gs_effect_set_float(data.params.scale, data.scale)
-  obs.gs_effect_set_int(data.params.number_of_colors, data.number_of_colors)
+  obs.gs_effect_set_int(data.params.number_of_color_levels, data.number_of_color_levels)
+
+  -- Pattern texture
+  local pattern_size = obs.vec2()
+  if data.pattern then
+    obs.gs_effect_set_texture(data.params.pattern_texture, data.pattern.texture)
+    obs.vec2_set(pattern_size, data.pattern.cx, data.pattern.cy)
+  else
+    obs.vec2_set(pattern_size, -1, -1)
+  end
+  obs.gs_effect_set_vec2(data.params.pattern_size, pattern_size)
 
   obs.obs_source_process_filter_end(data.source, data.effect, data.width, data.height)
 end
@@ -109,30 +122,65 @@ end
 -- Sets the default settings for this source
 source_info.get_defaults = function(settings)
   print("In source_info.get_defaults")
-  obs.obs_data_set_default_double(settings, "gamma_correction", 0.0)
-  obs.obs_data_set_default_double(settings, "scale", 5.0)
+  obs.obs_data_set_default_double(settings, "gamma_shift", 0.0)
+  obs.obs_data_set_default_double(settings, "scale", 1.0)
   obs.obs_data_set_default_double(settings, "amplitude", 0.2)
-  obs.obs_data_set_default_int(settings, "number_of_colors", 4)
+  obs.obs_data_set_default_int(settings, "number_of_color_levels", 4)
+
+  obs.obs_data_set_default_string(settings, "pattern_path", "")
 end
 
 -- Gets the property information of this source
 source_info.get_properties = function(data)
   print("In source_info.get_properties")
   local props = obs.obs_properties_create()
-  obs.obs_properties_add_float_slider(props, "gamma_correction", "Gamma correction", -2.0, 2.0, 0.1)
+  obs.obs_properties_add_float_slider(props, "gamma_shift", "Gamma shift", -2.0, 2.0, 0.01)
   obs.obs_properties_add_float_slider(props, "scale", "Pattern scale", 0.01, 10.0, 0.01)
   obs.obs_properties_add_float_slider(props, "amplitude", "Perturbation amplitude", 0.0, 2.0, 0.01)
-  obs.obs_properties_add_int_slider(props, "number_of_colors", "Number of colors", 2, 10, 1)
+  obs.obs_properties_add_int_slider(props, "number_of_color_levels", "Number of color levels", 2, 10, 1)
+
+  obs.obs_properties_add_path(props, "pattern_path", "Pattern path", obs.OBS_PATH_FILE,
+                              "Picture (*.png *.bmp *.jpg *.gif)", nil)
+
   return props
 end
 
 -- Updates the internal data for this source upon settings change
 source_info.update = function(data, settings)
   print("In source_info.update")
-  data.gamma_correction = obs.obs_data_get_double(settings, "gamma_correction")
+  data.gamma_shift = obs.obs_data_get_double(settings, "gamma_shift")
   data.scale = obs.obs_data_get_double(settings, "scale")
   data.amplitude = obs.obs_data_get_double(settings, "amplitude")
-  data.number_of_colors = obs.obs_data_get_int(settings, "number_of_colors")
+  data.number_of_color_levels = obs.obs_data_get_int(settings, "number_of_color_levels")
+
+  local pattern_path = obs.obs_data_get_string(settings, "pattern_path")
+  if data.loaded_pattern_path ~= pattern_path then
+    print("Loading " .. pattern_path)
+    obs.obs_enter_graphics()
+
+    -- Free any existing image
+    if data.pattern then
+      obs.gs_image_file_free(data.pattern)
+    end
+
+    -- Loads and inits image for texture
+    if string.len(pattern_path) > 0 then
+      -- Loads and inits image for texture
+      data.pattern = obs.gs_image_file()
+      obs.gs_image_file_init(data.pattern, pattern_path)
+      obs.gs_image_file_init_texture(data.pattern)
+      print("Pattern loaded - cx=" .. tostring(data.pattern.cx) ..
+                 " cy=" .. tostring(data.pattern.cy))
+    else
+      data.pattern = nil
+    end
+
+    data.loaded_pattern_path = pattern_path
+    obs.obs_leave_graphics()
+  end
+
+
+
 end
 
 

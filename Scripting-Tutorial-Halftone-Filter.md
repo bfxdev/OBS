@@ -269,13 +269,13 @@ Add all the code blocks in the HLSL file, then restart OBS, normally the source 
 
 Well, this is not really a halftone picture here, but it clearly shows the expected shades of gray according to the luminance. The example picture is very dark. And actually our simple computation of the luminance is wrong as it does not take into account the "gamma compression" of RGB components.
 
-### Gamma compression and correction
+### Gamma correction
 
 Colors are typically encoded with 8 bits for each RGB component, i.e. in range 0 to 255, corresponding to the range 0.0 to 1.0 in HLSL. But because the human eye has a [non-linear perception of the light intensity](http://blog.johnnovak.net/2016/09/21/what-every-coder-should-know-about-gamma/) emitted by the monitor, the values encoded in the RGB components do not grow linearly with the intensity, they follow a power law instead. The power law for encoding and decoding uses typically an exponent _2.2_ or _1/2.2_.
 
 This non-linearity of the RGB components is of course an issue in a video filter if a computation is performed assuming they are encoded in a linear way.
 
-The two operations of [gamma correction](https://en.wikipedia.org/wiki/Gamma_correction) are called first _gamma compression_, i.e. encoding of an RGB component proportional to the light intensity into a value to be displayed to a human eye, with an exponent lower than 1, and _gamma expansion_ with an exponent greater than 1.
+The two operations of [gamma correction](https://en.wikipedia.org/wiki/gamma_shift) are called first _gamma compression_, i.e. encoding of an RGB component proportional to the light intensity into a value to be displayed to a human eye, with an exponent lower than 1, and _gamma expansion_ with an exponent greater than 1.
 
 Let's call _gamma_ the exponent used for color decoding (greater than 1) with a value of _2.2_. We can use simplified formulas for gamma encoding:
 
@@ -287,30 +287,30 @@ _linear_value = encoded_value <sup>gamma</sup>_
 
 Please note that such formulas keep values nicely between 0.0 and 1.0.
 
-Now to come back to the halftone filter, we noted that the example picture is a bit too dark, and we know that changing the "gamma" of a picture change its overall luminosity. So we can introduce a gamma computation for 2 purposes: use of linear values for more exact calculations and a somehow abusively named "gamma correction" of the source picture.
+Now to come back to the halftone filter, we noted that the example picture is a bit too dark, and we know that changing the "gamma" of a picture change its overall luminosity. So we can introduce a gamma computation for 2 purposes: use of linear values for more exact calculations and a "gamma shift" of the source picture (not called "gamma correction" to avoid misunderstandings).
 
-Namely, a gamma decoding including a subtractive "correction" would look like this, performed _before_ any computation on the RGB color components (with a minus such that positive values increase the luminosity):
+Namely, a gamma decoding including a subtractive shift would look like this, performed _before_ any computation on the RGB color components (with a minus such that positive values increase the luminosity):
 
-_linear_value = encoded_value <sup>gamma-correction</sup>_
+_linear_value = encoded_value <sup>gamma-shift</sup>_
 
-Let's do it in the code, starting with the definition of a global constant `GAMMA` and a uniform variable `gamma_correction` with a default value:
+Let's do it in the code, starting with the definition of a global constant `GAMMA` and a uniform variable `gamma_shift` with a default value:
 
 ``` HLSL
 // Constants
 #define GAMMA 2.2
 
 // General properties
-uniform float gamma_correction = 1.2;
+uniform float gamma_shift = 1.2;
 ```
 
-Experiment and adapt the default value of `gamma_correction` to your source. It will be defined as an OBS property later on.
+Experiment and adapt the default value of `gamma_shift` to your source. It will be defined as an OBS property later on.
 
 Then we introduce the gamma encoding and decoding functions, and re-write the pixel shader to use it:
 
 ``` HLSL
-float3 decode_gamma(float3 color)
+float3 decode_gamma(float3 color, float shift)
 {
-    return pow(color, GAMMA - gamma_correction);
+    return pow(color, GAMMA - shift);
 }
 
 float3 encode_gamma(float3 color)
@@ -322,7 +322,7 @@ float3 encode_gamma(float3 color)
 float4 pixel_shader_halftone(pixel_data pixel) : TARGET
 {
     float4 source_sample = image.Sample(linear_clamp, pixel.uv);
-    float3 linear_color = decode_gamma(source_sample.rgb);
+    float3 linear_color = decode_gamma(source_sample.rgb, gamma_shift);
 
     float luminance = dot(linear_color, float3(0.299, 0.587, 0.114));
     float3 result = luminance.xxx;
@@ -331,7 +331,7 @@ float4 pixel_shader_halftone(pixel_data pixel) : TARGET
 }
 ```
 
-Add all the code blocks in the HLSL file, then _restart OBS_ (only reloading the script would not help, because the effect remains cached and would not be re-compiled). Depending on the value you select for `gamma_correction`, the filtered picture should have a different overall luminosity:
+Add all the code blocks in the HLSL file, then _restart OBS_ (only reloading the script would not help, because the effect remains cached and would not be re-compiled). Depending on the value you select for `gamma_shift`, the filtered picture should have a different overall luminosity:
 
 ![filter halftone gamma corrected luminance](images/scripting/filter-halftone-gamma-corrected-luminance.png)
 
@@ -370,29 +370,29 @@ Add the code, restart OBS, for now no difference is expected, the interesting th
 
 ### Luminance perturbation
 
-Now that the size of the picture is available, we can start to use pixel coordinates for formulas. Namely, we want to add a little perturbation on the computed luminance according to the formula _sin(x)*sin(y)_. The form of this classic formula looks like:
+Now that the size of the picture is available, we can start to use pixel coordinates for formulas. Namely, we want to add a little perturbation on the computed luminance according to the formula _cos(x)*cos(y)_. The form of this classic formula looks like:
 
 ![filter halftone ](images/scripting/filter-halftone-perturbation-curve.png)
 
 The formula will be such that:
 
 - It adds to the luminance a small negative or positive value with a given amplitude
-- The scale of the form can be changed, with a scale of 1.0 corresponding to an oscillation long of 1 pixel
+- The scale of the form can be changed, with a scale of 1.0 corresponding to a 8 pixels long oscillation
 
-If we name the parameters of the formula simply _scale_ and _amplitude_, assuming _x_ and _y_ are in pixels, the angle for the oscillations on _x_ is given by _2\*&pi;\*x/scale_ (the bigger the _scale_, the longer the oscillations). The sine function returns values between -1.0 and 1.0, so the _amplitude_ can be just multiplied to the product of sine.
+If we name the parameters of the formula simply _scale_ and _amplitude_, assuming _x_ and _y_ are in pixels, the angle for the oscillations on _x_ is given by _2\*&pi;\*x/scale/8_ (the bigger the _scale_, the longer the oscillations). The cosine function returns values between -1.0 and 1.0, so the _amplitude_ can be just multiplied to the product of cosine.
 
-The final parameterized formula will be:
+The final parameterized formula will be (with simplification):
 
-_perturbation = amplitude\*sin(2\*&pi;\*x/scale)\*sin(2\*&pi;\*y/scale)_
+_perturbation = amplitude\*cos(&pi;\*x/scale/4)\*cos(&pi;\*y/scale/4)_
 
-For the coordinates _x_ and _y_ in pixels, as we have the _width_ and _height_ plus the UV coordinates, the formula are simply _x = U * width_ and _y = V * height_ if we call the UV coordinates _U_ and _V_ here.
+For the coordinates _x_ and _y_ in pixels, as we have the _width_ and _height_ plus the UV coordinates, the formula are simply _x = U * width_ and _y = V * height_ if we call the UV coordinates _U_ and _V_ here. In the code, we will use a more compact form with a component-by-component multiplication of `pixel.uv` with `float2(width,height)`.
 
-In the code, we will use a more compact form with a component-by-component multiplication of `pixel.uv` with `float2(width,height)`. Re-write the center part of the pixel shader (between the decoding and encoding lines) with:
+Re-write the center part of the pixel shader (between the decoding and encoding lines) with:
 
 ``` HLSL
     float luminance = dot(linear_color, float3(0.299, 0.587, 0.114));
     float2 position = pixel.uv * float2(width, height);
-    float perturbation = amplitude * sin(2.0*PI*position.x/scale) * sin(2.0*PI*position.y/scale);
+    float perturbation = amplitude * cos(PI*position.x/scale/4.0) * cos(PI*position.y/scale/4.0);
     float3 result = (luminance + perturbation).xxx;
 ```
 
@@ -404,7 +404,7 @@ At the top of the file, do not forget to define a new constant for `PI` and the 
 
 // General properties
 uniform float amplitude = 0.2;
-uniform float scale = 8.0;
+uniform float scale = 1.0;
 ```
 
 Add the code, restart OBS, now the effect should look like this:
@@ -419,23 +419,23 @@ Until now we use a continuous luminance. The next step is to mimic a reduced num
 
 For a given value of luminance from 0.0 to 1.0, we can multiply the value by a constant factor and then round the product to obtain a certain number of integer values. For example, with a factor of 3, we obtain the values 0, 1, 2 and 3. The we re-divide by 3 to obtain 4 luminance values with values 0.0, 0.33, 0.66 and 1.0. It can be generalized to _n_ colors by multiplying/dividing by _n-1_.
 
-The computation is really simple to implement. We start by adding a global uniform number of colors:
+The computation is really simple to implement. We start by adding a global uniform number of color levels:
 
 ``` HLSL
-uniform int number_of_colors = 4.0;
+uniform int number_of_color_levels = 4.0;
 ```
 
 And we add a single line in the pixel shader, just before the gamma encoding:
 
 ``` HLSL
-    result = round((number_of_colors-1)*result)/(number_of_colors-1);
+    result = round((number_of_color_levels-1)*result)/(number_of_color_levels-1);
 ```
 
 Add the code, restart OBS, now the effect should look like this:
 
 ![filter halftone 4 colors](images/scripting/filter-halftone-4-colors.png)
 
-Here we are! It is nice to see what a simple sine-based perturbation plus rounding can do. The active part of the effect is just a couple of lines long.
+Here we are! It is nice to see what a simple cosine-based perturbation plus rounding can do. The active part of the effect is just a couple of lines long.
 
 And now it is also very interesting to check how the effect behaves with different kinds of scale filtering (context menu of the source in OBS, then _Scale Filtering_).
 
@@ -455,7 +455,7 @@ With reduced size, the aliasing is not completely gone but at least reduced:
 
 ![filter halftone unzoom scale filtering bicubic](images/scripting/filter-halftone-unzoom-scale-filtering-bicubic.png)
 
-Now a very interesting effect appears when the scale filtering is set to _Disable_ on a strongly zoomed picture (attention it may not work if other filters are in the chain of the source). The pixel shader works directly on the screen (the output is not rendered into an intermediate texture for later scaling), so it renders every single pixel in the screen space, at a sub-pixel level for the source picture. As we use continuous mathematical functions, and sample the source picture using a `Linear` interpolation with `linear_clamp`,  the curves drawn by the pixel shader hide completely the pixel grid of the source picture. It looks like a vector drawing:
+Now a very interesting effect appears when the scale filtering is set to _Disable_ on a strongly zoomed picture (attention it may not work if other filters are in the chain of the source). The pixel shader renders directly to the screen (the output is not rendered into an intermediate texture for later scaling), so it is called for every single pixel in the screen space, at a sub-pixel level for the source picture. As we use continuous mathematical functions, and sample the source picture using a `Linear` interpolation with `linear_clamp`,  the curves drawn by the pixel shader hide completely the pixel grid of the source picture. It looks like a vector drawing:
 
 ![filter halftone zoom scale filtering disable](images/scripting/filter-halftone-zoom-scale-filtering-disable.png)
 
@@ -463,23 +463,23 @@ With reduced size it still behaves well:
 
 ![filter halftone unzoom scale filtering disable](images/scripting/filter-halftone-unzoom-scale-filtering-disable.png)
 
-The sine-based halftone effect is completely implemented now. It has many parameters set with default values but the user cannot set these parameters so far.
+The cosine-based halftone effect is completely implemented now. It has many parameters set with default values but the user cannot set these parameters so far.
 
 ### Adding properties
 
-The effect is already satisfactory, we now want to improve the user experience by creating properties for the uniform variables that we already have in the effect file: `gamma_correction`, `amplitude`, `scale` and `number_of_colors`.
+The effect is already satisfactory, we now want to improve the user experience by creating properties for the uniform variables that we already have in the effect file: `gamma_shift`, `amplitude`, `scale` and `number_of_color_levels`.
 
 By convention, we will name all instances of the variables or properties with the sames names as in the effect file, i.e. for the effect parameters, the data settings and the variables of the `data` structure.
 
-Similarly to what is described in the Source Shake tutorial, we first have to define default values in [`source_info.get_defaults`](https://obsproject.com/docs/reference-sources.html#c.obs_source_info.get_defaults). Default values are chosen such that applying them to a new source would give a reasonable result (no extreme values, no pre-defined corrections):
+Similarly to what is described in the Source Shake tutorial, we first have to define default values in [`source_info.get_defaults`](https://obsproject.com/docs/reference-sources.html#c.obs_source_info.get_defaults). Default values are chosen such that applying them to a new source would give a reasonable result:
 
 ``` Lua
 -- Sets the default settings for this source
 source_info.get_defaults = function(settings)
-  obs.obs_data_set_default_double(settings, "gamma_correction", 0.0)
-  obs.obs_data_set_default_double(settings, "scale", 5.0)
+  obs.obs_data_set_default_double(settings, "gamma_shift", 0.0)
+  obs.obs_data_set_default_double(settings, "scale", 1.0)
   obs.obs_data_set_default_double(settings, "amplitude", 0.2)
-  obs.obs_data_set_default_int(settings, "number_of_colors", 4)
+  obs.obs_data_set_default_int(settings, "number_of_color_levels", 4)
 end
 ```
 
@@ -489,10 +489,10 @@ Then we define the properties as sliders in [`source_info.get_properties`](https
 -- Gets the property information of this source
 source_info.get_properties = function(data)
   local props = obs.obs_properties_create()
-  obs.obs_properties_add_float_slider(props, "gamma_correction", "Gamma correction", -2.0, 2.0, 0.1)
+  obs.obs_properties_add_float_slider(props, "gamma_shift", "Gamma shift", -2.0, 2.0, 0.01)
   obs.obs_properties_add_float_slider(props, "scale", "Pattern scale", 0.01, 10.0, 0.01)
   obs.obs_properties_add_float_slider(props, "amplitude", "Perturbation amplitude", 0.0, 2.0, 0.01)
-  obs.obs_properties_add_int_slider(props, "number_of_colors", "Number of colors", 2, 10, 1)
+  obs.obs_properties_add_int_slider(props, "number_of_color_levels", "Number of color levels", 2, 10, 1)
   return props
 end
 ```
@@ -502,20 +502,20 @@ Once a property is changed, the [`source_info.update`](https://obsproject.com/do
 ``` Lua
 -- Updates the internal data for this source upon settings change
 source_info.update = function(data, settings)
-  data.gamma_correction = obs.obs_data_get_double(settings, "gamma_correction")
+  data.gamma_shift = obs.obs_data_get_double(settings, "gamma_shift")
   data.scale = obs.obs_data_get_double(settings, "scale")
   data.amplitude = obs.obs_data_get_double(settings, "amplitude")
-  data.number_of_colors = obs.obs_data_get_int(settings, "number_of_colors")
+  data.number_of_color_levels = obs.obs_data_get_int(settings, "number_of_color_levels")
 end
 ```
 
 Next, like for `width` and `height`, we need to store the effect parameters and we call once `source_info.update` to initialize the members of the `data` structure (do not forget it, otherwise OBS will try to use non-initialized data in `source_info.video_render` and log errors every frame). This block comes at the end of the `source_info.create` function, after effect compilation:
 
 ``` Lua
-  data.params.gamma_correction = obs.gs_effect_get_param_by_name(data.effect, "gamma_correction")
+  data.params.gamma_shift = obs.gs_effect_get_param_by_name(data.effect, "gamma_shift")
   data.params.amplitude = obs.gs_effect_get_param_by_name(data.effect, "amplitude")
   data.params.scale = obs.gs_effect_get_param_by_name(data.effect, "scale")
-  data.params.number_of_colors = obs.gs_effect_get_param_by_name(data.effect, "number_of_colors")
+  data.params.number_of_color_levels = obs.gs_effect_get_param_by_name(data.effect, "number_of_color_levels")
 
   -- Calls update to initialize the rest of the properties-managed settings
   source_info.update(data, settings)
@@ -524,25 +524,31 @@ Next, like for `width` and `height`, we need to store the effect parameters and 
 And finally we transfer the values from the `data` structure into the effect parameters in `source_info.video_render`:
 
 ``` Lua
-  obs.gs_effect_set_float(data.params.gamma_correction, data.gamma_correction)
+  obs.gs_effect_set_float(data.params.gamma_shift, data.gamma_shift)
   obs.gs_effect_set_float(data.params.amplitude, data.amplitude)
   obs.gs_effect_set_float(data.params.scale, data.scale)
-  obs.gs_effect_set_int(data.params.number_of_colors, data.number_of_colors)
+  obs.gs_effect_set_int(data.params.number_of_color_levels, data.number_of_color_levels)
 ```
 
-Well, that's a lot. Each variable appears 7 times in different forms! Every line above has a justification, and this is the way OBS manages the persistency of settings, default values, display of properties, etc, and that for any filter instance added to any source. Let's say it is worth the pain but it calls for a proper object-oriented design to avoid writing so many times the same of code.
+Well, that's a lot. Each variable appears 7 times in different forms! Every line above has a justification, and this is the way OBS manages the persistency of settings, default values, display of properties, etc, and that for any filter instance added to any source. Let's say it is worth the pain but it calls for a proper object-oriented design to avoid writing so many times the same lines of code.
 
 Add the pieces of code, restart OBS, open the _Filters_ of the source, it should look like this (here in 2 colors):
 
 ![filter halftone properties](images/scripting/filter-halftone-properties.png)
 
-Playing with the parameters of a video filter and seeing the result immediately is quite satisfying.Note the aliasing effects in the preview, it seems that there is nothing foreseen to avoid it.
+Playing with the parameters of a video filter and seeing the result immediately is quite satisfying. Note the aliasing effects on the preview in the _Filters_ window (unclear if it is possible to change the filtering there).
 
-This first part is completed. This version is definitely a good starting point for further development. The complete [source code of this first part](Scripting-Tutorial-Halftone-Filter-Listing.md) is available.
+The old-fashioned newspaper effect  is very convincing with 2 colors:
+
+![filter halftone sparrow](images/scripting/filter-halftone-sparrow.png)
+
+Some edges are preserved on the picture, and actually the form of the cosine function is heavily disturbed by the underlying picture. This is normal because we just add a pixel-by-pixel perturbation here. Other formulas, or just using _x_ and _y_ coordinates that follow the pattern grid, would produce different results.
+
+The first part of the tutorial is completed and the script plus its effect file are definitely a good starting point for further development. The complete [source code of this first part](Scripting-Tutorial-Halftone-Filter-Listing.md) is available.
 
 ## Second part - Dithering with texture
 
-In this second part we will see how to use additional textures.
+In this second part we will see how to use additional textures for the pattern and the color palette.
 
 
 

@@ -3,7 +3,7 @@
 #define Texture2D texture2d
 
 // Constants
-#define GAMMA 2.2
+#define GAMMA 1.0 //2.2
 #define PI 3.141592653589793238
 
 // Uniform variables set by OBS (required)
@@ -15,21 +15,18 @@ uniform int width;
 uniform int height;
 
 // General properties
-uniform float gamma_correction = 1.2;
+uniform float gamma_shift = 1.2;
 uniform float amplitude = 0.2;
 uniform float scale = 8.0;
-uniform int number_of_colors = 4.0;
+uniform int number_of_color_levels = 4.0;
 
+// Pattern texture
+uniform Texture2D pattern_texture;
+uniform float2 pattern_size = {-1.0, -1.0};
 
-/*
-uniform float intensity_level = 0.5;
-uniform float intensity_range = 1.0;
-
-uniform Texture2D texture_data;
-uniform int texture_width;
-uniform int texture_height;
-uniform float texture_scale = 0.1;
-*/
+// Palette texture
+uniform Texture2D palette_texture;
+uniform float2 palette_size = {-1.0, -1.0};
 
 // Interpolation method and wrap mode for sampling a texture
 SamplerState linear_clamp
@@ -40,16 +37,12 @@ SamplerState linear_clamp
     BorderColor = 00000000; // Used only with Border edges (optional)
 };
 
-/*
-
 SamplerState linear_wrap
 {
     Filter    = Point; 
     AddressU  = Wrap;
     AddressV  = Wrap;
 };
-
-*/
 
 // Data type of the input of the vertex shader
 struct vertex_data
@@ -75,9 +68,9 @@ pixel_data vertex_shader_halftone(vertex_data vertex)
     return pixel;
 }
 
-float3 decode_gamma(float3 color)
+float3 decode_gamma(float3 color, float shift)
 {
-    return pow(color, GAMMA - gamma_correction);
+    return pow(color, GAMMA - shift);
 }
 
 float3 encode_gamma(float3 color)
@@ -85,18 +78,38 @@ float3 encode_gamma(float3 color)
     return pow(color, 1.0/GAMMA);
 }
 
+
+    /*float luminance = dot(linear_color, float3(0.299, 0.587, 0.114));
+    float2 position = pixel.uv * float2(width, height);
+    float perturbation = amplitude * sin(2.0*PI*position.x/scale) * sin(2.0*PI*position.y/scale);
+    float3 result = (luminance + perturbation).xxx;*/
+
+
+
 // Pixel shader used to compute an RGBA color at a given pixel position
 float4 pixel_shader_halftone(pixel_data pixel) : TARGET
 {
     float4 source_sample = image.Sample(linear_clamp, pixel.uv);
-    float3 linear_color = decode_gamma(source_sample.rgb);
-
+    float3 linear_color = decode_gamma(source_sample.rgb, gamma_shift);
     float luminance = dot(linear_color, float3(0.299, 0.587, 0.114));
     float2 position = pixel.uv * float2(width, height);
-    float perturbation = amplitude * sin(2.0*PI*position.x/scale) * sin(2.0*PI*position.y/scale);
-    float3 result = (luminance + perturbation).xxx;
 
-    result = round((number_of_colors-1)*result)/(number_of_colors-1);
+    float3 perturbation;
+    if (pattern_size.x>0)
+    {
+        float2 pattern_uv = position / pattern_size;
+        float4 pattern_sample = pattern_texture.Sample(linear_wrap, pattern_uv / scale);
+        //perturbation = amplitude*2.0*(decode_gamma(pattern_sample.rgb, 0.0) - float3(0.5, 0.5, 0.5));
+        perturbation = amplitude*2.0*(pattern_sample.rgb - float3(0.5, 0.5, 0.5));
+    }
+    else
+    {
+        perturbation = amplitude * cos(PI*position.x/scale/4.0) * cos(PI*position.y/scale/4.0);
+    }
+
+    float3 result = (luminance + perturbation.x).xxx;
+    //float3 result = linear_color + perturbation;
+    result = round((number_of_color_levels-1)*result)/(number_of_color_levels-1);
 
     return float4(encode_gamma(result), source_sample.a);
 }

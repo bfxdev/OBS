@@ -65,10 +65,10 @@ source_info.create = function(settings, source)
   data.params.width = obs.gs_effect_get_param_by_name(data.effect, "width")
   data.params.height = obs.gs_effect_get_param_by_name(data.effect, "height")
 
-  data.params.gamma_correction = obs.gs_effect_get_param_by_name(data.effect, "gamma_correction")
+  data.params.gamma_shift = obs.gs_effect_get_param_by_name(data.effect, "gamma_shift")
   data.params.amplitude = obs.gs_effect_get_param_by_name(data.effect, "amplitude")
   data.params.scale = obs.gs_effect_get_param_by_name(data.effect, "scale")
-  data.params.number_of_colors = obs.gs_effect_get_param_by_name(data.effect, "number_of_colors")
+  data.params.number_of_color_levels = obs.gs_effect_get_param_by_name(data.effect, "number_of_color_levels")
 
   -- Calls update to initialize the rest of the properties-managed settings
   source_info.update(data, settings)
@@ -109,38 +109,38 @@ source_info.video_render = function(data)
   obs.gs_effect_set_int(data.params.width, data.width)
   obs.gs_effect_set_int(data.params.height, data.height)
 
-  obs.gs_effect_set_float(data.params.gamma_correction, data.gamma_correction)
+  obs.gs_effect_set_float(data.params.gamma_shift, data.gamma_shift)
   obs.gs_effect_set_float(data.params.amplitude, data.amplitude)
   obs.gs_effect_set_float(data.params.scale, data.scale)
-  obs.gs_effect_set_int(data.params.number_of_colors, data.number_of_colors)
+  obs.gs_effect_set_int(data.params.number_of_color_levels, data.number_of_color_levels)
 
   obs.obs_source_process_filter_end(data.source, data.effect, data.width, data.height)
 end
 
 -- Sets the default settings for this source
 source_info.get_defaults = function(settings)
-  obs.obs_data_set_default_double(settings, "gamma_correction", 0.0)
-  obs.obs_data_set_default_double(settings, "scale", 5.0)
+  obs.obs_data_set_default_double(settings, "gamma_shift", 0.0)
+  obs.obs_data_set_default_double(settings, "scale", 1.0)
   obs.obs_data_set_default_double(settings, "amplitude", 0.2)
-  obs.obs_data_set_default_int(settings, "number_of_colors", 4)
+  obs.obs_data_set_default_int(settings, "number_of_color_levels", 4)
 end
 
 -- Gets the property information of this source
 source_info.get_properties = function(data)
   local props = obs.obs_properties_create()
-  obs.obs_properties_add_float_slider(props, "gamma_correction", "Gamma correction", -2.0, 2.0, 0.1)
+  obs.obs_properties_add_float_slider(props, "gamma_shift", "Gamma shift", -2.0, 2.0, 0.01)
   obs.obs_properties_add_float_slider(props, "scale", "Pattern scale", 0.01, 10.0, 0.01)
   obs.obs_properties_add_float_slider(props, "amplitude", "Perturbation amplitude", 0.0, 2.0, 0.01)
-  obs.obs_properties_add_int_slider(props, "number_of_colors", "Number of colors", 2, 10, 1)
+  obs.obs_properties_add_int_slider(props, "number_of_color_levels", "Number of colors", 2, 10, 1)
   return props
 end
 
 -- Updates the internal data for this source upon settings change
 source_info.update = function(data, settings)
-  data.gamma_correction = obs.obs_data_get_double(settings, "gamma_correction")
+  data.gamma_shift = obs.obs_data_get_double(settings, "gamma_shift")
   data.scale = obs.obs_data_get_double(settings, "scale")
   data.amplitude = obs.obs_data_get_double(settings, "amplitude")
-  data.number_of_colors = obs.obs_data_get_int(settings, "number_of_colors")
+  data.number_of_color_levels = obs.obs_data_get_int(settings, "number_of_color_levels")
 end
 ```
 
@@ -164,10 +164,10 @@ uniform int width;
 uniform int height;
 
 // General properties
-uniform float gamma_correction = 1.2;
+uniform float gamma_shift = 1.2;
 uniform float amplitude = 0.2;
-uniform float scale = 8.0;
-uniform int number_of_colors = 4.0;
+uniform float scale = 1.0;
+uniform int number_of_color_levels = 4.0;
 
 // Interpolation method and wrap mode for sampling a texture
 SamplerState linear_clamp
@@ -202,9 +202,9 @@ pixel_data vertex_shader_halftone(vertex_data vertex)
     return pixel;
 }
 
-float3 decode_gamma(float3 color)
+float3 decode_gamma(float3 color, float shift)
 {
-    return pow(color, GAMMA - gamma_correction);
+    return pow(color, GAMMA - shift);
 }
 
 float3 encode_gamma(float3 color)
@@ -216,14 +216,14 @@ float3 encode_gamma(float3 color)
 float4 pixel_shader_halftone(pixel_data pixel) : TARGET
 {
     float4 source_sample = image.Sample(linear_clamp, pixel.uv);
-    float3 linear_color = decode_gamma(source_sample.rgb);
+    float3 linear_color = decode_gamma(source_sample.rgb, gamma_shift);
 
     float luminance = dot(linear_color, float3(0.299, 0.587, 0.114));
     float2 position = pixel.uv * float2(width, height);
-    float perturbation = amplitude * sin(2.0*PI*position.x/scale) * sin(2.0*PI*position.y/scale);
+    float perturbation = amplitude * cos(PI*position.x/scale/4.0) * cos(PI*position.y/scale/4.0);
     float3 result = (luminance + perturbation).xxx;
 
-    result = round((number_of_colors-1)*result)/(number_of_colors-1);
+    result = round((number_of_color_levels-1)*result)/(number_of_color_levels-1);
 
     return float4(encode_gamma(result), source_sample.a);
 }
