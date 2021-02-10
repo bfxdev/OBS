@@ -267,15 +267,15 @@ Add all the code blocks in the HLSL file, then restart OBS, normally the source 
 
 ![filter halftone luminance](images/scripting/filter-halftone-luminance.png)
 
-Well, this is not really a halftone picture here, but it clearly shows the expected shades of gray according to the luminance. The example picture is very dark. And actually our simple computation of the luminance is wrong as it does not take into account the "gamma compression" of RGB components.
+Well, this is not really a halftone picture here, but it clearly shows the expected shades of gray according to the luminance. The example picture is very dark and needs some luminosity correction.
 
 ### Gamma correction
 
-Colors are typically encoded with 8 bits for each RGB component, i.e. in range 0 to 255, corresponding to the range 0.0 to 1.0 in HLSL. But because the human eye has a [non-linear perception of the light intensity](http://blog.johnnovak.net/2016/09/21/what-every-coder-should-know-about-gamma/) emitted by the monitor, the values encoded in the RGB components do not grow linearly with the intensity, they follow a power law instead. The power law for encoding and decoding uses typically an exponent _2.2_ or _1/2.2_.
+Colors are typically encoded with 8 bits for each RGB component, i.e. in range 0 to 255, corresponding to the range 0.0 to 1.0 in HLSL. But because the human eye has a [non-linear perception of the light intensity](http://blog.johnnovak.net/2016/09/21/what-every-coder-should-know-about-gamma/) emitted by the monitor, usually the values encoded in RGB components do not grow linearly with the intensity, they follow a power law with an exponent called "gamma". This non-linearity of the RGB components can be a problem in a video filter if some computation is performed assuming components are encoded in a linear way.
 
-This non-linearity of the RGB components is of course an issue in a video filter if a computation is performed assuming they are encoded in a linear way.
+Actually, in the frame of an OBS filter, this is not always an issue. Some sources will provide linearized pixel data to the shaders, some others will provide gama-encoded data. As of version 26.1, several attempts were made to have consistently linearized colors available in shaders. As long as it is not fully implemented, to give the maximum flexibility, we will to let the user select if the source is gamma-encoded or not. As the filter of this tutorial is more artistic than exact, a user would just try different settings to get the best result.
 
-The two operations of [gamma correction](https://en.wikipedia.org/wiki/gamma_shift) are called first _gamma compression_, i.e. encoding of an RGB component proportional to the light intensity into a value to be displayed to a human eye, with an exponent lower than 1, and _gamma expansion_ with an exponent greater than 1.
+The power law for encoding and decoding uses typically an exponent _2.2_ or _1/2.2_. The two operations of [gamma correction](https://en.wikipedia.org/wiki/gamma_correction) are called first _gamma compression_, i.e. encoding of an RGB component proportional to the light intensity into a value to be displayed to a human eye, with an exponent lower than 1, and _gamma expansion_ with an exponent greater than 1.
 
 Let's call _gamma_ the exponent used for color decoding (greater than 1) with a value of _2.2_. We can use simplified formulas for gamma encoding:
 
@@ -293,45 +293,43 @@ Namely, a gamma decoding including a subtractive shift would look like this, per
 
 _linear_value = encoded_value <sup>gamma-shift</sup>_
 
-Let's do it in the code, starting with the definition of a global constant `GAMMA` and a uniform variable `gamma_shift` with a default value:
+Let's do it in the code, starting with the definition of the `gamma` and `gamma_shift` uniform variables and default values with other uniform variables at the top of the HLSL effect file:
 
 ``` HLSL
-// Constants
-#define GAMMA 2.2
-
 // General properties
-uniform float gamma_shift = 1.2;
+uniform float gamma = 1.0;
+uniform float gamma_shift = 0.6;
 ```
 
-Experiment and adapt the default value of `gamma_shift` to your source. It will be defined as an OBS property later on.
+Experiment and adapt the default values of `gamma` and `gamma_shift` to your source. They will be defined through OBS properties later on.
 
-Then we introduce the gamma encoding and decoding functions, and re-write the pixel shader to use it:
+Then we introduce the gamma encoding and decoding functions, and re-write the pixel shader to use it (below the vertex shader):
 
 ``` HLSL
-float3 decode_gamma(float3 color, float shift)
+float3 decode_gamma(float3 color, float exponent, float shift)
 {
-    return pow(color, GAMMA - shift);
+    return pow(color, exponent - shift);
 }
 
-float3 encode_gamma(float3 color)
+float3 encode_gamma(float3 color, float exponent)
 {
-    return pow(color, 1.0/GAMMA);
+    return pow(color, 1.0/exponent);
 }
 
 // Pixel shader used to compute an RGBA color at a given pixel position
 float4 pixel_shader_halftone(pixel_data pixel) : TARGET
 {
     float4 source_sample = image.Sample(linear_clamp, pixel.uv);
-    float3 linear_color = decode_gamma(source_sample.rgb, gamma_shift);
+    float3 linear_color = decode_gamma(source_sample.rgb, gamma, gamma_shift);
 
     float luminance = dot(linear_color, float3(0.299, 0.587, 0.114));
     float3 result = luminance.xxx;
 
-    return float4(encode_gamma(result), source_sample.a);
+    return float4(encode_gamma(result, gamma), source_sample.a);
 }
 ```
 
-Add all the code blocks in the HLSL file, then _restart OBS_ (only reloading the script would not help, because the effect remains cached and would not be re-compiled). Depending on the value you select for `gamma_shift`, the filtered picture should have a different overall luminosity:
+Add all the code blocks in the HLSL file, then _restart OBS_ (only reloading the script would not help, because the effect remains cached and would not be re-compiled). Depending on the values you select for `gamma` and `gamma_shift`, the filtered picture should have a different overall luminosity:
 
 ![filter halftone gamma corrected luminance](images/scripting/filter-halftone-gamma-corrected-luminance.png)
 
@@ -341,7 +339,7 @@ The picture is a bit better now.
 
 Whatever the final form, the halftone effect is based on a pattern applied pixel-by-pixel to the source picture. While it is easy to transform the color of a single pixel, if the position of the pixel is necessary to recognize in which part of a pattern the pixel is located, then the UV coordinates alone are not sufficient in the general case, it is necessary to know the size of the source picture. More about the calculations in the next section.
 
-In this section we will first see how to make the values of `width` and `height` available in the shader from the Lua code. Strangely, OBS does not foresee these parameters in effect files by default. We start with the definition of `uniform` variables in the effect file:
+In this section we will first see how to make the values of `width` and `height` available in the shader from the Lua code. Strangely, OBS does not foresee these parameters in effect files by default. We define the `uniform` variables with other uniform variables at the top of the HLSL effect file:
 
 ``` HLSL
 // Size of the source picture
@@ -349,7 +347,9 @@ uniform int width;
 uniform int height;
 ```
 
-Only uniform variables can be changed from the Lua code. Once an effect is compiled, the function [`gs_effect_get_param_by_name`](https://obsproject.com/docs/reference-libobs-graphics-effects.html#c.gs_effect_get_param_by_name) provides the necessary `gs_eparam` structure where the value can be set. The effect parameters can be retrieved right after effect compilation in `source_info.create`:
+Only uniform variables can be changed from the Lua code. Once an effect is compiled, the function [`gs_effect_get_param_by_name`](https://obsproject.com/docs/reference-libobs-graphics-effects.html#c.gs_effect_get_param_by_name) provides the necessary `gs_eparam` structure where the value can be set.
+
+The effect parameters can be retrieved at the end of the `source_info.create` in the Lua file (above `return data`):
 
 ``` Lua
   -- Retrieves the shader uniform variables
@@ -366,7 +366,7 @@ Finally the values are set with [`gs_effect_set_int`](https://obsproject.com/doc
   obs.gs_effect_set_int(data.params.height, data.height)
 ```
 
-Add the code, restart OBS, for now no difference is expected, the interesting things start in the net section.
+Add the code, restart OBS, for now no difference is expected, the interesting things start in the next section.
 
 ### Luminance perturbation
 
@@ -387,7 +387,7 @@ _perturbation = amplitude\*cos(&pi;\*x/scale/4)\*cos(&pi;\*y/scale/4)_
 
 For the coordinates _x_ and _y_ in pixels, as we have the _width_ and _height_ plus the UV coordinates, the formula are simply _x = U * width_ and _y = V * height_ if we call the UV coordinates _U_ and _V_ here. In the code, we will use a more compact form with a component-by-component multiplication of `pixel.uv` with `float2(width,height)`.
 
-Re-write the center part of the pixel shader (between the decoding and encoding lines) with:
+Re-write the center part of the pixel shader (between the decoding and encoding lines) in the HLSL effect file:
 
 ``` HLSL
     float luminance = dot(linear_color, float3(0.299, 0.587, 0.114));
@@ -419,7 +419,7 @@ Until now we use a continuous luminance. The next step is to mimic a reduced num
 
 For a given value of luminance from 0.0 to 1.0, we can multiply the value by a constant factor and then round the product to obtain a certain number of integer values. For example, with a factor of 3, we obtain the values 0, 1, 2 and 3. The we re-divide by 3 to obtain 4 luminance values with values 0.0, 0.33, 0.66 and 1.0. It can be generalized to _n_ colors by multiplying/dividing by _n-1_.
 
-The computation is really simple to implement. We start by adding a global uniform number of color levels:
+The computation is really simple to implement. We start by adding a global uniform number of color levels with other uniform variables at the top of the HLSL effect file:
 
 ``` HLSL
 uniform int number_of_color_levels = 4.0;
@@ -467,7 +467,7 @@ The cosine-based halftone effect is completely implemented now. It has many para
 
 ### Adding properties
 
-The effect is already satisfactory, we now want to improve the user experience by creating properties for the uniform variables that we already have in the effect file: `gamma_shift`, `amplitude`, `scale` and `number_of_color_levels`.
+The effect is already satisfactory, we now want to improve the user experience by creating properties for the uniform variables that we already have in the effect file:`gamma`,  `gamma_shift`, `amplitude`, `scale` and `number_of_color_levels`.
 
 By convention, we will name all instances of the variables or properties with the sames names as in the effect file, i.e. for the effect parameters, the data settings and the variables of the `data` structure.
 
@@ -476,6 +476,7 @@ Similarly to what is described in the Source Shake tutorial, we first have to de
 ``` Lua
 -- Sets the default settings for this source
 source_info.get_defaults = function(settings)
+  obs.obs_data_set_default_double(settings, "gamma", 1.0)
   obs.obs_data_set_default_double(settings, "gamma_shift", 0.0)
   obs.obs_data_set_default_double(settings, "scale", 1.0)
   obs.obs_data_set_default_double(settings, "amplitude", 0.2)
@@ -489,10 +490,12 @@ Then we define the properties as sliders in [`source_info.get_properties`](https
 -- Gets the property information of this source
 source_info.get_properties = function(data)
   local props = obs.obs_properties_create()
+  obs.obs_properties_add_float_slider(props, "gamma", "Gamma encoding exponent", 1.0, 2.2, 0.2)
   obs.obs_properties_add_float_slider(props, "gamma_shift", "Gamma shift", -2.0, 2.0, 0.01)
   obs.obs_properties_add_float_slider(props, "scale", "Pattern scale", 0.01, 10.0, 0.01)
   obs.obs_properties_add_float_slider(props, "amplitude", "Perturbation amplitude", 0.0, 2.0, 0.01)
   obs.obs_properties_add_int_slider(props, "number_of_color_levels", "Number of color levels", 2, 10, 1)
+
   return props
 end
 ```
@@ -502,6 +505,7 @@ Once a property is changed, the [`source_info.update`](https://obsproject.com/do
 ``` Lua
 -- Updates the internal data for this source upon settings change
 source_info.update = function(data, settings)
+  data.gamma = obs.obs_data_get_double(settings, "gamma")
   data.gamma_shift = obs.obs_data_get_double(settings, "gamma_shift")
   data.scale = obs.obs_data_get_double(settings, "scale")
   data.amplitude = obs.obs_data_get_double(settings, "amplitude")
@@ -509,13 +513,15 @@ source_info.update = function(data, settings)
 end
 ```
 
-Next, like for `width` and `height`, we need to store the effect parameters and we call once `source_info.update` to initialize the members of the `data` structure (do not forget it, otherwise OBS will try to use non-initialized data in `source_info.video_render` and log errors every frame). This block comes at the end of the `source_info.create` function, after effect compilation:
+Next, like for `width` and `height`, we need to store the effect parameters and we call once `source_info.update` to initialize the members of the `data` structure (do not forget it, otherwise OBS will try to use non-initialized data in `source_info.video_render` and log errors every frame). This block comes at the end of the `source_info.create` function just above `return data`:
 
 ``` Lua
+  data.params.gamma = obs.gs_effect_get_param_by_name(data.effect, "gamma")
   data.params.gamma_shift = obs.gs_effect_get_param_by_name(data.effect, "gamma_shift")
   data.params.amplitude = obs.gs_effect_get_param_by_name(data.effect, "amplitude")
   data.params.scale = obs.gs_effect_get_param_by_name(data.effect, "scale")
   data.params.number_of_color_levels = obs.gs_effect_get_param_by_name(data.effect, "number_of_color_levels")
+
 
   -- Calls update to initialize the rest of the properties-managed settings
   source_info.update(data, settings)
@@ -524,13 +530,14 @@ Next, like for `width` and `height`, we need to store the effect parameters and 
 And finally we transfer the values from the `data` structure into the effect parameters in `source_info.video_render`:
 
 ``` Lua
+  obs.gs_effect_set_float(data.params.gamma, data.gamma)
   obs.gs_effect_set_float(data.params.gamma_shift, data.gamma_shift)
   obs.gs_effect_set_float(data.params.amplitude, data.amplitude)
   obs.gs_effect_set_float(data.params.scale, data.scale)
   obs.gs_effect_set_int(data.params.number_of_color_levels, data.number_of_color_levels)
 ```
 
-Well, that's a lot. Each variable appears 7 times in different forms! Every line above has a justification, and this is the way OBS manages the persistency of settings, default values, display of properties, etc, and that for any filter instance added to any source. Let's say it is worth the pain but it calls for a proper object-oriented design to avoid writing so many times the same lines of code.
+Well, that's a lot. Each variable appears 7 times in different forms! Every line above is somehow needed such that OBS manages the persistency of settings, default values, display of properties, etc. Let's say it is worth the pain but it calls for a proper object-oriented design to avoid writing so many times the same lines of code.
 
 Add the pieces of code, restart OBS, open the _Filters_ of the source, it should look like this (here in 2 colors):
 
@@ -543,6 +550,10 @@ The old-fashioned newspaper effect  is very convincing with 2 colors:
 ![filter halftone sparrow](images/scripting/filter-halftone-sparrow.png)
 
 Some edges are preserved on the picture, and actually the form of the cosine function is heavily disturbed by the underlying picture. This is normal because we just add a pixel-by-pixel perturbation here. Other formulas, or just using _x_ and _y_ coordinates that follow the pattern grid, would produce different results.
+
+Pictures in just 3 colors are very nice too:
+![filter halftone sparrow](images/scripting/filter-halftone-lena.png)
+
 
 The first part of the tutorial is completed and the script plus its effect file are definitely a good starting point for further development. The complete [source code of this first part](Scripting-Tutorial-Halftone-Filter-Listing.md) is available.
 
