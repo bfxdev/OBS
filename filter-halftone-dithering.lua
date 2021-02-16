@@ -62,6 +62,11 @@ source_info.create = function(settings, source)
 
   data.params.pattern_texture = obs.gs_effect_get_param_by_name(data.effect, "pattern_texture")
   data.params.pattern_size = obs.gs_effect_get_param_by_name(data.effect, "pattern_size")
+  data.params.pattern_gamma = obs.gs_effect_get_param_by_name(data.effect, "pattern_gamma")
+
+  data.params.palette_texture = obs.gs_effect_get_param_by_name(data.effect, "palette_texture")
+  data.params.palette_size = obs.gs_effect_get_param_by_name(data.effect, "palette_size")
+  data.params.palette_gamma = obs.gs_effect_get_param_by_name(data.effect, "palette_gamma")
 
   -- Calls update to initialize the rest of the properties-managed settings
   source_info.update(data, settings)
@@ -89,6 +94,17 @@ source_info.get_height = function(data)
   return data.height
 end
 
+function set_texture_effect_parameters(image, param_texture, param_size)
+  local size = obs.vec2()
+  if image then
+    obs.gs_effect_set_texture(param_texture, image.texture)
+    obs.vec2_set(size, image.cx, image.cy)
+  else
+    obs.vec2_set(size, -1, -1)
+  end
+  obs.gs_effect_set_vec2(param_size, size)
+end
+
 -- Called when rendering the source with the graphics subsystem
 source_info.video_render = function(data)
 
@@ -109,14 +125,12 @@ source_info.video_render = function(data)
   obs.gs_effect_set_int(data.params.number_of_color_levels, data.number_of_color_levels)
 
   -- Pattern texture
-  local pattern_size = obs.vec2()
-  if data.pattern then
-    obs.gs_effect_set_texture(data.params.pattern_texture, data.pattern.texture)
-    obs.vec2_set(pattern_size, data.pattern.cx, data.pattern.cy)
-  else
-    obs.vec2_set(pattern_size, -1, -1)
-  end
-  obs.gs_effect_set_vec2(data.params.pattern_size, pattern_size)
+  set_texture_effect_parameters(data.pattern, data.params.pattern_texture, data.params.pattern_size)
+  obs.gs_effect_set_float(data.params.pattern_gamma, data.pattern_gamma)
+
+  -- Palette texture
+  set_texture_effect_parameters(data.palette, data.params.palette_texture, data.params.palette_size)
+  obs.gs_effect_set_float(data.params.palette_gamma, data.palette_gamma)
 
   obs.obs_source_process_filter_end(data.source, data.effect, data.width, data.height)
 end
@@ -131,6 +145,9 @@ source_info.get_defaults = function(settings)
   obs.obs_data_set_default_int(settings, "number_of_color_levels", 4)
 
   obs.obs_data_set_default_string(settings, "pattern_path", "")
+  obs.obs_data_set_default_double(settings, "pattern_gamma", 1.0)
+  obs.obs_data_set_default_string(settings, "palette_path", "")
+  obs.obs_data_set_default_double(settings, "palette_gamma", 1.0)
 end
 
 -- Gets the property information of this source
@@ -141,12 +158,50 @@ source_info.get_properties = function(data)
   obs.obs_properties_add_float_slider(props, "gamma_shift", "Gamma shift", -2.0, 2.0, 0.01)
   obs.obs_properties_add_float_slider(props, "scale", "Pattern scale", 0.01, 10.0, 0.01)
   obs.obs_properties_add_float_slider(props, "amplitude", "Perturbation amplitude", 0.0, 2.0, 0.01)
-  obs.obs_properties_add_int_slider(props, "number_of_color_levels", "Number of color levels", 2, 10, 1)
 
   obs.obs_properties_add_path(props, "pattern_path", "Pattern path", obs.OBS_PATH_FILE,
                               "Picture (*.png *.bmp *.jpg *.gif)", nil)
+  obs.obs_properties_add_float_slider(props, "pattern_gamma", "Pattern gamma exponent", 1.0, 2.2, 0.2)
+  obs.obs_properties_add_button(props, "pattern_reset", "Reset pattern", function()
+    obs.obs_data_set_string(data.settings, "pattern_path", ""); data.pattern = nil; return true; end)
+
+  obs.obs_properties_add_int_slider(props, "number_of_color_levels", "Number of color levels", 2, 10, 1)
+
+  obs.obs_properties_add_path(props, "palette_path", "Palette path", obs.OBS_PATH_FILE,
+                              "Picture (*.png *.bmp *.jpg *.gif)", nil)
+  obs.obs_properties_add_float_slider(props, "palette_gamma", "Palette gamma exponent", 1.0, 2.2, 0.2)
+  obs.obs_properties_add_button(props, "palette_reset", "Reset palette", function()
+     obs.obs_data_set_string(data.settings, "palette_path", ""); data.palette = nil; return true; end)
 
   return props
+end
+
+-- Returns new texture and free current texture if loaded
+function load_texture(path, current_texture)
+
+  obs.obs_enter_graphics()
+
+  -- Free any existing image
+  if current_texture then
+    obs.gs_image_file_free(current_texture)
+  end
+
+  -- Loads and inits image for texture
+  local new_texture = nil
+  if string.len(path) > 0 then
+    new_texture = obs.gs_image_file()
+    obs.gs_image_file_init(new_texture, path)
+    if new_texture.loaded then
+      obs.gs_image_file_init_texture(new_texture)
+    else
+      obs.blog(obs.LOG_ERROR, "Cannot load image " .. path)
+      obs.gs_image_file_free(current_texture)
+      new_texture = nil
+    end
+  end
+
+  obs.obs_leave_graphics()
+  return new_texture
 end
 
 -- Updates the internal data for this source upon settings change
@@ -158,6 +213,27 @@ source_info.update = function(data, settings)
   data.amplitude = obs.obs_data_get_double(settings, "amplitude")
   data.number_of_color_levels = obs.obs_data_get_int(settings, "number_of_color_levels")
 
+  -- NEW Keeps a reference on the settings NEW
+  data.settings = settings
+
+  local pattern_path = obs.obs_data_get_string(settings, "pattern_path")
+  if data.loaded_pattern_path ~= pattern_path then
+    data.pattern = load_texture(pattern_path, data.pattern)
+    data.loaded_pattern_path = pattern_path
+  end
+  data.pattern_gamma = obs.obs_data_get_double(settings, "pattern_gamma")
+
+  local palette_path = obs.obs_data_get_string(settings, "palette_path")
+  if data.loaded_palette_path ~= palette_path then
+    data.palette = load_texture(palette_path, data.palette)
+    data.loaded_palette_path = palette_path
+  end
+  data.palette_gamma = obs.obs_data_get_double(settings, "palette_gamma")
+
+
+end
+
+--[[
   local pattern_path = obs.obs_data_get_string(settings, "pattern_path")
   if data.loaded_pattern_path ~= pattern_path then
     print("Loading " .. pattern_path)
@@ -183,11 +259,7 @@ source_info.update = function(data, settings)
     data.loaded_pattern_path = pattern_path
     obs.obs_leave_graphics()
   end
-
-
-
-end
-
+]]
 
 --[[
 OBS Start:

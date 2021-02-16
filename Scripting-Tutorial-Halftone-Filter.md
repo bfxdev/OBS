@@ -551,9 +551,9 @@ The old-fashioned newspaper effect  is very convincing with 2 colors:
 
 Some edges are preserved on the picture, and actually the form of the cosine function is heavily disturbed by the underlying picture. This is normal because we just add a pixel-by-pixel perturbation here. Other formulas, or just using _x_ and _y_ coordinates that follow the pattern grid, would produce different results.
 
-Pictures in just 3 colors are very nice too:
-![filter halftone sparrow](images/scripting/filter-halftone-lena.png)
+Pictures in just 3 colors can be fascinating:
 
+![filter halftone sparrow](images/scripting/filter-halftone-lena.png)
 
 The first part of the tutorial is completed and the script plus its effect file are definitely a good starting point for further development. The complete [source code of this first part](Scripting-Tutorial-Halftone-Filter-Listing.md) is available.
 
@@ -563,11 +563,25 @@ In this second part we will see how to use additional textures for the pattern a
 
 
 
-``` Lua
-```
+
 
 ``` Lua
 ```
 
 ``` Lua
 ```
+
+``` Lua
+```
+
+
+[dithering with arbitrary palette](https://bisqwit.iki.fi/story/howto/dither/jy)
+
+
+### CMYK color space
+
+[RGB to CMYK](https://www.rapidtables.com/convert/color/rgb-to-cmyk.html)
+
+
+[CMYK to RGB](https://www.rapidtables.com/convert/color/cmyk-to-rgb.html)
+
