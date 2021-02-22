@@ -562,7 +562,7 @@ The first part of the tutorial is completed and the script plus its effect file 
 In this second part we will see how to use additional textures for the pattern and the color palette.
 
 
-
+:construction: TODO in encode/decode_gamma, this warning is shown in log only if there is a real error : `warning X3571: pow(f, e) will not work for negative f, use abs(f) or conditionally handle negative values if you expect them` :construction:
 
 
 ``` Lua
