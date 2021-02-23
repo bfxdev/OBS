@@ -553,27 +553,282 @@ Note that some edges are preserved on the picture so it is probably not the same
 
 Pictures in just 3 colors can be fascinating:
 
-![filter halftone sparrow](images/scripting/filter-halftone-lena.png)
+![filter halftone lena](images/scripting/filter-halftone-lena.png)
 
 The first part of the tutorial is completed and the script plus its effect file are definitely a good starting point for further development. The complete [source code of this first part](Scripting-Tutorial-Halftone-Filter-Listing.md) is available.
 
 ## Second part - Dithering with texture
 
-In this second part we will see how to use additional textures for the pattern and the color palette. To start with, let's copy the source files and rename them to `filter-halftone-dithering.lua` and `filter-halftone-dithering.effect.hlsl` to clearly differentiate both versions.
-
-Then change the compilation line in `source_info.create` to:
-
-``` Lua
-  local effect_file_path = script_path() .. 'filter-halftone-dithering.effect.hlsl'
-```
+In this second part we will see how to use additional textures for the pattern and the color palette.
 
 ### Some colors please
 
-If you followed the tutorial up to this point, then you are certainly fed up with the black and white pictures! 
+If you followed the tutorial up to this point, then you are certainly fed up with the black and white pictures!
+
+We change only one line in the pixel shader:
+
+``` HLSL
+    float3 result = linear_color + perturbation;
+```
+
+And this is the result after re-starting OBS:
+
+![filter halftone colors](images/scripting/filter-halftone-colors.png)
+
+It works! And it is another example of the great versatility of the HLSL language. Here we add the `float perturbation` scalar to the `float3 linear_color` (instead of the `float luminance`). HLSL makes the necessary casting transparently (i.e. converts `perturbation` to a `float3`).
+
+So we add a small perturbation to the Red, Green and Blue channels. Then the color quantization is done on each channel by the `round` operation, which results in a palette of 64 colors.
+
+The scalar cosine formula gives great results and has an undeniable style, but it shows as well the limit of the method. Rather than a mix of dots with different colors, as a magnified printed photo would look like, we observe a grid of well-adapted uniform color tones:
+
+![filter halftone lena colors](images/scripting/filter-halftone-lena-colors.png)
+
+To obtain a different effect, the perturbation needs to have different values on each RGB channel.
+
+### Re-factoring the pixel shader
+
+Obviously adding colors adds a new bunch of complexity and modularity will help to understand the code.
+
+The general method to obtain our effect can be divided in simple steps:
+
+1. The color of the source pixel is retrieved from the `image` texture and gamma-decoded
+2. A variable perturbation is determined according to the position of the source pixel
+3. The perturbation is added to the RGB channels of the decoded source color
+4. A color close to the perturbed color is selected among a limited set through the rounding operation
+5. The close color is gamma-encoded and returned as output
+
+To be very general, at step 3, we will add a variable `offset` set to 0 by default:
+
+_perturbed_color = linear_color + offset + amplitude*perturbation_
+
+In addition, we allow the `amplitude` to be negative. So first, in the Lua file, we change the definition of the amplitude property (`-2.0` as lower bound):
+
+``` Lua
+  obs.obs_properties_add_float_slider(props, "amplitude", "Perturbation amplitude", -2.0, 2.0, 0.01)
+```
+
+Now in the effect file we need an additional uniform value at the top of file:
+
+``` HLSL
+uniform float offset = 0.0;
+```
+
+The steps 2 and 4 are put into separate functions. Note that both perturbation and closest color will be defined as `float4` to support a variable alpha channel (more about that later on). For now, the exact same functionality will be implemented with alpha set to 1.0 (in the effect file):
+
+``` HLSL
+float4 get_perturbation(float2 position)
+{
+    float4 result;
+    result = float4((cos(PI*position.x/scale/4.0) * cos(PI*position.y/scale/4.0)).xxx, 1.0);
+    return result;
+}
+
+float4 get_closest_color(float3 input_color)
+{
+    float4 result;
+    result = float4(round((number_of_color_levels-1)*input_color)/(number_of_color_levels-1), 1.0);
+    return result;
+}
+
+float4 pixel_shader_halftone(pixel_data pixel) : TARGET
+{
+    float4 source_sample = image.Sample(linear_clamp, pixel.uv);
+    float3 linear_color = decode_gamma(source_sample.rgb, gamma, gamma_shift);
+
+    float2 position = pixel.uv * float2(width, height);
+    float4 perturbation = get_perturbation(position);
+
+    float3 perturbed_color = linear_color + offset + amplitude*perturbation.rgb;
+
+    float4 closest_color = get_closest_color(clamp(perturbed_color, 0.0, 1.0));
+
+    return float4(encode_gamma(closest_color.rgb, gamma), source_sample.a);
+}
+```
+
+Add the code, restart OBS, no change is expected. Even if the `amplitude` is set to a negative value, the output is similar due to the symmetric cosine formula.
+
+### Adding the texture properties
+
+Two textures will be added:
+
+- A seamless pattern texture to replace the cosine formula by an arbitrary bitmap-based perturbation
+- A palette texture to retrieve colors from a limited set and hence replace the rounding operation
+
+The basis for managing a texture is a [`gs_image_file`](https://obsproject.com/docs/reference-libobs-graphics-image-file.html#c.gs_image_file) object. It is selected as a file by the user.
+
+We need some additional variables to manage the texture:
+
+- Obviously we need the `texture2d` objects (re-defined as `Texture2D` type by a macro to be more HLSL compliant)
+- We define the sizes of the textures (not available through the `Texture2D` definition)
+- And we define an alpha encoding/decoding exponent just in case
+
+To start the definition, add the following uniform variables at the top of the effect file:
+
+``` HLSL
+// Pattern texture
+uniform Texture2D pattern_texture;
+uniform float2 pattern_size = {-1.0, -1.0};
+uniform float pattern_gamma = 1.0;
+
+// Palette texture
+uniform Texture2D palette_texture;
+uniform float2 palette_size = {-1.0, -1.0};
+uniform float palette_gamma = 1.0;
+```
+
+Coming to the Lua file, we will use the opportunity to add the new `offset` used in the perturbation calculation (see previous section). Add the retrieval of effect parameters to the `source_info.create` function:
+
+``` Lua
+  data.params.offset = obs.gs_effect_get_param_by_name(data.effect, "offset")
+
+  data.params.pattern_texture = obs.gs_effect_get_param_by_name(data.effect, "pattern_texture")
+  data.params.pattern_size = obs.gs_effect_get_param_by_name(data.effect, "pattern_size")
+  data.params.pattern_gamma = obs.gs_effect_get_param_by_name(data.effect, "pattern_gamma")
+
+  data.params.palette_texture = obs.gs_effect_get_param_by_name(data.effect, "palette_texture")
+  data.params.palette_size = obs.gs_effect_get_param_by_name(data.effect, "palette_size")
+  data.params.palette_gamma = obs.gs_effect_get_param_by_name(data.effect, "palette_gamma")
+```
+
+The next addition is a helper function to set the size and texture effect parameters according to a simple logic, i.e. if the texture object is `nil`, then its size is set to _(-1,-1)_ such that the shader is able to recognize it:
+
+``` Lua
+function set_texture_effect_parameters(image, param_texture, param_size)
+  local size = obs.vec2()
+  if image then
+    obs.gs_effect_set_texture(param_texture, image.texture)
+    obs.vec2_set(size, image.cx, image.cy)
+  else
+    obs.vec2_set(size, -1, -1)
+  end
+  obs.gs_effect_set_vec2(param_size, size)
+end
+```
+
+The helper function is used in the `source_info.video_render` function, assuming the related image file objects representing the pattern and palette textures are stored in the `data` variable passed by OBS:
+
+``` Lua
+  obs.gs_effect_set_float(data.params.offset, data.offset)
+
+  -- Pattern texture
+  set_texture_effect_parameters(data.pattern, data.params.pattern_texture, data.params.pattern_size)
+  obs.gs_effect_set_float(data.params.pattern_gamma, data.pattern_gamma)
+
+  -- Palette texture
+  set_texture_effect_parameters(data.palette, data.params.palette_texture, data.params.palette_size)
+  obs.gs_effect_set_float(data.params.palette_gamma, data.palette_gamma)
+```
+
+We continue to implement the textures with default values. Note that the properties set by the user, and kept in the user settings, are paths to the texture files (empty if no texture is selected). Add the following lines in the `source_info.get_defaults` function:
+
+``` Lua
+  obs.obs_data_set_default_double(settings, "offset", 0.0)
+
+  obs.obs_data_set_default_string(settings, "pattern_path", "")
+  obs.obs_data_set_default_double(settings, "pattern_gamma", 1.0)
+  obs.obs_data_set_default_string(settings, "palette_path", "")
+  obs.obs_data_set_default_double(settings, "palette_gamma", 1.0)
+```
+
+For the properties, the function [`obs.obs_properties_add_path`](https://obsproject.com/docs/reference-properties.html#c.obs_properties_add_path) is used to let the user select a path. Because we want to be able to fallback to a formula (without texture), we foresee a button for each texture to reset the path to an empty string (with an inline function that returns `true` to force the refresh of the properties widget and uses a kept reference in `data.settings`, see below). Add the following lines in `source_info.get_properties`:
+
+``` Lua
+  obs.obs_properties_add_float_slider(props, "offset", "Perturbation offset", -2.0, 2.0, 0.01)
+
+  obs.obs_properties_add_path(props, "pattern_path", "Pattern path", obs.OBS_PATH_FILE,
+                              "Picture (*.png *.bmp *.jpg *.gif)", nil)
+  obs.obs_properties_add_float_slider(props, "pattern_gamma", "Pattern gamma exponent", 1.0, 2.2, 0.2)
+  obs.obs_properties_add_button(props, "pattern_reset", "Reset pattern", function()
+    obs.obs_data_set_string(data.settings, "pattern_path", ""); data.pattern = nil; return true; end)
+
+  obs.obs_properties_add_path(props, "palette_path", "Palette path", obs.OBS_PATH_FILE,
+                              "Picture (*.png *.bmp *.jpg *.gif)", nil)
+  obs.obs_properties_add_float_slider(props, "palette_gamma", "Palette gamma exponent", 1.0, 2.2, 0.2)
+  obs.obs_properties_add_button(props, "palette_reset", "Reset palette", function()
+     obs.obs_data_set_string(data.settings, "palette_path", ""); data.palette = nil; return true; end)
+```
+
+Another helper function is added to manage the reading of the image file, the initialization of the texture inside, an the freeing of allocated memory when necessary. Note that this is only possible in the graphics thread (this is the reason for the call to `obs_enter_graphics`), and that the function `gs_image_file_init_texture` is separated from reading the image:
+
+``` Lua
+-- Returns new texture and free current texture if loaded
+function load_texture(path, current_texture)
+
+  obs.obs_enter_graphics()
+
+  -- Free any existing image
+  if current_texture then
+    obs.gs_image_file_free(current_texture)
+  end
+
+  -- Loads and inits image for texture
+  local new_texture = nil
+  if string.len(path) > 0 then
+    new_texture = obs.gs_image_file()
+    obs.gs_image_file_init(new_texture, path)
+    if new_texture.loaded then
+      obs.gs_image_file_init_texture(new_texture)
+    else
+      obs.blog(obs.LOG_ERROR, "Cannot load image " .. path)
+      obs.gs_image_file_free(current_texture)
+      new_texture = nil
+    end
+  end
+
+  obs.obs_leave_graphics()
+  return new_texture
+end
+```
+
+Finally, reading the files is triggered in the `update` function, i.e. when a data settings was changed by the user or at OBS startup. Special variables are defined to keep the path of an image file previously loaded, such that it can be freed when another file needs to be loaded. Note that it is necessary to keep a reference in `data.settings` for the inline callback functions of the buttons:
+
+``` Lua
+  -- Keeps a reference on the settings
+  data.settings = settings
+
+  data.offset = obs.obs_data_get_double(settings, "offset")
+
+  local pattern_path = obs.obs_data_get_string(settings, "pattern_path")
+  if data.loaded_pattern_path ~= pattern_path then
+    data.pattern = load_texture(pattern_path, data.pattern)
+    data.loaded_pattern_path = pattern_path
+  end
+  data.pattern_gamma = obs.obs_data_get_double(settings, "pattern_gamma")
+
+  local palette_path = obs.obs_data_get_string(settings, "palette_path")
+  if data.loaded_palette_path ~= palette_path then
+    data.palette = load_texture(palette_path, data.palette)
+    data.loaded_palette_path = palette_path
+  end
+  data.palette_gamma = obs.obs_data_get_double(settings, "palette_gamma")
+```
+
+After adding the code, restart OBS and the properties should appear in the _Filters_ dialog window:
+
+![filter halftone properties textures](images/scripting/filter-halftone-properties-textures.png)
+
+The pattern and palette textures are not yet functional.
+
+### Bitmap-based Dithering
+
+
+
 
 
 ``` Lua
 ```
+
+``` Lua
+```
+
+
+``` Lua
+```
+
+``` Lua
+```
+
 
 ``` Lua
 ```

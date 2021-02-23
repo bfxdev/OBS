@@ -2,8 +2,8 @@ obs = obslua
 
 -- Returns the description displayed in the Scripts window
 function script_description()
-  return [[<center><h2>Halftone Filter with Dithering</h2></center>
-  <p>This Lua script adds a video filter named <it>Halftone Dithering</it>. The filter can be added
+  return [[<center><h2>Halftone Filter</h2></center>
+  <p>This Lua script adds a video filter named <it>Halftone</it>. The filter can be added
   to a video source to reduce the number of colors of the input picture. It reproduces
   the style of a magnified printed picture.</p>]]
 end
@@ -15,19 +15,17 @@ end
 
 -- Definition of the global variable containing the source_info structure
 source_info = {}
-source_info.id = 'filter-halftone-dithering'              -- Unique string identifier of the source type
+source_info.id = 'filter-halftone'              -- Unique string identifier of the source type
 source_info.type = obs.OBS_SOURCE_TYPE_FILTER   -- INPUT or FILTER or TRANSITION
 source_info.output_flags = obs.OBS_SOURCE_VIDEO -- Combination of VIDEO/AUDIO/ASYNC/etc
 
 -- Returns the name displayed in the list of filters
 source_info.get_name = function()
-  print("In source_info.get_name")
-  return "Halftone Dithering"
+  return "Halftone"
 end
 
 -- Creates the implementation data for the source
 source_info.create = function(settings, source)
-  print("In source_info.create")
 
   -- Initializes the custom data table
   local data = {}
@@ -37,8 +35,7 @@ source_info.create = function(settings, source)
 
   -- Compiles the effect
   obs.obs_enter_graphics()
-  local effect_file_path = script_path() .. 'filter-halftone-dithering.effect.hlsl'
-  -- local effect_file_path = "C:/Program Files/obs-studio/data/obs-plugins/obs-filters/sharpness.effect"
+  local effect_file_path = script_path() .. 'filter-halftone-evolution.effect.hlsl'
   data.effect = obs.gs_effect_create_from_file(effect_file_path, nil)
   obs.obs_leave_graphics()
 
@@ -53,11 +50,10 @@ source_info.create = function(settings, source)
   data.params = {}
   data.params.width = obs.gs_effect_get_param_by_name(data.effect, "width")
   data.params.height = obs.gs_effect_get_param_by_name(data.effect, "height")
-
   data.params.gamma = obs.gs_effect_get_param_by_name(data.effect, "gamma")
   data.params.gamma_shift = obs.gs_effect_get_param_by_name(data.effect, "gamma_shift")
-  data.params.scale = obs.gs_effect_get_param_by_name(data.effect, "scale")
   data.params.amplitude = obs.gs_effect_get_param_by_name(data.effect, "amplitude")
+  data.params.scale = obs.gs_effect_get_param_by_name(data.effect, "scale")
   data.params.number_of_color_levels = obs.gs_effect_get_param_by_name(data.effect, "number_of_color_levels")
 
   data.params.offset = obs.gs_effect_get_param_by_name(data.effect, "offset")
@@ -96,11 +92,9 @@ source_info.get_height = function(data)
   return data.height
 end
 
-function set_texture_effect_parameters(image, param_texture, param_size, nanoseconds)
+function set_texture_effect_parameters(image, param_texture, param_size)
   local size = obs.vec2()
   if image then
-    obs.gs_image_file_tick(image, nanoseconds)
-    obs.gs_image_file_update_texture(image)
     obs.gs_effect_set_texture(param_texture, image.texture)
     obs.vec2_set(size, image.cx, image.cy)
   else
@@ -111,8 +105,7 @@ end
 
 -- Called when rendering the source with the graphics subsystem
 source_info.video_render = function(data)
-
-  local parent = obs.obs_filter_get_target(data.source)
+  local parent = obs.obs_filter_get_parent(data.source)
   data.width = obs.obs_source_get_base_width(parent)
   data.height = obs.obs_source_get_base_height(parent)
 
@@ -121,35 +114,28 @@ source_info.video_render = function(data)
   -- Effect parameters initialization goes here
   obs.gs_effect_set_int(data.params.width, data.width)
   obs.gs_effect_set_int(data.params.height, data.height)
-
   obs.gs_effect_set_float(data.params.gamma, data.gamma)
   obs.gs_effect_set_float(data.params.gamma_shift, data.gamma_shift)
-  obs.gs_effect_set_float(data.params.scale, data.scale)
   obs.gs_effect_set_float(data.params.amplitude, data.amplitude)
+  obs.gs_effect_set_float(data.params.scale, data.scale)
   obs.gs_effect_set_int(data.params.number_of_color_levels, data.number_of_color_levels)
 
   obs.gs_effect_set_float(data.params.offset, data.offset)
 
   -- Pattern texture
-  set_texture_effect_parameters(data.pattern, data.params.pattern_texture,
-                                data.params.pattern_size, data.nanoseconds)
+  set_texture_effect_parameters(data.pattern, data.params.pattern_texture, data.params.pattern_size)
   obs.gs_effect_set_float(data.params.pattern_gamma, data.pattern_gamma)
 
   -- Palette texture
-  set_texture_effect_parameters(data.palette, data.params.palette_texture,
-                                data.params.palette_size, data.nanoseconds)
+  set_texture_effect_parameters(data.palette, data.params.palette_texture, data.params.palette_size)
   obs.gs_effect_set_float(data.params.palette_gamma, data.palette_gamma)
+
 
   obs.obs_source_process_filter_end(data.source, data.effect, data.width, data.height)
 end
 
-source_info.video_tick = function(data, seconds)
-  data.nanoseconds = seconds*1e9
-end
-
 -- Sets the default settings for this source
 source_info.get_defaults = function(settings)
-  print("In source_info.get_defaults")
   obs.obs_data_set_default_double(settings, "gamma", 1.0)
   obs.obs_data_set_default_double(settings, "gamma_shift", 0.0)
   obs.obs_data_set_default_double(settings, "scale", 1.0)
@@ -162,16 +148,17 @@ source_info.get_defaults = function(settings)
   obs.obs_data_set_default_double(settings, "pattern_gamma", 1.0)
   obs.obs_data_set_default_string(settings, "palette_path", "")
   obs.obs_data_set_default_double(settings, "palette_gamma", 1.0)
+
 end
 
 -- Gets the property information of this source
 source_info.get_properties = function(data)
-  print("In source_info.get_properties")
   local props = obs.obs_properties_create()
   obs.obs_properties_add_float_slider(props, "gamma", "Gamma encoding exponent", 1.0, 2.2, 0.2)
   obs.obs_properties_add_float_slider(props, "gamma_shift", "Gamma shift", -2.0, 2.0, 0.01)
   obs.obs_properties_add_float_slider(props, "scale", "Pattern scale", 0.01, 10.0, 0.01)
   obs.obs_properties_add_float_slider(props, "amplitude", "Perturbation amplitude", -2.0, 2.0, 0.01)
+  obs.obs_properties_add_int_slider(props, "number_of_color_levels", "Number of color levels", 2, 10, 1)
 
   obs.obs_properties_add_float_slider(props, "offset", "Perturbation offset", -2.0, 2.0, 0.01)
 
@@ -180,8 +167,6 @@ source_info.get_properties = function(data)
   obs.obs_properties_add_float_slider(props, "pattern_gamma", "Pattern gamma exponent", 1.0, 2.2, 0.2)
   obs.obs_properties_add_button(props, "pattern_reset", "Reset pattern", function()
     obs.obs_data_set_string(data.settings, "pattern_path", ""); data.pattern = nil; return true; end)
-
-  obs.obs_properties_add_int_slider(props, "number_of_color_levels", "Number of color levels", 2, 10, 1)
 
   obs.obs_properties_add_path(props, "palette_path", "Palette path", obs.OBS_PATH_FILE,
                               "Picture (*.png *.bmp *.jpg *.gif)", nil)
@@ -222,7 +207,6 @@ end
 
 -- Updates the internal data for this source upon settings change
 source_info.update = function(data, settings)
-  print("In source_info.update")
   data.gamma = obs.obs_data_get_double(settings, "gamma")
   data.gamma_shift = obs.obs_data_get_double(settings, "gamma_shift")
   data.scale = obs.obs_data_get_double(settings, "scale")
@@ -247,4 +231,9 @@ source_info.update = function(data, settings)
     data.loaded_palette_path = palette_path
   end
   data.palette_gamma = obs.obs_data_get_double(settings, "palette_gamma")
+
 end
+
+
+
+
