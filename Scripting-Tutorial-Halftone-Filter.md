@@ -303,17 +303,17 @@ uniform float gamma_shift = 0.6;
 
 Experiment and adapt the default values of `gamma` and `gamma_shift` to your source. They will be defined through OBS properties later on.
 
-Then we introduce the gamma encoding and decoding functions, and re-write the pixel shader to use it (below the vertex shader):
+We introduce the gamma encoding and decoding functions, and re-write the pixel shader to use it. We use an additional `clamp` function to be sure to keep values between 0.0 and 1.0 before the exponentiation. In fact this may not be necessary but it avoids a warning that may be produced by the compiler. Add the code below the vertex shader:
 
 ``` HLSL
 float3 decode_gamma(float3 color, float exponent, float shift)
 {
-    return pow(color, exponent - shift);
+    return pow(clamp(color, 0.0, 1.0), exponent - shift);
 }
 
 float3 encode_gamma(float3 color, float exponent)
 {
-    return pow(color, 1.0/exponent);
+    return pow(clamp(color, 0.0, 1.0), 1.0/exponent);
 }
 
 // Pixel shader used to compute an RGBA color at a given pixel position
@@ -549,7 +549,7 @@ The old-fashioned newspaper effect  is very convincing with 2 colors:
 
 ![filter halftone sparrow](images/scripting/filter-halftone-sparrow.png)
 
-Some edges are preserved on the picture, and actually the form of the cosine function is heavily disturbed by the underlying picture. This is normal because we just add a pixel-by-pixel perturbation here. Other formulas, or just using _x_ and _y_ coordinates that follow the pattern grid, would produce different results.
+Note that some edges are preserved on the picture so it is probably not the same result as an optical process would produce.
 
 Pictures in just 3 colors can be fascinating:
 
@@ -559,10 +559,17 @@ The first part of the tutorial is completed and the script plus its effect file 
 
 ## Second part - Dithering with texture
 
-In this second part we will see how to use additional textures for the pattern and the color palette.
+In this second part we will see how to use additional textures for the pattern and the color palette. To start with, let's copy the source files and rename them to `filter-halftone-dithering.lua` and `filter-halftone-dithering.effect.hlsl` to clearly differentiate both versions.
 
+Then change the compilation line in `source_info.create` to:
 
-:construction: TODO in encode/decode_gamma, this warning is shown in log only if there is a real error : `warning X3571: pow(f, e) will not work for negative f, use abs(f) or conditionally handle negative values if you expect them` :construction:
+``` Lua
+  local effect_file_path = script_path() .. 'filter-halftone-dithering.effect.hlsl'
+```
+
+### Some colors please
+
+If you followed the tutorial up to this point, then you are certainly fed up with the black and white pictures! 
 
 
 ``` Lua

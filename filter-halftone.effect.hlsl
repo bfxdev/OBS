@@ -57,12 +57,12 @@ pixel_data vertex_shader_halftone(vertex_data vertex)
 
 float3 decode_gamma(float3 color, float exponent, float shift)
 {
-    return pow(color, exponent - shift);
+    return pow(clamp(color, 0.0, 1.0), exponent - shift);
 }
 
 float3 encode_gamma(float3 color, float exponent)
 {
-    return pow(color, 1.0/exponent);
+    return pow(clamp(color, 0.0, 1.0), 1.0/exponent);
 }
 
 // Pixel shader used to compute an RGBA color at a given pixel position
