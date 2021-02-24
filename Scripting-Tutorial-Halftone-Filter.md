@@ -579,15 +579,17 @@ It works! And it is another example of the great versatility of the HLSL languag
 
 So we add a small perturbation to the Red, Green and Blue channels. Then the color quantization is done on each channel by the `round` operation, which results in a palette of 64 colors.
 
-The scalar cosine formula gives great results and has an undeniable style, but it shows as well the limit of the method. Rather than a mix of dots with different colors, as a magnified printed photo would look like, we observe a grid of well-adapted uniform color tones:
+The scalar cosine formula gives great results and has an undeniable style, but it shows as well the limit of the method. Rather than a mix of dots with different colors, as a magnified printed photo would look like, we observe a grid of uniform color tones:
 
 ![filter halftone lena colors](images/scripting/filter-halftone-lena-colors.png)
 
-To obtain a different effect, the perturbation needs to have different values on each RGB channel.
+When the number of color levels is reduced to 2, i.e. with 8 colors (black, white, red, green, blue, cyan, magenta, yellow), the scale factor of the perturbation can be reduced as well to obtain a picture reproducing the original colors (here with a scale filtering set to bicubic to show the single pixels):
+
+![filter halftone lena reduced colors](images/scripting/filter-halftone-lena-reduced-colors.png)
+
+Not bad with 8 colors and the primitive approach! But the typical "printed paper effect" cannot be reached with the current cosine-based scalar perturbation, it needs to have different values on each RGB channel. To make the perturbation fully flexible we will replace the computed formula with a pre-computed bitmap texture.
 
 ### Re-factoring the pixel shader
-
-Obviously adding colors adds a new bunch of complexity and modularity will help to understand the code.
 
 The general method to obtain our effect can be divided in simple steps:
 
@@ -597,7 +599,7 @@ The general method to obtain our effect can be divided in simple steps:
 4. A color close to the perturbed color is selected among a limited set through the rounding operation
 5. The close color is gamma-encoded and returned as output
 
-To be very general, at step 3, we will add a variable `offset` set to 0 by default:
+First, to be very general, we will add a variable `offset` set to 0 by default at step 3:
 
 _perturbed_color = linear_color + offset + amplitude*perturbation_
 
@@ -607,13 +609,15 @@ In addition, we allow the `amplitude` to be negative. So first, in the Lua file,
   obs.obs_properties_add_float_slider(props, "amplitude", "Perturbation amplitude", -2.0, 2.0, 0.01)
 ```
 
-Now in the effect file we need an additional uniform value at the top of file:
+And in the effect file we need an additional uniform value at the top of file:
 
 ``` HLSL
 uniform float offset = 0.0;
 ```
 
-The steps 2 and 4 are put into separate functions. Note that both perturbation and closest color will be defined as `float4` to support a variable alpha channel (more about that later on). For now, the exact same functionality will be implemented with alpha set to 1.0 (in the effect file):
+Second, and this is the main change, the steps 2 and 4 are put into separate functions for better modularity. We will even define the "perturbation color" (determined at step 2) and the closest color (determined as step 4) with an additional alpha, i.e. both are defined as `float4`. The variable alpha channel will be treated later on, for now the exact same functionality will be implemented with alpha set to 1.0.
+
+Replace the pixel shader with the 2 new functions and the new code for the pixel shader in the effect file:
 
 ``` HLSL
 float4 get_perturbation(float2 position)
@@ -691,7 +695,7 @@ Coming to the Lua file, we will use the opportunity to add the new `offset` used
   data.params.palette_gamma = obs.gs_effect_get_param_by_name(data.effect, "palette_gamma")
 ```
 
-The next addition is a helper function to set the size and texture effect parameters according to a simple logic, i.e. if the texture object is `nil`, then its size is set to _(-1,-1)_ such that the shader is able to recognize it:
+The next addition is a helper function to set the size and texture effect parameters according to a simple logic, i.e. if the texture object is `nil`, then its size is set to _(-1,-1)_ such that the shader is able to recognize it (and note the use of the [`vec2`](https://obsproject.com/docs/reference-libobs-graphics-vec2.html) OBS object):
 
 ``` Lua
 function set_texture_effect_parameters(image, param_texture, param_size)
@@ -781,7 +785,7 @@ function load_texture(path, current_texture)
 end
 ```
 
-Finally, reading the files is triggered in the `update` function, i.e. when a data settings was changed by the user or at OBS startup. Special variables are defined to keep the path of an image file previously loaded, such that it can be freed when another file needs to be loaded. Note that it is necessary to keep a reference in `data.settings` for the inline callback functions of the buttons:
+Finally, reading the image files is triggered in the `update` function, i.e. when a data settings was changed by the user or at OBS startup. Special variables are defined to keep the path of an image file previously loaded, such that it can be freed when another file needs to be loaded. Note that it is necessary to keep a reference in `data.settings` for the inline callback functions of the buttons:
 
 ``` Lua
   -- Keeps a reference on the settings
@@ -810,40 +814,80 @@ After adding the code, restart OBS and the properties should appear in the _Filt
 
 The pattern and palette textures are not yet functional.
 
-### Bitmap-based Dithering
+### Bitmap-based dithering with seamless patterns
 
+The naive algorithm we use is actually a form of [ordered dithering](https://en.wikipedia.org/wiki/Ordered_dithering) that typically relies on a "Bayer matrix" added continuously as a tile on the picture.
 
+In its mathematical form, a Bayer matrix contain levels between 0 and 1 distributed over the matrix area. Bayer matrices can be represented as well as bitmap images with gray scales, like in this [repository of Bayer PNG textures](https://github.com/tromero/BayerMatrix/tree/master/images).
 
+The picture of the basic 2x2 Bayer matrix is a square of 2 pixels by 2 pixels, what make a really tiny image:
 
+_Bayer matrix texture with 4 levels:_ :arrow_right: ![filter halftone bayer 2x2](images/scripting/filter-halftone-bayer-2x2.png) :arrow_left:
 
-``` Lua
-```
+After a zoom:
 
-``` Lua
-```
+![filter halftone bayer 2x2 big](images/scripting/filter-halftone-bayer-2x2-big.png)
 
+Please note the 4 gray levels 0, 1/4, 2/4, 3/4 increasing along a loop like the "alpha" greek letter (top-right then bottom-left then top-left then bottom-right). This construction ensures that the pattern can be tiled infinitely in each direction without visible border artifact.
 
-``` Lua
-```
+Bayer matrices of higher orders can be constructed recursively by just adding the levels to themselves. As an example, for a 4x4 matrix starting from the 2x2 matrix, the top-right pixel (level 0 pure black) is replaced directly with the 2x2 matrix, then the bottom right pixel (level 1/4) becomes the 2x2 matrix with 1/4 added to the levels, etc. At the end, the 4x4 Bayer matrix looks like:
 
-``` Lua
-```
+_Bayer matrix texture with 16 levels:_ :arrow_right: ![filter halftone bayer 4x4](images/scripting/filter-halftone-bayer-4x4.png) :arrow_left:
 
+After a zoom:
 
-``` Lua
-```
+![filter halftone bayer 4x4 big](images/scripting/filter-halftone-bayer-4x4-big.png)
 
-``` Lua
-```
+An interesting variation with Bayer matrices is to [use a non-rectangular shape](http://caca.zoy.org/wiki/libcaca/study/2) itself tiled to make a seamless pattern. For example with a cross of 5 pixels (hence 5 levels), tiled over a 5x5 matrix:
+
+_Bayer matrix texture with 5 levels:_ :arrow_right: ![filter halftone bayer cross 5 levels](images/scripting/filter-halftone-bayer-cross-5-levels.png) :arrow_left:
+
+After a zoom:
+
+![filter halftone bayer cross 5 levels big](images/scripting/filter-halftone-bayer-cross-5-levels-big.png)
+
+Now we have some patterns to play with, time to modify the effect file.
 
 
 [dithering with arbitrary palette](https://bisqwit.iki.fi/story/howto/dither/jy)
 
-
-### CMYK color space
-
-[RGB to CMYK](https://www.rapidtables.com/convert/color/rgb-to-cmyk.html)
+### Other seamless patterns
 
 
-[CMYK to RGB](https://www.rapidtables.com/convert/color/cmyk-to-rgb.html)
+
+### Palette
+
+### Using an animated gif
+
+### Transparency
+
+### Re-organizing the properties
+
+### Putting everything in a single file
+
+## Conclusion
+
+
+
+``` Lua
+```
+
+``` Lua
+```
+
+
+``` Lua
+```
+
+``` Lua
+```
+
+
+``` Lua
+```
+
+``` Lua
+```
+
+
 
