@@ -915,46 +915,126 @@ The same kind of technique was used to blur a texture from the [hexagonal tiling
 
 ![filter halftone pattern hexagons blur](images/scripting/filter-halftone-pattern-hexagons-blur.png)
 
-On this pattern the RGB channels are separated. The blurring was done in one operation that kept the RGB separation. The result brings us back to producing a halftone picture, this time with colors:
+On this pattern the RGB channels are separated. The blurring was done in one operation that kept the RGB separation. The result brings us back to producing a halftone picture, this time with colors. Look at the many little discs of different sizes, resulting from blurring the hexagons in the texture:
 
 ![filter halftone lena eyes hexagons blur](images/scripting/filter-halftone-lena-eyes-hexagons-blur.png)
 
-``` Lua
+Finally, another method to produce a nice pattern is just to compute it and grab it as a screenshot. As an example, this [shader on GLSL sandbox](http://glslsandbox.com/e#71491.0) was used to produce this pattern, which kind of reproduces the shape of printed paper, i.e. with an orthogonal raster for each RGB, and an orientation of 0° for Red, 30° for Green, 60° for Blue (the pattern repeats after 30 oscillations, this is why the picture is so big):
+
+![filter halftone pattern print raster](images/scripting/filter-halftone-pattern-print-raster.png)
+
+The resulting picture is very similar to the one produced with the blurred hexagons:
+
+![filter halftone lena eyes print raster](images/scripting/filter-halftone-lena-eyes-print-raster.png)
+
+Actually printed paper uses a CMYK color model (Cyan-Magenta-Yellow-Black) with a subtractive blend mode, and our simple approach is classically additive with the RGB components. The real computation with CMYK would require a modification of the perturbation formula. Nevertheless this simple computation produces vary convincing results to reproduce the style of printed paper. This is especially true for comics or pop art (after tweaking the amplitude and offset):
+
+![filter halftone pattern pop art](images/scripting/filter-halftone-pop-art.png)
+
+Even if the CMYK print raster is not the same, this works very well in 8 colors because mixing the primary colors Red, Green and Blue with an additive blend gives directly the primary colors of a subtractive blend Cyan (Green+Blue), Magenta (Red+Blue) and Yellow (Red+Green). At the end the same 8 colors are present in the picture.
+
+### Arbitrary palette
+
+Until now the color quantization is based on finding the closest discrete level on each RGB component. The operation is simple and quick.
+
+The goal now is to read the different colors from a texture and find the closest one. The operation will imply, for each single rendered pixel, a comparison with a potentially large number of other colors. Of course the operation will not be quick and the palette cannot be too big.
+
+The web site [Lospec is a good source for palettes](https://lospec.com/palette-list). It proposes curated palettes with usage examples in different formats. For our filter the best is to use the one-pixel per color form, all pixels in a single row.
+
+As an example, with this format, the original palette of the Gameboy would look like:
+
+_Palette of the Gameboy:_ :arrow_right: ![filter halftone palette gameboy](images/scripting/filter-halftone-palette-gameboy.png) :arrow_left: Zoomed: ![filter halftone palette gameboy big](images/scripting/filter-halftone-palette-gameboy-big.png)
+
+coming to the code, first, to be sure that the colors do not get interpolated, a new sampler state using the "Point" filter is necessary in the effect file:
+
+``` HLSL
+SamplerState point_clamp
+{
+    Filter    = Point; 
+    AddressU  = Clamp;
+    AddressV  = Clamp;
+};
 ```
 
+Then, the `get_closest_color` is modified to include a color search. Comparing two colors is based on a simple `distance` function. This is the same as the usual distance between 3D points, applied to the RGB components. There are many [sophisticated color comparison methods](https://en.wikipedia.org/wiki/Color_difference), the usual distance will be good enough for our purpose here.
 
-``` Lua
+The new function replaces `get_closest_color` in the effect file:
+
+``` HLSL
+float4 get_closest_color(float3 input_color)
+{
+    float4 result;
+    if (palette_size.x>0)
+    {
+        float min_distance = 1e10;
+        float2 pixel_size = 1.0 / min(256, palette_size);
+        for (float u=pixel_size.x/2.0; u<1.0; u+=pixel_size.x)
+            for (float v=pixel_size.y/2.0; v<1.0; v+=pixel_size.y)
+            {
+                float4 palette_sample = palette_texture.Sample(point_clamp, float2(u, v));
+                float3 linear_color = decode_gamma(palette_sample.rgb, palette_gamma, 0.0);
+
+                float current_distance = distance(input_color, linear_color);
+                if (current_distance < min_distance)
+                {
+                    result = float4(linear_color, palette_sample.a);
+                    min_distance = current_distance;
+                }
+            }
+    }
+    else
+        result = float4(round((number_of_color_levels-1)*input_color)/(number_of_color_levels-1), 1.0);
+
+    return result;
+}
 ```
 
-``` Lua
-```
+Please note that:
 
+- Again, if the palette size is negative then it means that the texture is not defined or not loaded. In this case the function falls back to the rounding operation according to `number_of_color_levels`.
+- Positions of pixels in the texture are iterated as UV coordinates, exactly on the center of each pixel (e.g. starting at `u=pixel_size.x/2.0`) in order to avoid sampling at the edge between two pixels, resulting in flickering due to random imprecision.
+- There is a kind of protection in case the user selects a very big picture, i.e. the number of read pixels is maximum 256x256 (i.e. the `pixel_size` UV increment is given by `1.0 / min(256, palette_size)`). This could be used to check the colors extracted from an arbitrary picture used as palette, but much too slow for video processing if the picture is too big.
+- The color search is a classical research of the minimum value.
 
-``` Lua
-```
+Add the code, restart OBS, use the Gameboy palette with a Bayer matrix for dithering and you should see something like this:
 
-``` Lua
-```
+![filter halftone lena gameboy](images/scripting/filter-halftone-lena-gameboy.png)
 
+Another interesting effect with a reduced palette is to use a hatching dithering pattern and adjust levels to make the result looks like hand drawn:
 
-
-
-
-
-
-
-
-### Palette
+![filter halftone lena hatch](images/scripting/filter-halftone-lena-hatch.png)
 
 ### Using an animated gif
 
+
+
 ### Transparency
-
 ### Re-organizing the properties
-
 ### Putting everything in a single file
-
 ## Conclusion
+
+
+``` HLSL
+```
+
+``` Lua
+```
+
+
+``` Lua
+```
+
+``` Lua
+```
+
+
+
+
+
+
+
+
+
 
 
 

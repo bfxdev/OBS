@@ -49,6 +49,13 @@ SamplerState linear_wrap
     AddressV  = Wrap;
 };
 
+SamplerState point_clamp
+{
+    Filter    = Point; 
+    AddressU  = Clamp;
+    AddressV  = Clamp;
+};
+
 // Data type of the input of the vertex shader
 struct vertex_data
 {
@@ -99,7 +106,27 @@ float4 get_perturbation(float2 position)
 float4 get_closest_color(float3 input_color)
 {
     float4 result;
-    result = float4(round((number_of_color_levels-1)*input_color)/(number_of_color_levels-1), 1.0);
+    if (palette_size.x>0)
+    {
+        float min_distance = 1e10;
+        float2 pixel_size = 1.0 / min(256, palette_size);
+        for (float u=pixel_size.x/2.0; u<1.0; u+=pixel_size.x)
+            for (float v=pixel_size.y/2.0; v<1.0; v+=pixel_size.y)
+            {
+                float4 palette_sample = palette_texture.Sample(point_clamp, float2(u, v));
+                float3 linear_color = decode_gamma(palette_sample.rgb, palette_gamma, 0.0);
+
+                float current_distance = distance(input_color, linear_color);
+                if (current_distance < min_distance)
+                {
+                    result = float4(linear_color, palette_sample.a);
+                    min_distance = current_distance;
+                }
+            }
+    }
+    else
+        result = float4(round((number_of_color_levels-1)*input_color)/(number_of_color_levels-1), 1.0);
+
     return result;
 }
 
