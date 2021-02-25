@@ -42,6 +42,13 @@ SamplerState linear_clamp
     BorderColor = 00000000; // Used only with Border edges (optional)
 };
 
+SamplerState linear_wrap
+{
+    Filter    = Linear; 
+    AddressU  = Wrap;
+    AddressV  = Wrap;
+};
+
 // Data type of the input of the vertex shader
 struct vertex_data
 {
@@ -78,9 +85,15 @@ float3 encode_gamma(float3 color, float exponent)
 
 float4 get_perturbation(float2 position)
 {
-    float4 result;
-    result = float4((cos(PI*position.x/scale/4.0) * cos(PI*position.y/scale/4.0)).xxx, 1.0);
-    return result;
+    if (pattern_size.x>0)
+    {
+        float2 pattern_uv = position / pattern_size;
+        float4 pattern_sample = pattern_texture.Sample(linear_wrap, pattern_uv / scale);
+        float3 linear_color = decode_gamma(pattern_sample.rgb, pattern_gamma, 0.0);
+        return float4(2.0*(linear_color-0.5), pattern_sample.a);
+    }
+    else
+        return float4((cos(PI*position.x/scale/4.0) * cos(PI*position.y/scale/4.0)).xxx, 1.0);
 }
 
 float4 get_closest_color(float3 input_color)

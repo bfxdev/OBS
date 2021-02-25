@@ -816,7 +816,7 @@ The pattern and palette textures are not yet functional.
 
 ### Bitmap-based dithering with seamless patterns
 
-The naive algorithm we use is actually a form of [ordered dithering](https://en.wikipedia.org/wiki/Ordered_dithering) that typically relies on a "Bayer matrix" added continuously as a tile on the picture.
+The naive algorithm we use is actually a form of [ordered dithering](https://en.wikipedia.org/wiki/Ordered_dithering), that typically relies on a "Bayer matrix" tiled over the picture, where each number from the matrix is added to the color of the related pixel, and the closest color is determined. In average, the mix of neighbor color dots reproduces the original color. Note that we keep this simple algorithm, while [other algorithms for dithering with an arbitrary palette](https://bisqwit.iki.fi/story/howto/dither/jy) exist.
 
 In its mathematical form, a Bayer matrix contain levels between 0 and 1 distributed over the matrix area. Bayer matrices can be represented as well as bitmap images with gray scales, like in this [repository of Bayer PNG textures](https://github.com/tromero/BayerMatrix/tree/master/images).
 
@@ -830,7 +830,7 @@ After a zoom:
 
 Please note the 4 gray levels 0, 1/4, 2/4, 3/4 increasing along a loop like the "alpha" greek letter (top-right then bottom-left then top-left then bottom-right). This construction ensures that the pattern can be tiled infinitely in each direction without visible border artifact.
 
-Bayer matrices of higher orders can be constructed recursively by just adding the levels to themselves. As an example, for a 4x4 matrix starting from the 2x2 matrix, the top-right pixel (level 0 pure black) is replaced directly with the 2x2 matrix, then the bottom right pixel (level 1/4) becomes the 2x2 matrix with 1/4 added to the levels, etc. At the end, the 4x4 Bayer matrix looks like:
+Bayer matrices of higher orders can be constructed recursively by replacing each pixel by the whole matrix and adding the levels. As an example, for a 4x4 matrix starting from the 2x2 matrix, the top-right pixel (level 0 pure black) is replaced directly with the 2x2 matrix, then the bottom right pixel (level 1/4) becomes the 2x2 matrix with 1/4 added to the levels of the 2x2 matrix, etc. At the end, the 4x4 Bayer matrix looks like (note the top-right 2x2 block, which is the same as the 2x2 Bayer matrix):
 
 _Bayer matrix texture with 16 levels:_ :arrow_right: ![filter halftone bayer 4x4](images/scripting/filter-halftone-bayer-4x4.png) :arrow_left:
 
@@ -838,7 +838,7 @@ After a zoom:
 
 ![filter halftone bayer 4x4 big](images/scripting/filter-halftone-bayer-4x4-big.png)
 
-An interesting variation with Bayer matrices is to [use a non-rectangular shape](http://caca.zoy.org/wiki/libcaca/study/2) itself tiled to make a seamless pattern. For example with a cross of 5 pixels (hence 5 levels), tiled over a 5x5 matrix:
+An interesting variation with Bayer matrices is to [use a non-rectangular shape](http://caca.zoy.org/wiki/libcaca/study/2) itself arranged to make a seamless pattern. For example with a cross of 5 pixels (hence 5 levels), arranged with no holes, resulting in a minimal 5x5 matrix:
 
 _Bayer matrix texture with 5 levels:_ :arrow_right: ![filter halftone bayer cross 5 levels](images/scripting/filter-halftone-bayer-cross-5-levels.png) :arrow_left:
 
@@ -848,10 +848,99 @@ After a zoom:
 
 Now we have some patterns to play with, time to modify the effect file.
 
+Usually, in order to find coordinates in a tiled pattern, given the coordinates in the full area, the solution would be to use a ["modulo" operation](https://en.wikipedia.org/wiki/Modulo_operation) (remainder of the division by the size of the pattern). Here we will just let the GPU do it for us by using a ["wrap" texture address mode](https://docs.microsoft.com/en-us/windows/uwp/graphics-concepts/texture-addressing-modes#wrap-texture-address-mode). A new `sampler_state` (redefined as `SamplerState` by macro to be more HLSL compliant) is defined for that in the effect file:
 
-[dithering with arbitrary palette](https://bisqwit.iki.fi/story/howto/dither/jy)
+``` HLSL
+SamplerState linear_wrap
+{
+    Filter    = Linear; 
+    AddressU  = Wrap;
+    AddressV  = Wrap;
+};
+```
 
-### Other seamless patterns
+With this definition, we re-define the function `get_perturbation`:
+
+``` HLSL
+float4 get_perturbation(float2 position)
+{
+    if (pattern_size.x>0)
+    {
+        float2 pattern_uv = position / pattern_size;
+        float4 pattern_sample = pattern_texture.Sample(linear_wrap, pattern_uv / scale);
+        float3 linear_color = decode_gamma(pattern_sample.rgb, pattern_gamma, 0.0);
+        return float4(2.0*(linear_color-0.5), pattern_sample.a);
+    }
+    else
+        return float4((cos(PI*position.x/scale/4.0) * cos(PI*position.y/scale/4.0)).xxx, 1.0);
+}
+```
+
+Please note that:
+
+- If the X size of the pattern is negative, i.e. if no pattern file was selected by the user or the file could not be loaded, then the function falls back to the cosine formula.
+- It is necessary to compute UV coordinates in `pattern_uv` to locate the pixel in the pattern texture, given by `position / pattern_size`, but because `position` (pixel coordinates in the source picture) has values bigger than `pattern_size`, the resulting UV coordinates has values between 0.0 and much more than 1.0, and that is where the "Wrap" mode is important.
+- The function is expected to return RGB values from -1.0 to 1.0, that is why there is a normalization as `2.0*(linear_color-0.5)`
+- Using a "Linear" sampling (as in `linear_wrap`) is an arbitrary choice here, and means that if the pattern is scaled, colors from the pattern are interpolated (maybe not the expectation with a Bayer matrix). A "Point" filter could be used too, depending on the kind of scaling that is desired, in conjunction with the _Scale Filtering_ setting.
+
+Add the code, restart OBS, then download and select the 4x4 Bayer matrix above (the tiny one), set the scale to 1.0, the _Scale Filtering_ to _Bicubic_ and you should obtain something like this with 2 color levels:
+
+![filter halftone lena bayer 4x4](images/scripting/filter-halftone-lena-bayer-4x4.png)
+
+Such an image may bring back memories of the 8-bits or 16-bits computer era, depending how old you are, this is almost pixel-art!
+
+The texture based on the cross-formed pattern with 5 levels gives a quite different style to the dithering:
+
+![filter halftone lena bayer cross 5 levels](images/scripting/filter-halftone-lena-bayer-cross-5-levels.png)
+
+### Creating seamless patterns
+
+The effect is now strongly driven by the pattern used as input. A "seamless" pattern is necessary and it is not trivial to create one. There are special tools around to do that, or there is a quite simple method that works with any paint tool (e.g. paint.net).
+
+Actually, the issue here is that any global transformation applied to a complete picture (e.g. gaussian blur) would assume that the outside of the picture has a constant color (e.g. white), and would produce border artifacts that are only visible when the picture is tiled.
+
+The simple method to avoid this is to "pre-tile" the picture on a 9x9 grid, then apply the global transformation, then select and crop the central part of the picture. This way the border artifacts are limited to the surrounding pictures and the central picture can be tiled seamlessly:
+
+![filter halftone seamless pattern](images/scripting/filter-halftone-seamless-pattern.png)
+
+Using a blur filter just creates the different levels expected in a dithering pattern. This is the resulting star pattern:
+
+![filter halftone pattern star blur](images/scripting/filter-halftone-pattern-star-blur.png)
+
+The filtered picture shows stars with different sizes, that correspond the the different levels created by the blur operation (a better effect would be reached with more blurring in the pattern, do your own experimentation):
+
+![filter halftone lena stars](images/scripting/filter-halftone-lena-stars.png)
+
+The same kind of technique was used to blur a texture from the [hexagonal tiling](https://en.wikipedia.org/wiki/Hexagonal_tiling) page on Wikipedia:
+
+![filter halftone pattern hexagons blur](images/scripting/filter-halftone-pattern-hexagons-blur.png)
+
+On this pattern the RGB channels are separated. The blurring was done in one operation that kept the RGB separation. The result brings us back to producing a halftone picture, this time with colors:
+
+![filter halftone lena eyes hexagons blur](images/scripting/filter-halftone-lena-eyes-hexagons-blur.png)
+
+``` Lua
+```
+
+
+``` Lua
+```
+
+``` Lua
+```
+
+
+``` Lua
+```
+
+``` Lua
+```
+
+
+
+
+
+
 
 
 
@@ -866,28 +955,6 @@ Now we have some patterns to play with, time to modify the effect file.
 ### Putting everything in a single file
 
 ## Conclusion
-
-
-
-``` Lua
-```
-
-``` Lua
-```
-
-
-``` Lua
-```
-
-``` Lua
-```
-
-
-``` Lua
-```
-
-``` Lua
-```
 
 
 
