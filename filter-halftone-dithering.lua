@@ -38,8 +38,8 @@ source_info.create = function(settings, source)
   -- Compiles the effect
   obs.obs_enter_graphics()
   local effect_file_path = script_path() .. 'filter-halftone-dithering.effect.hlsl'
-  -- local effect_file_path = "C:/Program Files/obs-studio/data/obs-plugins/obs-filters/sharpness.effect"
   data.effect = obs.gs_effect_create_from_file(effect_file_path, nil)
+  -- data.effect = obs.gs_effect_create(EFFECT, "halftone_effect_code", nil)
   obs.obs_leave_graphics()
 
   -- Calls the destroy function if the effect was not compiled properly
@@ -164,30 +164,58 @@ source_info.get_defaults = function(settings)
   obs.obs_data_set_default_double(settings, "palette_gamma", 1.0)
 end
 
+-- Properties "modified callback" to set visible flags of the displayed properties
+function set_properties_visibility(props, property, settings)
+
+  local pattern = string.len(obslua.obs_data_get_string(settings, "pattern_path")) > 0
+  local palette = string.len(obslua.obs_data_get_string(settings, "palette_path")) > 0
+
+  obs.obs_property_set_visible(obs.obs_properties_get(props, "pattern_reset"), pattern)
+  obs.obs_property_set_visible(obs.obs_properties_get(props, "pattern_gamma"), pattern)
+
+  obs.obs_property_set_visible(obs.obs_properties_get(props, "number_of_color_levels"), not palette)
+  obs.obs_property_set_visible(obs.obs_properties_get(props, "palette_reset"), palette)
+  obs.obs_property_set_visible(obs.obs_properties_get(props, "palette_gamma"), palette)
+
+  return true
+end
+
+
 -- Gets the property information of this source
 source_info.get_properties = function(data)
   print("In source_info.get_properties")
+
   local props = obs.obs_properties_create()
-  obs.obs_properties_add_float_slider(props, "gamma", "Gamma encoding exponent", 1.0, 2.2, 0.2)
-  obs.obs_properties_add_float_slider(props, "gamma_shift", "Gamma shift", -2.0, 2.0, 0.01)
-  obs.obs_properties_add_float_slider(props, "scale", "Pattern scale", 0.01, 10.0, 0.01)
-  obs.obs_properties_add_float_slider(props, "amplitude", "Perturbation amplitude", -2.0, 2.0, 0.01)
 
-  obs.obs_properties_add_float_slider(props, "offset", "Perturbation offset", -2.0, 2.0, 0.01)
+  local gprops = obs.obs_properties_create()
+  obs.obs_properties_add_group(props, "input", "Input Source", obs.OBS_GROUP_NORMAL, gprops)
+  obs.obs_properties_add_float_slider(gprops, "gamma", "Gamma encoding exponent", 1.0, 2.2, 0.2)
+  obs.obs_properties_add_float_slider(gprops, "gamma_shift", "Gamma shift", -2.0, 2.0, 0.01)
 
-  obs.obs_properties_add_path(props, "pattern_path", "Pattern path", obs.OBS_PATH_FILE,
+  gprops = obs.obs_properties_create()
+  obs.obs_properties_add_group(props, "pattern", "Dithering Pattern", obs.OBS_GROUP_NORMAL, gprops)
+  obs.obs_properties_add_float_slider(gprops, "scale", "Pattern scale", 0.01, 10.0, 0.01)
+  obs.obs_properties_add_float_slider(gprops, "amplitude", "Dithering amplitude", -2.0, 2.0, 0.01)
+  obs.obs_properties_add_float_slider(gprops, "offset", "Dithering luminosity shift", -2.0, 2.0, 0.01)
+
+  local p = obs.obs_properties_add_path(gprops, "pattern_path", "Pattern texture", obs.OBS_PATH_FILE,
                               "Picture (*.png *.bmp *.jpg *.gif)", nil)
-  obs.obs_properties_add_float_slider(props, "pattern_gamma", "Pattern gamma exponent", 1.0, 2.2, 0.2)
-  obs.obs_properties_add_button(props, "pattern_reset", "Reset pattern", function()
-    obs.obs_data_set_string(data.settings, "pattern_path", ""); data.pattern = nil; return true; end)
+  obs.obs_property_set_modified_callback(p, set_properties_visibility)
+  obs.obs_properties_add_float_slider(gprops, "pattern_gamma", "Pattern gamma exponent", 1.0, 2.2, 0.2)
+  obs.obs_properties_add_button(gprops, "pattern_reset", "Reset pattern texture", function(properties, property)
+    obs.obs_data_set_string(data.settings, "pattern_path", ""); data.pattern = nil;
+    set_properties_visibility(properties, property, data.settings); return true; end)
 
-  obs.obs_properties_add_int_slider(props, "number_of_color_levels", "Number of color levels", 2, 10, 1)
-
-  obs.obs_properties_add_path(props, "palette_path", "Palette path", obs.OBS_PATH_FILE,
+  gprops = obs.obs_properties_create()
+  obs.obs_properties_add_group(props, "palette", "Color palette", obs.OBS_GROUP_NORMAL, gprops)
+  obs.obs_properties_add_int_slider(gprops, "number_of_color_levels", "Number of color levels", 2, 10, 1)
+  p = obs.obs_properties_add_path(gprops, "palette_path", "Palette texture", obs.OBS_PATH_FILE,
                               "Picture (*.png *.bmp *.jpg *.gif)", nil)
-  obs.obs_properties_add_float_slider(props, "palette_gamma", "Palette gamma exponent", 1.0, 2.2, 0.2)
-  obs.obs_properties_add_button(props, "palette_reset", "Reset palette", function()
-     obs.obs_data_set_string(data.settings, "palette_path", ""); data.palette = nil; return true; end)
+  obs.obs_property_set_modified_callback(p, set_properties_visibility)
+  obs.obs_properties_add_float_slider(gprops, "palette_gamma", "Palette gamma exponent", 1.0, 2.2, 0.2)
+  obs.obs_properties_add_button(gprops, "palette_reset", "Reset palette texture", function(properties, property)
+    obs.obs_data_set_string(data.settings, "palette_path", ""); data.palette = nil;
+    set_properties_visibility(properties, property, data.settings); return true; end)
 
   return props
 end
@@ -248,3 +276,4 @@ source_info.update = function(data, settings)
   end
   data.palette_gamma = obs.obs_data_get_double(settings, "palette_gamma")
 end
+

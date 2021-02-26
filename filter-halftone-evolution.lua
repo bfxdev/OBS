@@ -35,13 +35,14 @@ source_info.create = function(settings, source)
 
   -- Compiles the effect
   obs.obs_enter_graphics()
-  local effect_file_path = script_path() .. 'filter-halftone-evolution.effect.hlsl'
-  data.effect = obs.gs_effect_create_from_file(effect_file_path, nil)
+  -- local effect_file_path = script_path() .. 'filter-halftone-evolution.effect.hlsl'
+  -- data.effect = obs.gs_effect_create_from_file(effect_file_path, nil)
+  data.effect = obs.gs_effect_create(EFFECT, "halftone_effect_code", nil)
   obs.obs_leave_graphics()
 
   -- Calls the destroy function if the effect was not compiled properly
   if data.effect == nil then
-    obs.blog(obs.LOG_ERROR, "Effect compilation failed for " .. effect_file_path)
+    obs.blog(obs.LOG_ERROR, "Effect compilation failed")
     source_info.destroy(data)
     return nil
   end
@@ -155,28 +156,58 @@ source_info.get_defaults = function(settings)
 
 end
 
+-- Properties "modified callback" to set visible flags of the displayed properties
+function set_properties_visibility(props, property, settings)
+
+  local pattern = string.len(obslua.obs_data_get_string(settings, "pattern_path")) > 0
+  local palette = string.len(obslua.obs_data_get_string(settings, "palette_path")) > 0
+
+  obs.obs_property_set_visible(obs.obs_properties_get(props, "pattern_reset"), pattern)
+  obs.obs_property_set_visible(obs.obs_properties_get(props, "pattern_gamma"), pattern)
+
+  obs.obs_property_set_visible(obs.obs_properties_get(props, "number_of_color_levels"), not palette)
+  obs.obs_property_set_visible(obs.obs_properties_get(props, "palette_reset"), palette)
+  obs.obs_property_set_visible(obs.obs_properties_get(props, "palette_gamma"), palette)
+
+  return true
+end
+
+
 -- Gets the property information of this source
 source_info.get_properties = function(data)
+  print("In source_info.get_properties")
+
   local props = obs.obs_properties_create()
-  obs.obs_properties_add_float_slider(props, "gamma", "Gamma encoding exponent", 1.0, 2.2, 0.2)
-  obs.obs_properties_add_float_slider(props, "gamma_shift", "Gamma shift", -2.0, 2.0, 0.01)
-  obs.obs_properties_add_float_slider(props, "scale", "Pattern scale", 0.01, 10.0, 0.01)
-  obs.obs_properties_add_float_slider(props, "amplitude", "Perturbation amplitude", -2.0, 2.0, 0.01)
-  obs.obs_properties_add_int_slider(props, "number_of_color_levels", "Number of color levels", 2, 10, 1)
 
-  obs.obs_properties_add_float_slider(props, "offset", "Perturbation offset", -2.0, 2.0, 0.01)
+  local gprops = obs.obs_properties_create()
+  obs.obs_properties_add_group(props, "input", "Input Source", obs.OBS_GROUP_NORMAL, gprops)
+  obs.obs_properties_add_float_slider(gprops, "gamma", "Gamma encoding exponent", 1.0, 2.2, 0.2)
+  obs.obs_properties_add_float_slider(gprops, "gamma_shift", "Gamma shift", -2.0, 2.0, 0.01)
 
-  obs.obs_properties_add_path(props, "pattern_path", "Pattern path", obs.OBS_PATH_FILE,
+  gprops = obs.obs_properties_create()
+  obs.obs_properties_add_group(props, "pattern", "Dithering Pattern", obs.OBS_GROUP_NORMAL, gprops)
+  obs.obs_properties_add_float_slider(gprops, "scale", "Pattern scale", 0.01, 10.0, 0.01)
+  obs.obs_properties_add_float_slider(gprops, "amplitude", "Dithering amplitude", -2.0, 2.0, 0.01)
+  obs.obs_properties_add_float_slider(gprops, "offset", "Dithering luminosity shift", -2.0, 2.0, 0.01)
+
+  local p = obs.obs_properties_add_path(gprops, "pattern_path", "Pattern texture", obs.OBS_PATH_FILE,
                               "Picture (*.png *.bmp *.jpg *.gif)", nil)
-  obs.obs_properties_add_float_slider(props, "pattern_gamma", "Pattern gamma exponent", 1.0, 2.2, 0.2)
-  obs.obs_properties_add_button(props, "pattern_reset", "Reset pattern", function()
-    obs.obs_data_set_string(data.settings, "pattern_path", ""); data.pattern = nil; return true; end)
+  obs.obs_property_set_modified_callback(p, set_properties_visibility)
+  obs.obs_properties_add_float_slider(gprops, "pattern_gamma", "Pattern gamma exponent", 1.0, 2.2, 0.2)
+  obs.obs_properties_add_button(gprops, "pattern_reset", "Reset pattern texture", function(properties, property)
+    obs.obs_data_set_string(data.settings, "pattern_path", ""); data.pattern = nil;
+    set_properties_visibility(properties, property, data.settings); return true; end)
 
-  obs.obs_properties_add_path(props, "palette_path", "Palette path", obs.OBS_PATH_FILE,
+  gprops = obs.obs_properties_create()
+  obs.obs_properties_add_group(props, "palette", "Color palette", obs.OBS_GROUP_NORMAL, gprops)
+  obs.obs_properties_add_int_slider(gprops, "number_of_color_levels", "Number of color levels", 2, 10, 1)
+  p = obs.obs_properties_add_path(gprops, "palette_path", "Palette texture", obs.OBS_PATH_FILE,
                               "Picture (*.png *.bmp *.jpg *.gif)", nil)
-  obs.obs_properties_add_float_slider(props, "palette_gamma", "Palette gamma exponent", 1.0, 2.2, 0.2)
-  obs.obs_properties_add_button(props, "palette_reset", "Reset palette", function()
-     obs.obs_data_set_string(data.settings, "palette_path", ""); data.palette = nil; return true; end)
+  obs.obs_property_set_modified_callback(p, set_properties_visibility)
+  obs.obs_properties_add_float_slider(gprops, "palette_gamma", "Palette gamma exponent", 1.0, 2.2, 0.2)
+  obs.obs_properties_add_button(gprops, "palette_reset", "Reset palette texture", function(properties, property)
+    obs.obs_data_set_string(data.settings, "palette_path", ""); data.palette = nil;
+    set_properties_visibility(properties, property, data.settings); return true; end)
 
   return props
 end
@@ -244,6 +275,166 @@ source_info.update = function(data, settings)
 
 end
 
+EFFECT = [[
 
-
-
+  // OBS-specific syntax adaptation to HLSL standard to avoid errors reported by the code editor
+  #define SamplerState sampler_state
+  #define Texture2D texture2d
+  
+  // Uniform variables set by OBS (required)
+  uniform float4x4 ViewProj; // View-projection matrix used in the vertex shader
+  uniform Texture2D image;   // Texture containing the source picture
+  
+  // General properties
+  uniform float gamma = 1.0;
+  uniform float gamma_shift = 0.6;
+  uniform int number_of_color_levels = 4.0;
+  
+  // Size of the source picture
+  uniform int width;
+  uniform int height;
+  
+  // Constants
+  #define PI 3.141592653589793238
+  
+  // General properties
+  uniform float amplitude = 0.2;
+  uniform float scale = 1.0;
+  uniform float offset = 0.5;
+  
+  // Pattern texture
+  uniform Texture2D pattern_texture;
+  uniform float2 pattern_size = {-1.0, -1.0};
+  uniform float pattern_gamma = 1.0;
+  
+  // Palette texture
+  uniform Texture2D palette_texture;
+  uniform float2 palette_size = {-1.0, -1.0};
+  uniform float palette_gamma = 1.0;
+  
+  // Interpolation method and wrap mode for sampling a texture
+  SamplerState linear_clamp
+  {
+      Filter    = Linear;     // Anisotropy / Point / Linear
+      AddressU  = Clamp;      // Wrap / Clamp / Mirror / Border / MirrorOnce
+      AddressV  = Clamp;      // Wrap / Clamp / Mirror / Border / MirrorOnce
+      BorderColor = 00000000; // Used only with Border edges (optional)
+  };
+  
+  SamplerState linear_wrap
+  {
+      Filter    = Linear; 
+      AddressU  = Wrap;
+      AddressV  = Wrap;
+  };
+  
+  SamplerState point_clamp
+  {
+      Filter    = Point; 
+      AddressU  = Clamp;
+      AddressV  = Clamp;
+  };
+  
+  // Data type of the input of the vertex shader
+  struct vertex_data
+  {
+      float4 pos : POSITION;  // Homogeneous space coordinates XYZW
+      float2 uv  : TEXCOORD0; // UV coordinates in the source picture
+  };
+  
+  // Data type of the output returned by the vertex shader, and used as input 
+  // for the pixel shader after interpolation for each pixel
+  struct pixel_data
+  {
+      float4 pos : POSITION;  // Homogeneous screen coordinates XYZW
+      float2 uv  : TEXCOORD0; // UV coordinates in the source picture
+  };
+  
+  // Vertex shader used to compute position of rendered pixels and pass UV
+  pixel_data vertex_shader_halftone(vertex_data vertex)
+  {
+      pixel_data pixel;
+      pixel.pos = mul(float4(vertex.pos.xyz, 1.0), ViewProj);
+      pixel.uv  = vertex.uv;
+      return pixel;
+  }
+  
+  float3 decode_gamma(float3 color, float exponent, float shift)
+  {
+      return pow(clamp(color, 0.0, 1.0), exponent - shift);
+  }
+  
+  float3 encode_gamma(float3 color, float exponent)
+  {
+      return pow(clamp(color, 0.0, 1.0), 1.0/exponent);
+  }
+  
+  float4 get_perturbation(float2 position)
+  {
+      if (pattern_size.x>0)
+      {
+          float2 pattern_uv = position / pattern_size;
+          float4 pattern_sample = pattern_texture.Sample(linear_wrap, pattern_uv / scale);
+          float3 linear_color = decode_gamma(pattern_sample.rgb, pattern_gamma, 0.0);
+          return float4(2.0*(linear_color-0.5), pattern_sample.a);
+      }
+      else
+          return float4((cos(PI*position.x/scale/4.0) * cos(PI*position.y/scale/4.0)).xxx, 1.0);
+  }
+  
+  float4 get_closest_color(float3 input_color)
+  {
+      float4 result;
+      if (palette_size.x>0)
+      {
+          float min_distance = 1e10;
+          float2 pixel_size = 1.0 / min(256, palette_size);
+          for (float u=pixel_size.x/2.0; u<1.0; u+=pixel_size.x)
+              for (float v=pixel_size.y/2.0; v<1.0; v+=pixel_size.y)
+              {
+                  float4 palette_sample = palette_texture.Sample(point_clamp, float2(u, v));
+                  float3 linear_color = decode_gamma(palette_sample.rgb, palette_gamma, 0.0);
+  
+                  float current_distance = distance(input_color, linear_color);
+                  if (current_distance < min_distance)
+                  {
+                      result = float4(linear_color, palette_sample.a);
+                      min_distance = current_distance;
+                  }
+              }
+      }
+      else
+          result = float4(round((number_of_color_levels-1)*input_color)/(number_of_color_levels-1), 1.0);
+  
+      return result;
+  }
+  
+  float4 pixel_shader_halftone(pixel_data pixel) : TARGET
+  {
+      float4 source_sample = image.Sample(linear_clamp, pixel.uv);
+      float3 linear_color = decode_gamma(source_sample.rgb, gamma, gamma_shift);
+  
+      float2 position = pixel.uv * float2(width, height);
+      float4 perturbation = get_perturbation(position);
+  
+      float3 perturbed_color = linear_color + offset + amplitude*perturbation.rgb;
+  
+      float4 closest_color = get_closest_color(clamp(perturbed_color, 0.0, 1.0));
+  
+      float mix_alpha = perturbation.a * closest_color.a;
+      float3 mixed_color = lerp(source_sample.rgb, closest_color.rgb, mix_alpha);
+  
+      return float4(encode_gamma(mixed_color, gamma), source_sample.a);
+  }
+  
+  
+  technique Draw
+  {
+      pass
+      {
+          vertex_shader = vertex_shader_halftone(vertex);
+          pixel_shader  = pixel_shader_halftone(pixel);
+      }
+  }
+  
+]]

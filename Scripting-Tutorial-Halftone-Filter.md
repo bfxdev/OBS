@@ -1077,40 +1077,123 @@ And add the parameter `data.nanoseconds` to the calls to `set_texture_effect_par
   obs.gs_effect_set_float(data.params.palette_gamma, data.palette_gamma)
 ```
 
-Add the code, restart OBS or reload the script, then use some animated gif of your choice. Here with some blinking stars to give a night club touch:
+Add the code, restart OBS or reload the script, then use some animated gif of your choice. Here with blinking stars to give a night club touch:
 
 ![filter halftone lena disco](images/scripting/filter-halftone-lena-disco.gif)
 
-
-
-
+The palette could be animated too.
 
 ### Re-organizing the properties
-### Putting everything in a single file
+
+There is enough functionality in the filter! Now before finishing, let's have a look at the properties and try to make them more understandable for the user.
+
+First, we see clearly 3 groups of parameters: input source correction, dithering pattern and color/palette settings. We will group them together with the [`obs_properties_add_group`](https://obsproject.com/docs/reference-properties.html#c.obs_properties_add_group) function.
+
+Second, some parameters are sometimes superfluous. This is the case for `number_of_color_levels` if the palette texture is loaded. For such parameters, we will define a "modified callback" to change the visibility when a texture path is changed or a reset button is clicked.
+
+The visibility callback will be set directly using [`obs_property_set_modified_callback`](https://obsproject.com/docs/reference-properties.html#c.obs_property_set_modified_callback). The callback has three arguments when called by OBS:
+
+``` Lua
+-- Properties "modified callback" to set visible flags of the displayed properties
+function set_properties_visibility(props, property, settings)
+
+  local pattern = string.len(obslua.obs_data_get_string(settings, "pattern_path")) > 0
+  local palette = string.len(obslua.obs_data_get_string(settings, "palette_path")) > 0
+
+  obs.obs_property_set_visible(obs.obs_properties_get(props, "pattern_reset"), pattern)
+  obs.obs_property_set_visible(obs.obs_properties_get(props, "pattern_gamma"), pattern)
+
+  obs.obs_property_set_visible(obs.obs_properties_get(props, "number_of_color_levels"), not palette)
+  obs.obs_property_set_visible(obs.obs_properties_get(props, "palette_reset"), palette)
+  obs.obs_property_set_visible(obs.obs_properties_get(props, "palette_gamma"), palette)
+
+  return true
+end
+```
+
+Then we re-defined the `source_info.get_properties` function as such, with some renaming:
+
+``` Lua
+-- Gets the property information of this source
+source_info.get_properties = function(data)
+  print("In source_info.get_properties")
+
+  local props = obs.obs_properties_create()
+
+  local gprops = obs.obs_properties_create()
+  obs.obs_properties_add_group(props, "input", "Input Source", obs.OBS_GROUP_NORMAL, gprops)
+  obs.obs_properties_add_float_slider(gprops, "gamma", "Gamma encoding exponent", 1.0, 2.2, 0.2)
+  obs.obs_properties_add_float_slider(gprops, "gamma_shift", "Gamma shift", -2.0, 2.0, 0.01)
+
+  gprops = obs.obs_properties_create()
+  obs.obs_properties_add_group(props, "pattern", "Dithering Pattern", obs.OBS_GROUP_NORMAL, gprops)
+  obs.obs_properties_add_float_slider(gprops, "scale", "Pattern scale", 0.01, 10.0, 0.01)
+  obs.obs_properties_add_float_slider(gprops, "amplitude", "Dithering amplitude", -2.0, 2.0, 0.01)
+  obs.obs_properties_add_float_slider(gprops, "offset", "Dithering luminosity shift", -2.0, 2.0, 0.01)
+
+  local p = obs.obs_properties_add_path(gprops, "pattern_path", "Pattern texture", obs.OBS_PATH_FILE,
+                              "Picture (*.png *.bmp *.jpg *.gif)", nil)
+  obs.obs_property_set_modified_callback(p, set_properties_visibility)
+  obs.obs_properties_add_float_slider(gprops, "pattern_gamma", "Pattern gamma exponent", 1.0, 2.2, 0.2)
+  obs.obs_properties_add_button(gprops, "pattern_reset", "Reset pattern texture", function(properties, property)
+    obs.obs_data_set_string(data.settings, "pattern_path", ""); data.pattern = nil;
+    set_properties_visibility(properties, property, data.settings); return true; end)
+
+  gprops = obs.obs_properties_create()
+  obs.obs_properties_add_group(props, "palette", "Color palette", obs.OBS_GROUP_NORMAL, gprops)
+  obs.obs_properties_add_int_slider(gprops, "number_of_color_levels", "Number of color levels", 2, 10, 1)
+  p = obs.obs_properties_add_path(gprops, "palette_path", "Palette texture", obs.OBS_PATH_FILE,
+                              "Picture (*.png *.bmp *.jpg *.gif)", nil)
+  obs.obs_property_set_modified_callback(p, set_properties_visibility)
+  obs.obs_properties_add_float_slider(gprops, "palette_gamma", "Palette gamma exponent", 1.0, 2.2, 0.2)
+  obs.obs_properties_add_button(gprops, "palette_reset", "Reset palette texture", function(properties, property)
+    obs.obs_data_set_string(data.settings, "palette_path", ""); data.palette = nil;
+    set_properties_visibility(properties, property, data.settings); return true; end)
+
+  return props
+end
+```
+
+The change with the groups is always the same: first a new `obs_properties` object is created, and added to the main `obs_properties` object, then the new properties object is filled with `property` objects.
+
+Add the code, reload the script, the properties should now be displayed in named groups and some parameters be displayed only when necessary:
+
+![filter halftone final properties](images/scripting/filter-halftone-final-properties.png)
+
+### Single file delivery
+
+Final operation on this script, we want to provide a single Lua file to ease deployment. OBS features the [`gs_effect_create`](https://obsproject.com/docs/reference-libobs-graphics-effects.html#c.gs_effect_create) function to compile an effect as a string and not as a file.
+
+First we need to copy the complete content of the effect file into one big string:
+
+``` Lua
+EFFECT = [[
+
+// !! Copy the code of the effect file here !!
+
+]]
+```
+
+Then change the compilation in `source_info.create` to (note that the second parameter is supposed to be some file name and cannot be `nil`, the value may be used for error messages):
+
+``` Lua
+  data.effect = obs.gs_effect_create(EFFECT, "halftone_effect_code", nil)
+```
+
+And modify the error message line to remove the mention of the effect file path:
+
+``` Lua
+    obs.blog(obs.LOG_ERROR, "Effect compilation failed")
+```
+
+No visible effect normally with this change. Just a matter of putting everything in one file.
+
 ## Conclusion
 
+Woow that was a long tutorial!! The [code of the second part] is as well available.
 
-``` HLSL
-```
+Many aspects were covered, from writing shaders and Lua scripts to video processing basics. The most incredible thing is the simplicity of the basis algorithm and the effects it produces.
 
-``` Lua
-```
+There is still room for further experiments: real CMYK transformation, better color comparison, transparency effects, seamless patterns design, etc. This is left as exercise for the reader!
 
-
-``` Lua
-```
-
-``` Lua
-```
-
-
-
-
-
-
-
-
-
-
-
-
+That's all folks!
