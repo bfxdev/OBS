@@ -92,9 +92,11 @@ source_info.get_height = function(data)
   return data.height
 end
 
-function set_texture_effect_parameters(image, param_texture, param_size)
+function set_texture_effect_parameters(image, param_texture, param_size, nanoseconds)
   local size = obs.vec2()
   if image then
+    obs.gs_image_file_tick(image, nanoseconds)
+    obs.gs_image_file_update_texture(image)
     obs.gs_effect_set_texture(param_texture, image.texture)
     obs.vec2_set(size, image.cx, image.cy)
   else
@@ -123,11 +125,13 @@ source_info.video_render = function(data)
   obs.gs_effect_set_float(data.params.offset, data.offset)
 
   -- Pattern texture
-  set_texture_effect_parameters(data.pattern, data.params.pattern_texture, data.params.pattern_size)
+  set_texture_effect_parameters(data.pattern, data.params.pattern_texture,
+                                data.params.pattern_size, data.nanoseconds)
   obs.gs_effect_set_float(data.params.pattern_gamma, data.pattern_gamma)
 
   -- Palette texture
-  set_texture_effect_parameters(data.palette, data.params.palette_texture, data.params.palette_size)
+  set_texture_effect_parameters(data.palette, data.params.palette_texture,
+                                data.params.palette_size, data.nanoseconds)
   obs.gs_effect_set_float(data.params.palette_gamma, data.palette_gamma)
 
 
@@ -176,6 +180,12 @@ source_info.get_properties = function(data)
 
   return props
 end
+
+-- Called each frame
+source_info.video_tick = function(data, seconds)
+  data.nanoseconds = seconds*1e9
+end
+
 
 -- Returns new texture and free current texture if loaded
 function load_texture(path, current_texture)

@@ -931,7 +931,7 @@ Actually printed paper uses a CMYK color model (Cyan-Magenta-Yellow-Black) with 
 
 ![filter halftone pattern pop art](images/scripting/filter-halftone-pop-art.png)
 
-Even if the CMYK print raster is not the same, this works very well in 8 colors because mixing the primary colors Red, Green and Blue with an additive blend gives directly the primary colors of a subtractive blend Cyan (Green+Blue), Magenta (Red+Blue) and Yellow (Red+Green). At the end the same 8 colors are present in the picture.
+Even if our filter does not produce the typical CMYK print raster, it works very well in 8 colors because mixing the primary colors Red, Green and Blue with an additive blend gives directly the primary colors of a subtractive blend Cyan (Green+Blue), Magenta (Red+Blue) and Yellow (Red+Green). At the end, the resulting set of colors is the same with additive RGB or subtractive CMYK, and this is why the general impression produced by the output of the filter reminds printed paper.
 
 ### Arbitrary palette
 
@@ -1000,15 +1000,91 @@ Add the code, restart OBS, use the Gameboy palette with a Bayer matrix for dithe
 
 ![filter halftone lena gameboy](images/scripting/filter-halftone-lena-gameboy.png)
 
-Another interesting effect with a reduced palette is to use a hatching dithering pattern and adjust levels to make the result looks like hand drawn:
+Another interesting effect with a reduced palette is to use a hatching dithering pattern and adjust levels to make the result looks like a hand drawn picture (yes, that's possible too with the simplest dithering algorithm!):
 
 ![filter halftone lena hatch](images/scripting/filter-halftone-lena-hatch.png)
 
-### Using an animated gif
+With this quick and dirty pattern (not completely seamless but it is not visible on the picture):
 
-
+![filter halftone pattern hatch](images/scripting/filter-halftone-pattern-hatch.png)
 
 ### Transparency
+
+The functions `get_closest_color` and `get_perturbation` both return a `float4` with an alpha value from the related texture. There several ways we can mix the colors now, and let OBS mix colors with the other stuff on the screen. To keep it simple we will just:
+
+- Re-use the alpha of the input source as output (it is already the case in the current code)
+- Blend the result of the dithering with the input source according to the product of the alpha values returned by both functions, i.e. wherever there is some transparency in the palette or the pattern the unmodified source picture will appear
+
+The code is straightforward in the effect file, replace the last `return` line of the pixel shader with (note the use of the [`lerp`](https://docs.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-lerp) function to interpolate between two RGB vectors):
+
+``` HLSL
+    float mix_alpha = perturbation.a * closest_color.a;
+    float3 mixed_color = lerp(source_sample.rgb, closest_color.rgb, mix_alpha);
+
+    return float4(encode_gamma(mixed_color, gamma), source_sample.a);
+```
+
+The mix can be used to give a soft hatching effect with a transparent hatch pattern:
+
+![filter halftone lena soft hatch](images/scripting/filter-halftone-lena-soft-hatch.png)
+
+Done with this pattern (here again not perfectly seamless):
+
+![filter halftone pattern hatch transparent](images/scripting/filter-halftone-pattern-hatch-transparent.png)
+
+Another use of the effect would be masking a specific set of colors in the palette.
+
+### Using an animated GIF
+
+OBS foresees the functions [`gs_image_file_tick`](https://obsproject.com/docs/reference-libobs-graphics-image-file.html#c.gs_image_file_tick) and [`gs_image_file_update_texture`](https://obsproject.com/docs/reference-libobs-graphics-image-file.html#c.gs_image_file_update_texture) for animated GIF files! This is relatively easy to put in place and does not interfere with the rest.
+
+It is necessary to known how many nanoseconds passed since the last tick in `gs_image_file_tick`. This information is not available in `video_render` but it is in `video_tick`. So, assuming both functions are called each frame, we implement the `source_info.video_tick` function just to store the information in `data`, in the Lua file:
+
+``` Lua
+source_info.video_tick = function(data, seconds)
+  data.nanoseconds = seconds*1e9
+end
+```
+
+Then we re-write the `set_texture_effect_parameters` function with the "tick" function:
+
+``` Lua
+function set_texture_effect_parameters(image, param_texture, param_size, nanoseconds)
+  local size = obs.vec2()
+  if image then
+    obs.gs_image_file_tick(image, nanoseconds)
+    obs.gs_image_file_update_texture(image)
+    obs.gs_effect_set_texture(param_texture, image.texture)
+    obs.vec2_set(size, image.cx, image.cy)
+  else
+    obs.vec2_set(size, -1, -1)
+  end
+  obs.gs_effect_set_vec2(param_size, size)
+end
+```
+
+And add the parameter `data.nanoseconds` to the calls to `set_texture_effect_parameters` in `source_info.video_render`:
+
+``` Lua
+  -- Pattern texture
+  set_texture_effect_parameters(data.pattern, data.params.pattern_texture,
+                                data.params.pattern_size, data.nanoseconds)
+  obs.gs_effect_set_float(data.params.pattern_gamma, data.pattern_gamma)
+
+  -- Palette texture
+  set_texture_effect_parameters(data.palette, data.params.palette_texture,
+                                data.params.palette_size, data.nanoseconds)
+  obs.gs_effect_set_float(data.params.palette_gamma, data.palette_gamma)
+```
+
+Add the code, restart OBS or reload the script, then use some animated gif of your choice. Here with some blinking stars to give a night club touch:
+
+![filter halftone lena disco](images/scripting/filter-halftone-lena-disco.gif)
+
+
+
+
+
 ### Re-organizing the properties
 ### Putting everything in a single file
 ## Conclusion

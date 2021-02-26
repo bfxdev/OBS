@@ -144,9 +144,9 @@ float4 pixel_shader_halftone(pixel_data pixel) : TARGET
     float4 closest_color = get_closest_color(clamp(perturbed_color, 0.0, 1.0));
 
     float mix_alpha = perturbation.a * closest_color.a;
-    float3 result = lerp(source_sample.rgb, closest_color.rgb, mix_alpha);
+    float3 mixed_color = lerp(source_sample.rgb, closest_color.rgb, mix_alpha);
 
-    return float4(encode_gamma(result, gamma), source_sample.a);
+    return float4(encode_gamma(mixed_color, gamma), source_sample.a);
 }
 
 technique Draw
