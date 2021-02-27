@@ -1190,7 +1190,7 @@ No visible effect normally with this change. Just a matter of putting everything
 
 ## Conclusion
 
-Woow that was a long tutorial!! The [code of the second part] is as well available.
+Woow that was a long tutorial!! The [code of the second part](Scripting-Tutorial-Halftone-Filter-Listing.md) is as well available.
 
 Many aspects were covered, from writing shaders and Lua scripts to video processing basics. The most incredible thing is the simplicity of the basis algorithm and the effects it produces.
 
