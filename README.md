@@ -18,7 +18,7 @@ Some OBS Wiki pages were prepared on this repository before going to the officia
 
 ![source shake](images/scripting/source-shake-properties.gif)
 
-- The [Halftone Filter tutorial](Scripting-Scripting-Tutorial-Halftone-Filter.md) ([OBS Wiki page](https://github.com/obsproject/obs-studio/wiki/Scripting-Tutorial-Halftone-Filter)) shows how to build a video filter in Lua with a halftone effect. The source files are available her, for the first part the [Lua script](filter-halftone.lua) and related [effect file](filter-halftone.effect.hlsl) and for the second part the [final script embedding the effect code in Lua](filter-halftone-final.lua). There is as well a [development version](filter-halftone-dithering.lua) of the script.
+- The [Halftone Filter tutorial](Scripting-Tutorial-Halftone-Filter.md) ([OBS Wiki page](https://github.com/obsproject/obs-studio/wiki/Scripting-Tutorial-Halftone-Filter)) shows how to build a video filter in Lua with a halftone effect. The source files are available her, for the first part the [Lua script](filter-halftone.lua) and related [effect file](filter-halftone.effect.hlsl) and for the second part the [final script embedding the effect code in Lua](filter-halftone-final.lua). There is as well a [development version](filter-halftone-dithering.lua) of the script.
 
 ![filter halftone](images/scripting/filter-halftone-lena-hatch.png)
 
