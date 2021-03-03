@@ -6,6 +6,22 @@ At its kernel, for maximal performance, OBS is largely based on GPU-based video 
 
 Various stuff running under OBS with the StreamFX plugin can be found in this repository.
 
+## OBS Wiki Pages
+
+Some OBS Wiki pages were prepared on this repository before going to the official OBS repository:
+
+- The main [Getting started with OBS scripting](Getting-Started-with-OBS-Scripting.md) ([OBS Wiki page](https://github.com/obsproject/obs-studio/wiki/Getting-Started-With-OBS-Scripting)) page is a general description of the capabilities of scripting, some alternatives and hints for troubleshooting.
+
+![main script window](images/scripting/main-scripts-window.png)
+
+- The [Source Shake tutorial](Scripting-Tutorial-Source-Shake.md) ([OBS Wiki page](https://github.com/obsproject/obs-studio/wiki/Scripting-Tutorial-Source-Shake)) shows how to build a simple script that animates a source. The [script is available here in Lua](source-shake.lua) and [in Python](source-shake.py).
+
+![source shake](images/scripting/source-shake-properties.gif)
+
+- The [Halftone Filter tutorial](Scripting-Scripting-Tutorial-Halftone-Filter.md) ([OBS Wiki page](https://github.com/obsproject/obs-studio/wiki/Scripting-Tutorial-Halftone-Filter)) shows how to build a video filter in Lua with a halftone effect. The source files are available her, for the first part the [Lua script](filter-halftone.lua) and related [effect file](filter-halftone.effect.hlsl) and for the second part the [final script embedding the effect code in Lua](filter-halftone-final.lua). There is as well a [development version](filter-halftone-dithering.lua) of the script.
+
+![filter halftone](images/scripting/filter-halftone-lena-hatch.png)
+
 ## Lua IDE support
 
 The Lua/Python scripting environment of OBS is very powerful but is lacking proper documentation. The API documentation of OBS describes the C structures and functions but not the exact way the bindings are implemented.
