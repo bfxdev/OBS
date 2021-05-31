@@ -20,11 +20,16 @@ uniform Texture2D image;   // Texture containing the source picture
 uniform int width;
 uniform int height;
 
-// Pixelation properties
+// Pixelation algorithms
 int pixelation_algorithm = 1;
-int pixelation_type = 1;
-int2 pixelation_block_size = {2,2};
-int2 pixelation_resolution = {320,200};
+
+// Pixelation types
+#define PIXELATION_TYPE_BLOCK      1
+#define PIXELATION_TYPE_RESOLUTION 2
+uniform int pixelation_type = PIXELATION_TYPE_RESOLUTION;
+
+uniform float2 pixelation_block_size = {4.0,4.0};
+uniform float2 pixelation_resolution = {320.0,200.0};
 
 
 /*
@@ -168,12 +173,25 @@ float4 pixel_shader_passthrough(pixel_data pixel) : TARGET
     return source_sample;
 }
 
+float4 pixel_shader_pixelation(pixel_data pixel) : TARGET
+{
+    float2 target_resolution = float2(width, height);
+    if (pixelation_type == PIXELATION_TYPE_BLOCK)
+        target_resolution = float2(width, height) / pixelation_block_size;
+    else if (pixelation_type == PIXELATION_TYPE_RESOLUTION)
+        target_resolution = pixelation_resolution;
+
+    float4 source_sample = image.Sample(point_clamp, round(pixel.uv*target_resolution)/target_resolution);
+
+    return source_sample;
+}
+
 
 technique Draw
 {
     pass
     {
         vertex_shader = vertex_shader_standard(vertex);
-        pixel_shader  = pixel_shader_passthrough(pixel);
+        pixel_shader  = pixel_shader_pixelation(pixel);
     }
 }

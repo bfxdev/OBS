@@ -151,7 +151,7 @@ function log_debug(...)   log(LOG_LEVELS.DEBUG, ...) end
 ------------------------------------------------- PROPERTY HELPER CLASS ------------------------------------------------
 
 PROPERTY_TYPES = {UNDEFINED = 0, INT = 1, FLOAT = 2, BOOL = 3, STRING = 4, VEC2 = 5,
-                  TEXTURE = 10, GROUP = 20, PRESET = 21}
+                  TEXTURE = 10, PRESET = 20}
 
 --- @class Property
 Property = {type = PROPERTY_TYPES.UNDEFINED, name = "UNDEFINED NAME", description = "UNDEFINED DESCRIPTION",
@@ -215,14 +215,6 @@ function Property:new_int_list(name, description, default, list, is_indexed)
   return Property:new{type=PROPERTY_TYPES.INT, name=name, description=description, default=default or 0,
                       list=list or {{"DEFAULT", default or 0}} }
 end
-
---[[
-local list = LOG_LEVELS
-....
-print("TEST list:" .. as_string(list))
-print("TEST indices:" .. as_string(indices))
-print("TEST new_list:" .. as_string(new_list))
-]]
 
 --- Returns a new Property object initialized as FLOAT
 --- @param name        string  Name of the property in the data settings
@@ -298,7 +290,7 @@ end
 function Property:read_effect_parameters(effect)
   log_debug("Reading effect parameters for", self.name)
   self.param = obs.gs_effect_get_param_by_name(effect, self.name)
-  assert(self.param, "Parameter " .. self.name .. " not found")
+  assert(self.param, "Effect parameter " .. self.name .. " not found")
 end
 
 --- Retrieves the values of the data settings internally
@@ -329,7 +321,7 @@ function Property:build_user_interface(obs_properties)
 
   local obs_property = nil
 
-  if     self.type == PROPERTY_TYPES.INT and self.list and #self.list > 0 then -- TODO other types
+  if self.type == PROPERTY_TYPES.INT and self.list and #self.list > 0 then -- TODO other types
     obs_property = obs.obs_properties_add_list(obs_properties, self.name, self.description,
                                                obs.OBS_COMBO_TYPE_LIST, obs.OBS_COMBO_FORMAT_INT)
     for _,entry in pairs(self.list) do
@@ -357,7 +349,7 @@ function Property:build_user_interface(obs_properties)
                                                        self.min[1], self.max[1], self.step[1])
     obs_property = obs.obs_properties_add_float_slider(obs_properties, self.name .. "_2", self.description[2],
                                                        self.min[2], self.max[2], self.step[2])
-  elseif self.type == PROPERTY_TYPES.FLOAT then
+  elseif self.type == PROPERTY_TYPES.VEC2 then
     obs_property = obs.obs_properties_add_float(obs_properties, self.name .. "_1", self.description[1],
                                                 self.min[1], self.max[1], self.step[1])
     obs_property = obs.obs_properties_add_float(obs_properties, self.name .. "_2", self.description[2],
@@ -366,6 +358,19 @@ function Property:build_user_interface(obs_properties)
 
   return obs_property
 end
+
+--- Returns the base name (may not match the name in data settings for non-base types)
+--- @return string name
+function Property:get_name()
+  return self.name
+end
+
+--- Returns the current value (to be called after read_current_values)
+--- @return any value
+function Property:get_value()
+  return self.value
+end
+
 
 --[[
 local prop
@@ -394,7 +399,7 @@ print("tostring(prop): " .. tostring(prop))
 ---------------------------------------------- PROPERTY LIST HELPER CLASS ----------------------------------------------
 
 --- @class PropertyList
-PropertyList = {properties={}}
+PropertyList = {properties={}, index={}}
 
 -- TODO: Copy input object template if nothing is given as argument
 
@@ -412,6 +417,8 @@ function PropertyList:new(o)
   self.__index = self
   self.__tostring = as_string
   o.properties = {}
+  o.index = {}
+  o.groups = {}
   return o
 end
 
@@ -420,6 +427,7 @@ end
 function PropertyList:add(property)
   -- log_debug("Adding property", property)
   table.insert(self.properties, property)
+  self.index[property:get_name()] = property
 end
 
 --- Sets the default values of the properties in OBS data settings
@@ -461,6 +469,19 @@ function PropertyList:build_user_interface(obs_properties)
   return obs_properties
 end
 
+--- Returns the value of the property with given name (to be called after read_current_values)
+--- @return any value
+function PropertyList:get_value(name)
+  if self.index[name] then
+    return self.index[name]:get_value()
+  else
+    return nil
+  end
+end
+
+
+
+
 ------------------------------------------------ PROPERTIES DEFINITION -------------------------------------------------
 
 USAGE_MODES =           {BASIC=1,       [1]="Basic",
@@ -491,6 +512,7 @@ function build_source_property_list()
 
   --local p = obs.obs_properties_add_group(props, "pixelation", "Pixelation", obs.OBS_GROUP_CHECKABLE, gprops)
   --obs.obs_property_set_modified_callback(p, set_properties_visibility)
+  -- Pixelation group
 
   -- Pixelation interpolation algorithm
   list:add(Property:new_int_list("pixelation_algorithm", "Interpolation algorithm", PIXELATION_ALGORITHMS.SUBSAMPLING,
@@ -500,6 +522,8 @@ function build_source_property_list()
   list:add(Property:new_int_list("pixelation_type", "Pixelation type", PIXELATION_TYPES.BLOCK,
            PIXELATION_TYPES, true))
   list:add(Property:new_vec2("pixelation_block_size", {"Pixel blocks width","Pixel blocks height"}, 2, 1, 20, 1, true))
+  list:add(Property:new_vec2("pixelation_resolution", {"Resolution width","Resolution height"},
+                             {320,200}, 1, 1000, 1, false))
 
   log_debug("Returned by build_source_property_list:", tostring(list))
   return list
@@ -559,8 +583,11 @@ end
 
 ----------------------------------------------- GLOBAL SCRIPT FUNCTIONS ------------------------------------------------
 
--- List of properties as PropertyList for the script
+-- List of properties as PropertyList for the main script functions (not source_info part)
 properties = build_script_property_list()
+
+-- Default values for source creation
+default_usage_mode = USAGE_MODES.BASIC
 
 -- Returns the description to be displayed in the Scripts window
 function script_description()
@@ -586,21 +613,33 @@ end
 --- Initializes default values if necessary - Called by OBS
 function script_defaults(settings)
   log_debug("Begin script_defaults")
+
+  -- Setups default values and calls update to set global settings once
   properties:write_default_values(settings)
+  script_update(settings)
+
   log_debug("End script_defaults")
 end
 
 --- Registers the source_info structure - Called by OBS
 function script_load(settings)
   log_debug("Begin script_load")
+
+  -- Registers the source_info data structure defined below 
   obs.obs_register_source(source_info)
+
   log_debug("End script_load")
 end
 
 --- Reads the current values from the settings - Called by OBS
 function script_update(settings)
   log_debug("Begin script_update")
+
+  -- Reads and sets global variables for logging and source creation
   properties:read_current_values(settings)
+  log_level = properties:get_value("log_level")
+  default_usage_mode = properties:get_value("default_usage_mode")
+
   log_debug("Properties:", tostring(properties))
   log_debug("End script_update")
 end
@@ -632,6 +671,7 @@ end
 
 -- Creates the implementation data for the source
 source_info.create = function(settings, source)
+  log_debug("Begin source_info.create")
 
   -- Initializes the custom data table
   local data = {}
@@ -667,6 +707,7 @@ source_info.create = function(settings, source)
   -- Calls update to initialize the rest of the properties-managed settings
   source_info.update(data, settings)
 
+  log_debug("End source_info.create")
   return data
 end
 
@@ -679,7 +720,6 @@ source_info.get_defaults = function(settings)
 
   log_debug("End source_info.get_defaults")
 end
-
 
 
 -- Returns the width of the source
@@ -785,7 +825,9 @@ source_info.get_properties = function(data)
   log_debug("Entering source_info.get_properties")
 
   -- Main properties object
-  local props = obs.obs_properties_create()
+  local props = data.properties:build_user_interface()
+
+--[[
 
   -- Pixelation group
   local gprops = obs.obs_properties_create()
@@ -832,6 +874,7 @@ source_info.get_properties = function(data)
                               "Picture (*.png *.bmp *.jpg *.gif)", nil)
   obs.obs_property_set_modified_callback(p, set_properties_visibility)
   obs.obs_properties_add_float_slider(gprops, "palette_gamma", "Palette gamma exponent", 1.0, 2.2, 0.2)
+  ]]
 
   log_debug("Leaving source_info.get_properties")
   return props
