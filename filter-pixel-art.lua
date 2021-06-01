@@ -120,8 +120,8 @@ LOG_LEVELS = {ERROR=obs.LOG_ERROR,     [obs.LOG_ERROR]    = "ERROR",
               INFO=obs.LOG_INFO,       [obs.LOG_INFO]     = "INFO",
               DEBUG=obs.LOG_DEBUG,     [obs.LOG_DEBUG]    = "DEBUG"}
 
---- Global log level
-log_level = LOG_LEVELS.DEBUG
+--- Global default log level
+log_level = LOG_LEVELS.ERROR
 
 --- Main log function (do not use directly) with parameter `level` to track if we are at level 0 (no quotes on string)
 --- and avoid infinite recursions, multiple arguments `...` displayed with spaces between them (python-like)
@@ -150,8 +150,12 @@ function log_debug(...)   log(LOG_LEVELS.DEBUG, ...) end
 
 ------------------------------------------------- PROPERTY HELPER CLASS ------------------------------------------------
 
-PROPERTY_TYPES = {UNDEFINED = 0, INT = 1, FLOAT = 2, BOOL = 3, STRING = 4, VEC2 = 5,
-                  TEXTURE = 10, PRESET = 20}
+PROPERTY_TYPES = {UNDEFINED = 0,                             -- Default type if object was not initialized
+                  INT = 1, FLOAT = 2, BOOL = 3, STRING = 4,  -- Base types
+                  VEC2 = 10,                                 -- Composed types encoded as {val1, val2, ...} tables
+                  COLOR = 20, TEXTURE = 21, IMAGE_FILE = 22, -- Graphical types
+                  GROUP_NORMAL = 30, GROUP_CHECKABLE = 31,   -- Groups
+                  PRESET = 40}                               -- Presets
 
 --- @class Property
 Property = {type = PROPERTY_TYPES.UNDEFINED, name = "UNDEFINED NAME", description = "UNDEFINED DESCRIPTION",
@@ -267,6 +271,15 @@ function Property:new_vec2(name, description, default, min, max, step, is_slider
                       min=min or {-100,-100}, max=max or {100,100}, step=step or {1,1}, is_slider=is_slider}
 end
 
+--- Returns a new Property object initialized as GROUP - Do not use directly
+--- @param name         string      Name of the property in the data settings
+--- @param description  string      Description to be displayed on properties dialog
+--- @param default      nil|boolean Default value, set only if group is checkable (default false)
+function Property:new_group(name, description, default)
+  return Property:new{type=default~=nil and PROPERTY_TYPES.GROUP_CHECKABLE or PROPERTY_TYPES.GROUP_NORMAL, name=name,
+                      description=description, default=default or false}
+end
+
 --- Sets the default value of the property in OBS data settings
 --- @param settings any Data settings object of type obs_data_t
 function Property:write_default_values(settings)
@@ -275,7 +288,7 @@ function Property:write_default_values(settings)
     obs.obs_data_set_default_int(settings, self.name, self.default)
   elseif self.type == PROPERTY_TYPES.FLOAT then
     obs.obs_data_set_default_double(settings, self.name, self.default)
-  elseif self.type == PROPERTY_TYPES.BOOL then
+  elseif self.type == PROPERTY_TYPES.BOOL or self.type == PROPERTY_TYPES.GROUP_CHECKABLE then
     obs.obs_data_set_default_bool(settings, self.name, self.default)
   elseif self.type == PROPERTY_TYPES.STRING then
     obs.obs_data_set_default_string(settings, self.name, self.default)
@@ -289,8 +302,21 @@ end
 --- @param effect any Compiled effect
 function Property:read_effect_parameters(effect)
   log_debug("Reading effect parameters for", self.name)
-  self.param = obs.gs_effect_get_param_by_name(effect, self.name)
-  assert(self.param, "Effect parameter " .. self.name .. " not found")
+
+  -- No data settings for groups except if checkable
+  if self.type == PROPERTY_TYPES.GROUP_NORMAL then
+    return
+
+  -- Graphical properties TODO
+  elseif self.type == PROPERTY_TYPES.TEXTURE then
+    -- TODO
+
+  -- General behavior
+  else
+    self.param = obs.gs_effect_get_param_by_name(effect, self.name)
+    assert(self.param, "Effect parameter " .. self.name .. " not found")
+  end
+
 end
 
 --- Retrieves the values of the data settings internally
@@ -301,7 +327,7 @@ function Property:read_current_values(settings)
     self.value = obs.obs_data_get_int(settings, self.name)
   elseif self.type == PROPERTY_TYPES.FLOAT then
     self.value = obs.obs_data_get_double(settings, self.name)
-  elseif self.type == PROPERTY_TYPES.BOOL then
+  elseif self.type == PROPERTY_TYPES.BOOL or self.type == PROPERTY_TYPES.GROUP_CHECKABLE then
     self.value = obs.obs_data_get_bool(settings, self.name)
   elseif self.type == PROPERTY_TYPES.STRING then
     self.value = obs.obs_data_get_string(settings, self.name)
@@ -359,18 +385,6 @@ function Property:build_user_interface(obs_properties)
   return obs_property
 end
 
---- Returns the base name (may not match the name in data settings for non-base types)
---- @return string name
-function Property:get_name()
-  return self.name
-end
-
---- Returns the current value (to be called after read_current_values)
---- @return any value
-function Property:get_value()
-  return self.value
-end
-
 
 --[[
 local prop
@@ -399,7 +413,7 @@ print("tostring(prop): " .. tostring(prop))
 ---------------------------------------------- PROPERTY LIST HELPER CLASS ----------------------------------------------
 
 --- @class PropertyList
-PropertyList = {properties={}, index={}}
+PropertyList = {properties={}, index={}, groups={}}
 
 -- TODO: Copy input object template if nothing is given as argument
 
@@ -427,7 +441,7 @@ end
 function PropertyList:add(property)
   -- log_debug("Adding property", property)
   table.insert(self.properties, property)
-  self.index[property:get_name()] = property
+  self.index[property.name] = property
 end
 
 --- Sets the default values of the properties in OBS data settings
@@ -473,12 +487,24 @@ end
 --- @return any value
 function PropertyList:get_value(name)
   if self.index[name] then
-    return self.index[name]:get_value()
+    return self.index[name].value
   else
     return nil
   end
 end
 
+--- Begins group optionally checkable
+--- @param label   string      Displayed label
+--- @param name    nil|string  Property name (group is checkable if given)
+--- @param default nil|boolean Default value of the checkable flag
+function PropertyList:begin_group(label, name, default)
+  -- TODO
+end
+
+--- Ends group
+function PropertyList:end_group()
+  -- TODO
+end
 
 
 
@@ -499,8 +525,10 @@ PIXELATION_TYPES =      {BLOCK=1,       [1]="Pixel blocks", -- Downscale defined
 function build_script_property_list()
   local list = PropertyList:new()
 
+  list:begin_group("Global")
   list:add(Property:new_int_list("default_usage_mode", "Default usage mode", USAGE_MODES.BASIC, USAGE_MODES, true))
   list:add(Property:new_int_list("log_level", "Log level", LOG_LEVELS.INFO, LOG_LEVELS, true))
+  list:end_group()
 
   log_debug("Returned by build_script_property_list:", tostring(list))
   return list
