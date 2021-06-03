@@ -21,7 +21,8 @@ uniform int width;
 uniform int height;
 
 // Pixelation algorithms
-int pixelation_algorithm = 1;
+// uniform bool pixelation = true;
+uniform int pixelation_algorithm = 1;
 
 // Pixelation types
 #define PIXELATION_TYPE_BLOCK      1

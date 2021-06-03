@@ -121,7 +121,7 @@ LOG_LEVELS = {ERROR=obs.LOG_ERROR,     [obs.LOG_ERROR]    = "ERROR",
               DEBUG=obs.LOG_DEBUG,     [obs.LOG_DEBUG]    = "DEBUG"}
 
 --- Global default log level
-log_level = LOG_LEVELS.ERROR
+log_level = LOG_LEVELS.DEBUG
 
 --- Main log function (do not use directly) with parameter `level` to track if we are at level 0 (no quotes on string)
 --- and avoid infinite recursions, multiple arguments `...` displayed with spaces between them (python-like)
@@ -152,23 +152,34 @@ function log_debug(...)   log(LOG_LEVELS.DEBUG, ...) end
 
 PROPERTY_TYPES = {UNDEFINED = 0,                             -- Default type if object was not initialized
                   INT = 1, FLOAT = 2, BOOL = 3, STRING = 4,  -- Base types
-                  VEC2 = 10,                                 -- Composed types encoded as {val1, val2, ...} tables
+                  VEC2 = 10,                                 -- Composite types encoded as {val1, val2, ...} tables
                   COLOR = 20, TEXTURE = 21, IMAGE_FILE = 22, -- Graphical types
-                  GROUP_NORMAL = 30, GROUP_CHECKABLE = 31,   -- Groups
-                  PRESET = 40}                               -- Presets
+                  GROUP = 30, PRESET = 31}                   -- Special types
 
 --- @class Property
+--- @field type         integer Data type among PROPERTY_TYPES
+--- @field name         string  Base name used as OBS user setting and effect parameter, with suffix for composite types
+--- @field description  string  HTML description displayed on graphical user interface if editable
+--- @field default      any     Default value, encoded as {val1, val2, ...} table for composite types
+--- @field min          any     Minimum value if editable (INT, FLOAT, VEC2)
+--- @field max          any     Maximum value if editable (INT, FLOAT, VEC2)
+--- @field step         any     Default increment if editable (INT, FLOAT, VEC2)
+--- @field is_slider    boolean User interface displayed as a slider if true (INT, FLOAT, VEC2)
+--- @field is_multiline boolean User interface allowing multi-line edition if true (STRING)
+--- @field list         table   Array of entries {description, value} for selection as drop-down list (INT)
+--- @field properties   table   Array of properties contained in a group (GROUP)
+--- @field is_checkable boolean Group displayed with check box and using user setting if true (GROUP)
 Property = {type = PROPERTY_TYPES.UNDEFINED, name = "UNDEFINED NAME", description = "UNDEFINED DESCRIPTION",
             default = "UNDEFINED DEFAULT", min = -1, max = -1, step = -1, is_slider = false, is_multiline = false,
-            list = {{"UNDEFINED", "UNDEFINED"}} }
+            list = {{"UNDEFINED", "UNDEFINED"}}, properties={}, is_checkable=false }
 
 -- TODO: Copy input object template if nothing is given as argument
 
 --- Property constructor - Do not use directly
 --- It will either create a new object initialized with the default settings of Property, or re-use the passed
 ---  object and check that the members are part of the original Property table
---- @param o Property Optional source object
---- @return Property
+--- @param o Property Optional table of members used as template
+--- @return Property property Instance of the object
 function Property:new(o)
   -- Checks basic validity of input object
   if o and DEBUG then
@@ -274,10 +285,10 @@ end
 --- Returns a new Property object initialized as GROUP - Do not use directly
 --- @param name         string      Name of the property in the data settings
 --- @param description  string      Description to be displayed on properties dialog
---- @param default      nil|boolean Default value, set only if group is checkable (default false)
+--- @param default      nil|boolean Default value, set only if group needs to be checkable
 function Property:new_group(name, description, default)
-  return Property:new{type=default~=nil and PROPERTY_TYPES.GROUP_CHECKABLE or PROPERTY_TYPES.GROUP_NORMAL, name=name,
-                      description=description, default=default or false}
+  return Property:new{type=PROPERTY_TYPES.GROUP, name=name, description=description, default=default or false,
+                      properties={}, is_checkable=(default~=nil) }
 end
 
 --- Sets the default value of the property in OBS data settings
@@ -288,7 +299,7 @@ function Property:write_default_values(settings)
     obs.obs_data_set_default_int(settings, self.name, self.default)
   elseif self.type == PROPERTY_TYPES.FLOAT then
     obs.obs_data_set_default_double(settings, self.name, self.default)
-  elseif self.type == PROPERTY_TYPES.BOOL or self.type == PROPERTY_TYPES.GROUP_CHECKABLE then
+  elseif self.type == PROPERTY_TYPES.BOOL or (self.type == PROPERTY_TYPES.GROUP and self.is_checkable) then
     obs.obs_data_set_default_bool(settings, self.name, self.default)
   elseif self.type == PROPERTY_TYPES.STRING then
     obs.obs_data_set_default_string(settings, self.name, self.default)
@@ -303,49 +314,68 @@ end
 function Property:read_effect_parameters(effect)
   log_debug("Reading effect parameters for", self.name)
 
-  -- No data settings for groups except if checkable
-  if self.type == PROPERTY_TYPES.GROUP_NORMAL then
+  -- No data settings for non-checkable groups
+  if self.type == PROPERTY_TYPES.GROUP and not self.is_checkable then
     return
 
   -- Graphical properties TODO
   elseif self.type == PROPERTY_TYPES.TEXTURE then
     -- TODO
 
-  -- General behavior
+  -- General behavior, the parameter is nil if not found
   else
     self.param = obs.gs_effect_get_param_by_name(effect, self.name)
-    assert(self.param, "Effect parameter " .. self.name .. " not found")
+    -- assert(self.param, "Effect parameter " .. self.name .. " not found")
   end
 
 end
 
 --- Retrieves the values of the data settings internally
---- @param settings any Data settings object of type obs_data_t
+--- @param settings userdata Data settings object of type obs_data_t
 function Property:read_current_values(settings)
   log_debug("Reading current values for", self.name)
   if     self.type == PROPERTY_TYPES.INT then
     self.value = obs.obs_data_get_int(settings, self.name)
   elseif self.type == PROPERTY_TYPES.FLOAT then
     self.value = obs.obs_data_get_double(settings, self.name)
-  elseif self.type == PROPERTY_TYPES.BOOL or self.type == PROPERTY_TYPES.GROUP_CHECKABLE then
+  elseif self.type == PROPERTY_TYPES.BOOL or (self.type == PROPERTY_TYPES.GROUP and self.is_checkable) then
     self.value = obs.obs_data_get_bool(settings, self.name)
   elseif self.type == PROPERTY_TYPES.STRING then
     self.value = obs.obs_data_get_string(settings, self.name)
   elseif self.type == PROPERTY_TYPES.VEC2 then
-    local val1 = obs.obs_data_set_double(settings, self.name .. "_1")
-    local val2 = obs.obs_data_set_double(settings, self.name .. "_2")
+    local val1 = obs.obs_data_get_double(settings, self.name .. "_1")
+    local val2 = obs.obs_data_get_double(settings, self.name .. "_2")
     self.value = obs.vec2()
     obs.vec2_set(self.value, val1, val2)
   end
 end
 
+--- Stores the current internal values in the data settings
+--- @param settings userdata Data settings object of type obs_data_t
+function Property:write_current_values(settings)
+  log_debug("Writing current values for", self.name)
+  if     self.type == PROPERTY_TYPES.INT then
+    obs.obs_data_set_int(settings, self.name, self.value)
+  elseif self.type == PROPERTY_TYPES.FLOAT then
+    obs.obs_data_set_double(settings, self.name)
+  elseif self.type == PROPERTY_TYPES.BOOL or (self.type == PROPERTY_TYPES.GROUP and self.is_checkable) then
+    obs.obs_data_set_bool(settings, self.name, self.value)
+  elseif self.type == PROPERTY_TYPES.STRING then
+    obs.obs_data_set_string(settings, self.name, self.value)
+  elseif self.type == PROPERTY_TYPES.VEC2 then
+    obs.obs_data_set_double(settings, self.name .. "_1", self.value.x)
+    obs.obs_data_set_double(settings, self.name .. "_2", self.value.y)
+  end
+end
+
+
 --- Builds graphical user interface in OBS structure of type obs_properties_t
---- @param obs_properties any List of OBS properties to create GUI in
---- @return any obs_property  Created OBS structure of type obs_property_t
+--- @param obs_properties userdata List of OBS properties to create GUI in
+--- @return userdata|table obs_property  Created OBS structure of type obs_property_t
 function Property:build_user_interface(obs_properties)
   log_debug("Building user interface for", self.name)
 
-  local obs_property = nil
+  local obs_property = {}
 
   if self.type == PROPERTY_TYPES.INT and self.list and #self.list > 0 then -- TODO other types
     obs_property = obs.obs_properties_add_list(obs_properties, self.name, self.description,
@@ -371,15 +401,20 @@ function Property:build_user_interface(obs_properties)
     obs_property = obs.obs_properties_add_text(obs_properties, self.name, self.description,
                                                self.is_multiline and obs.OBS_TEXT_MULTILINE or obs.OBS_TEXT_DEFAULT)
   elseif self.type == PROPERTY_TYPES.VEC2 and self.is_slider then
-    obs_property = obs.obs_properties_add_float_slider(obs_properties, self.name .. "_1", self.description[1],
-                                                       self.min[1], self.max[1], self.step[1])
-    obs_property = obs.obs_properties_add_float_slider(obs_properties, self.name .. "_2", self.description[2],
-                                                       self.min[2], self.max[2], self.step[2])
+    obs_property[1] = obs.obs_properties_add_float_slider(obs_properties, self.name .. "_1", self.description[1],
+                                                          self.min[1], self.max[1], self.step[1])
+    obs_property[2] = obs.obs_properties_add_float_slider(obs_properties, self.name .. "_2", self.description[2],
+                                                          self.min[2], self.max[2], self.step[2])
   elseif self.type == PROPERTY_TYPES.VEC2 then
-    obs_property = obs.obs_properties_add_float(obs_properties, self.name .. "_1", self.description[1],
-                                                self.min[1], self.max[1], self.step[1])
-    obs_property = obs.obs_properties_add_float(obs_properties, self.name .. "_2", self.description[2],
-                                                self.min[2], self.max[2], self.step[2])
+    obs_property[1] = obs.obs_properties_add_float(obs_properties, self.name .. "_1", self.description[1],
+                                                   self.min[1], self.max[1], self.step[1])
+    obs_property[2] = obs.obs_properties_add_float(obs_properties, self.name .. "_2", self.description[2],
+                                                   self.min[2], self.max[2], self.step[2])
+  elseif self.type == PROPERTY_TYPES.GROUP then
+    self.obs_properties = obs.obs_properties_create()
+    local group_type = self.is_checkable and obs.OBS_GROUP_CHECKABLE or obs.OBS_GROUP_NORMAL
+    obs_property = obs.obs_properties_add_group(obs_properties, self.name, self.description, group_type,
+                                                self.obs_properties)
   end
 
   return obs_property
@@ -413,11 +448,14 @@ print("tostring(prop): " .. tostring(prop))
 ---------------------------------------------- PROPERTY LIST HELPER CLASS ----------------------------------------------
 
 --- @class PropertyList
+--- @field properties table
 PropertyList = {properties={}, index={}, groups={}}
 
 -- TODO: Copy input object template if nothing is given as argument
 
 --- PropertyList constructor
+--- @param o table|nil Optional table of members used as template
+--- @return PropertyList property_list Instance of the object
 function PropertyList:new(o)
   if o and DEBUG then
     for k,v in pairs(o) do
@@ -438,10 +476,62 @@ end
 
 --- Adds a property to the list
 --- @param property Property Property to add
+--- @return Property property The property given as argument
 function PropertyList:add(property)
-  -- log_debug("Adding property", property)
+  log_debug("Adding property", property)
   table.insert(self.properties, property)
   self.index[property.name] = property
+  if #self.groups > 0 then
+    log_debug("Adding", property.name, "to group", self.groups[#self.groups].name)
+    table.insert(self.groups[#self.groups].properties, property)
+  end
+  return property
+end
+
+--- Begins group optionally checkable
+--- @param description string      Displayed label
+--- @param name        nil|string  Property name
+--- @param default     nil|boolean Default value of the checkable flag (group is checkable if not nil)
+--- @return Property   group       The group just added
+function PropertyList:begin_group(description, name, default)
+  local group = Property:new_group(name or ("name-"..tostring(math.random(1e10))), description, default)
+  self:add(group)
+  table.insert(self.groups, group)
+  return group
+end
+
+--- Ends group
+--- @return Property group The group just removed
+function PropertyList:end_group()
+  return table.remove(self.groups)
+end
+
+--- Builds graphical user interface in OBS structure of type obs_properties_t
+--- @param obs_properties userdata    Optional obs_properties_t object (created if not given)
+--- @param start          nil|integer Optional start index in list of properties (used only for recursion)
+--- @param count          nil|integer Optional number of properties to handle (used only for recursion)
+--- @return userdata obs_properties   OBS structure of type obs_properties_t (passed or created)
+function PropertyList:build_user_interface(obs_properties, start, count)
+
+  -- Prepares data from direct call or during recursion
+  obs_properties = obs_properties or obs.obs_properties_create()
+  start = start or 1
+  count = count or #self.properties
+
+  -- Main loop to process flat list of properties
+  index = start
+  while index < start+count do
+    local property = self.properties[index]
+    local obs_property = property:build_user_interface(obs_properties)
+    if property.type == PROPERTY_TYPES.GROUP then
+      self:build_user_interface(property.obs_properties, index+1, #property.properties)
+      index = index + #property.properties
+    end
+    -- TODO visibility
+    index = index + 1
+  end
+
+  return obs_properties
 end
 
 --- Sets the default values of the properties in OBS data settings
@@ -461,29 +551,15 @@ function PropertyList:read_effect_parameters(effect)
 end
 
 --- Retrieves the values of the data settings internally
---- @param settings any Data settings object of type obs_data_t
+--- @param settings userdata Data settings object of type obs_data_t
 function PropertyList:read_current_values(settings)
   for _,property in ipairs(self.properties) do
     property:read_current_values(settings)
   end
 end
 
---- Builds graphical user interface in OBS structure of type obs_properties_t
---- @param obs_properties any  Optional list of OBS properties (created if not given)
---- @return any obs_properties OBS structure of type obs_properties_t
-function PropertyList:build_user_interface(obs_properties)
-
-  obs_properties = obs_properties or obs.obs_properties_create()
-
-  for _,property in ipairs(self.properties) do
-    local obs_property = property:build_user_interface(obs_properties)
-    -- TODO visibility
-  end
-
-  return obs_properties
-end
-
 --- Returns the value of the property with given name (to be called after read_current_values)
+--- @param name string Property name
 --- @return any value
 function PropertyList:get_value(name)
   if self.index[name] then
@@ -493,17 +569,21 @@ function PropertyList:get_value(name)
   end
 end
 
---- Begins group optionally checkable
---- @param label   string      Displayed label
---- @param name    nil|string  Property name (group is checkable if given)
---- @param default nil|boolean Default value of the checkable flag
-function PropertyList:begin_group(label, name, default)
-  -- TODO
+--- Sets the value of the property with given name (to be called before write_current_values)
+--- @param name  string Property name
+--- @param value any    Value to set
+function PropertyList:set_value(name, value)
+  if self.index[name] then
+    self.index[name].value = value
+  end
 end
 
---- Ends group
-function PropertyList:end_group()
-  -- TODO
+--- Stores the current internal values in the data settings
+--- @param settings userdata Data settings object of type obs_data_t
+function PropertyList:write_current_values(settings)
+  for _,property in ipairs(self.properties) do
+    property:write_current_values(settings)
+  end
 end
 
 
@@ -525,10 +605,22 @@ PIXELATION_TYPES =      {BLOCK=1,       [1]="Pixel blocks", -- Downscale defined
 function build_script_property_list()
   local list = PropertyList:new()
 
-  list:begin_group("Global")
+  list:begin_group("Global settings")
+
   list:add(Property:new_int_list("default_usage_mode", "Default usage mode", USAGE_MODES.BASIC, USAGE_MODES, true))
+
   list:add(Property:new_int_list("log_level", "Log level", LOG_LEVELS.INFO, LOG_LEVELS, true))
+
   list:end_group()
+
+  for k,v in pairs(list.properties) do
+    log_debug("Property name:", v.name, "  type:", v.type, "  #list", #v.list, "  #properties", #v.properties)
+    if v.type==PROPERTY_TYPES.GROUP then
+      for _,l in pairs(v.list) do
+        log_debug(l.name)
+      end
+    end
+  end
 
   log_debug("Returned by build_script_property_list:", tostring(list))
   return list
@@ -538,20 +630,17 @@ end
 function build_source_property_list()
   local list = PropertyList:new()
 
-  --local p = obs.obs_properties_add_group(props, "pixelation", "Pixelation", obs.OBS_GROUP_CHECKABLE, gprops)
-  --obs.obs_property_set_modified_callback(p, set_properties_visibility)
   -- Pixelation group
-
-  -- Pixelation interpolation algorithm
+  list:begin_group("Pixelation", "pixelation", true)
   list:add(Property:new_int_list("pixelation_algorithm", "Interpolation algorithm", PIXELATION_ALGORITHMS.SUBSAMPLING,
            PIXELATION_ALGORITHMS, true))
+  list:add(Property:new_int_list("pixelation_type", "Pixelation type", PIXELATION_TYPES.BLOCK, PIXELATION_TYPES, true))
 
-  -- Pixelation type
-  list:add(Property:new_int_list("pixelation_type", "Pixelation type", PIXELATION_TYPES.BLOCK,
-           PIXELATION_TYPES, true))
   list:add(Property:new_vec2("pixelation_block_size", {"Pixel blocks width","Pixel blocks height"}, 2, 1, 20, 1, true))
   list:add(Property:new_vec2("pixelation_resolution", {"Resolution width","Resolution height"},
                              {320,200}, 1, 1000, 1, false))
+
+  list:end_group()
 
   log_debug("Returned by build_source_property_list:", tostring(list))
   return list
@@ -668,7 +757,7 @@ function script_update(settings)
   log_level = properties:get_value("log_level")
   default_usage_mode = properties:get_value("default_usage_mode")
 
-  log_debug("Properties:", tostring(properties))
+  --log_debug("Properties:", tostring(properties))
   log_debug("End script_update")
 end
 
