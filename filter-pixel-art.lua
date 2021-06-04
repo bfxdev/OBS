@@ -300,7 +300,7 @@ end
 
 --- Sets the effect parameters
 function Property:write_effect_parameters()
-  log_debug("Writing effect parameters for", self.name)
+  -- log_debug("Writing effect parameters for", self.name)
   if     self.type == PROPERTY_TYPES.INT then
     obs.gs_effect_set_int(self.param, self.value)
   elseif self.type == PROPERTY_TYPES.FLOAT then
@@ -401,6 +401,7 @@ function Property:build_user_interface(obs_properties)
                                                 self.obs_properties)
   end
 
+  self.obs_property = obs_property
   return obs_property
 end
 
@@ -436,10 +437,19 @@ COMPARISON_OPERATORS = {EQUAL=0, DIFFERENT=1, GREATER=2, GREATER_OR_EQUAL=3, LES
 
 --- @class PropertyCondition
 
-PropertyCondition = {name="UNDEFINED", conditions={}}
+PropertyCondition = {list={}}
 
+function PropertyCondition:new(o)
+  o = o or {}
+  setmetatable(o, self)
+  self.__index = self
+  self.__tostring = as_string
+  o.list = {}
+  return o
+end
 
-
+function PropertyCondition:add(name, operator, value)
+end
 
 
 
@@ -451,8 +461,6 @@ PropertyCondition = {name="UNDEFINED", conditions={}}
 --- @field groups     table Array of currently opened groups
 --- @field visibility table Dictionary of PropertyVisibility objects indexed by Property names
 PropertyList = {properties={}, index={}, groups={}, visibility={}}
-
--- TODO: Copy input object template if nothing is given as argument
 
 --- PropertyList constructor
 --- @param o table|nil Optional table of members used as template
@@ -642,6 +650,22 @@ function PropertyList:end_group()
   return table.remove(self.groups)
 end
 
+
+
+
+
+
+
+-- Properties "modified callback" to set visible flags of the displayed properties
+function PropertyList:property_modified_callback(obs_properties, obs_property, settings, name)
+
+  self:read_current_values(settings)
+  self:evaluate_visibility()
+
+  --self:write_current_values(settings)
+  return true
+end
+
 --- Builds graphical user interface in OBS structure of type obs_properties_t
 --- @param obs_properties userdata    Optional obs_properties_t object (created if not given)
 --- @param start          nil|integer Optional start index in list of properties (used only for recursion)
@@ -659,12 +683,20 @@ function PropertyList:build_user_interface(obs_properties, start, count)
   while index < start+count do
     local property = self.properties[index]
     if property.is_editable then
+
+      -- Creates the editable OBS property
       local obs_property = property:build_user_interface(obs_properties)
       if property.type == PROPERTY_TYPES.GROUP then
         self:build_user_interface(property.obs_properties, index+1, #property.properties)
         index = index + #property.properties
       end
-      -- TODO visibility
+
+      -- Sets the modified callback
+      for _,p in ipairs(type(obs_property)=="table" and obs_property or {obs_property}) do
+        obs.obs_property_set_modified_callback(p, function(props, prop, settings)
+          self:property_modified_callback(props, prop, settings, property.name) return true end)
+      end
+
       index = index + 1
     end
   end
@@ -740,7 +772,67 @@ function PropertyList:set_value(name, value)
   end
 end
 
-function PropertyList:set_visibility(target_property_name, condition_property_name, operator, value)
+--- Adds a condition for visibility
+--- @param property_names string|table Name(s) of the properties on which the conditional visibility apply
+function PropertyList:add_visibility_condition(property_names, condition_property_name, operator, value)
+
+  -- Argument property_names may be a table or a string
+  for _,name in ipairs(type(property_names)=="table" and property_names or {property_names}) do
+
+    -- Creates an empty list of conditions if not already existing
+    if not self.visibility[name] then
+      self.visibility[name] = {}
+    end
+
+    -- Inserts condition as simple array
+    table.insert(self.visibility[name], {condition_property_name, operator, value})
+
+  end
+
+end
+
+function PropertyList:evaluate_visibility()
+  for _,property in ipairs(self.properties) do
+    if property.obs_property and self.visibility[property.name] then
+
+      local conditions = self.visibility[property.name]
+
+      local is_visible = true
+      for _,condition in ipairs(conditions) do
+
+        -- Retrieve condition parameters
+        local current_value = self:get_value(condition[1])
+        local operator = condition[2]
+        local compare_value = condition[3]
+
+        -- Evaluates visibility of this condition
+        if operator == "=" or operator == "==" then
+          is_visible = (current_value == compare_value)
+        elseif operator == "!=" or operator == "<>" or operator == "~=" then
+          is_visible = (current_value ~= compare_value)
+        elseif operator == "<" then
+          is_visible = (current_value < compare_value)
+        elseif operator == "<=" then
+          is_visible = (current_value <= compare_value)
+        elseif operator == ">" then
+          is_visible = (current_value > compare_value)
+        elseif operator == ">=" then
+          is_visible = (current_value >= compare_value)
+        end
+
+        -- Stops as soon as one condition is not fulfilled
+        if not is_visible then break end
+      end
+
+      print(property.name .. " visibility is " .. tostring(is_visible))
+
+      -- Sets resulting visibility on obs_property (possibly a table for e.g. vec2)
+      for _,p in ipairs(type(property.obs_property)=="table" and property.obs_property or {property.obs_property}) do
+        obs.obs_property_set_visible(p, is_visible)
+      end
+
+    end
+  end
 
 end
 
@@ -786,6 +878,9 @@ function build_source_property_list()
 
   list:add_vec2("pixelation_block_size", 2, {"Pixel blocks width","Pixel blocks height"}, 1, 20, 1, true)
   list:add_vec2("pixelation_resolution", {320,200}, {"Resolution width","Resolution height"}, 10, 1000, 10, false)
+
+  list:add_visibility_condition("pixelation_block_size", "pixelation_type", "=", PIXELATION_TYPES.BLOCK)
+  list:add_visibility_condition("pixelation_resolution", "pixelation_type", "=", PIXELATION_TYPES.RESOLUTION)
 
   list:end_group()
 
