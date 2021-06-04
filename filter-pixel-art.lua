@@ -150,145 +150,113 @@ function log_debug(...)   log(LOG_LEVELS.DEBUG, ...) end
 
 ------------------------------------------------- PROPERTY HELPER CLASS ------------------------------------------------
 
-PROPERTY_TYPES = {UNDEFINED = 0,                             -- Default type if object was not initialized
+PROPERTY_TYPES = {UNDEFINED = 0,                             -- Undefined if no type provided
                   INT = 1, FLOAT = 2, BOOL = 3, STRING = 4,  -- Base types
                   VEC2 = 10,                                 -- Composite types encoded as {val1, val2, ...} tables
                   COLOR = 20, TEXTURE = 21, IMAGE_FILE = 22, -- Graphical types
                   GROUP = 30, PRESET = 31}                   -- Special types
 
 --- @class Property
---- @field type         integer Data type among PROPERTY_TYPES
---- @field name         string  Base name used as OBS user setting and effect parameter, with suffix for composite types
---- @field description  string  HTML description displayed on graphical user interface if editable
---- @field default      any     Default value, encoded as {val1, val2, ...} table for composite types
---- @field min          any     Minimum value if editable (INT, FLOAT, VEC2)
---- @field max          any     Maximum value if editable (INT, FLOAT, VEC2)
---- @field step         any     Default increment if editable (INT, FLOAT, VEC2)
---- @field is_slider    boolean User interface displayed as a slider if true (INT, FLOAT, VEC2)
---- @field is_multiline boolean User interface allowing multi-line edition if true (STRING)
---- @field list         table   Array of entries {description, value} for selection as drop-down list (INT)
---- @field properties   table   Array of properties contained in a group (GROUP)
---- @field is_checkable boolean Group displayed with check box and using user setting if true (GROUP)
-Property = {type = PROPERTY_TYPES.UNDEFINED, name = "UNDEFINED NAME", description = "UNDEFINED DESCRIPTION",
-            default = "UNDEFINED DEFAULT", min = -1, max = -1, step = -1, is_slider = false, is_multiline = false,
-            list = {{"UNDEFINED", "UNDEFINED"}}, properties={}, is_checkable=false }
+Property = {}
 
 -- TODO: Copy input object template if nothing is given as argument
 
 --- Property constructor - Do not use directly
---- It will either create a new object initialized with the default settings of Property, or re-use the passed
----  object and check that the members are part of the original Property table
---- @param o Property Optional table of members used as template
---- @return Property property Instance of the object
-function Property:new(o)
-  -- Checks basic validity of input object
-  if o and DEBUG then
-    for k,v in pairs(o) do
-      assert(Property[k] ~= nil, "Unknown member " .. k)
-      assert(v ~= nil, "Passed nil value for member " .. k)
-    end
-  elseif o == nil then
-    o = {}
-  end
+--- @param type          integer  Data type among PROPERTY_TYPES
+--- @param name          string   Base name used as OBS user setting and effect parameter, with suffix for composite types
+--- @param default       any      Default value, encoded as {val1, val2, ...} table for composite types
+--- @param is_persistent boolean  Value saved in data settings if true (default false)
+--- @return Property property     Instance of the object
+function Property:new(type, name, default, is_persistent)
+
+  -- Defines object
+  o = {}
   setmetatable(o, self)
   self.__index = self
   self.__tostring = as_string
+
+  -- Stores given parameters
+  o.type = type or PROPERTY_TYPES.UNDEFINED
+  o.name = name or "UNDEFINED NAME"
+  o.default = default or nil
+  o.is_persistent = is_persistent==nil and false or is_persistent
+
+  -- Additional members
+  o.is_editable = false
+  o.param = nil
+  o.value = o.default
+
   return o
 end
 
---- Returns a new Property object initialized as INT
---- @param name        string  Name of the property in the data settings
---- @param description string  Description to be displayed on properties dialog
---- @param default     integer Default value (default 0)
---- @param min         integer Minimum value (default -100)
---- @param max         integer Maximum value (default 100)
---- @param step        integer Increment (default 1)
---- @param is_slider   boolean Property displayed as slider (default true)
-function Property:new_int(name, description, default, min, max, step, is_slider)
-  if is_slider==nil then is_slider=true end
-  return Property:new{type=PROPERTY_TYPES.INT, name=name, description=description, default=default or 0,
-                      min=min or -100, max=max or 100, step=step or 1, is_slider=is_slider}
+--- Defines a numeric user interface for the Property (INT, FLOAT, VEC2)
+--- @param description      string               HTML description displayed on graphical user interface
+--- @param long_description string               Long description displayed as tool tip
+--- @param min              integer|number|table Minimum value
+--- @param max              integer|number|table Maximum value
+--- @param step             integer|number|table Default increment
+--- @param is_slider        boolean              User interface displayed as a slider if true
+--- @return Property        property             Instance of the object
+function Property:define_user_interface_numeric(description, long_description, min, max, step, is_slider)
+  self.is_editable = true
+  self.description = description or "UNDEFINED DESCRIPTION"
+  self.long_description = long_description
+  self.min = min or -1
+  self.max = max or -1
+  self.step = step or -1
+  self.is_slider = is_slider==nil and false or is_slider
+  return self
 end
 
---- Returns a new Property object initialized as LIST of INT
---- @param name        string  Name of the property in the data settings
---- @param description string  Description to be displayed on properties dialog
---- @param default     integer Default value (default 0)
---- @param list        table   Table of ordered {DESCRIPTION,VALUE} entries or indexed list of DESCRIPTION strings
---- @param is_indexed  boolean If true the passed list is considered as a simple table with ordered integer indices
-function Property:new_int_list(name, description, default, list, is_indexed)
-  if is_indexed then
-    local indices = {}
-    for k,_ in pairs(list) do
-      if type(k)=="number" then table.insert(indices, k) end
-    end
-    local new_list = {}
-    table.sort(indices)
-    for _,i in ipairs(indices) do table.insert(new_list, {list[i], i}) end
-    list = new_list
-  end
-  return Property:new{type=PROPERTY_TYPES.INT, name=name, description=description, default=default or 0,
-                      list=list or {{"DEFAULT", default or 0}} }
+--- Defines a list user interface for the Property (INT)
+--- @param description      string   HTML description displayed on graphical user interface
+--- @param long_description string   Long description displayed as tool tip
+--- @param list             table    Array of entries {description, value} for selection as drop-down list (INT)
+--- @return Property        property Instance of the object
+function Property:define_user_interface_list(description, long_description, list)
+  self.is_editable = true
+  self.description = description or "UNDEFINED DESCRIPTION"
+  self.long_description = long_description
+  self.list = list or {}
+  return self
 end
 
---- Returns a new Property object initialized as FLOAT
---- @param name        string  Name of the property in the data settings
---- @param description string  Description to be displayed on properties dialog
---- @param default     number  Default value (default 0.0)
---- @param min         number  Minimum value (default -1.0)
---- @param max         number  Maximum value (default 1.0)
---- @param step        number  Increment (default 0.01)
---- @param is_slider   boolean Property displayed as slider (default true)
-function Property:new_float(name, description, default, min, max, step, is_slider)
-  if is_slider==nil then is_slider=true end
-  return Property:new{type=PROPERTY_TYPES.FLOAT, name=name, description=description, default=default or 0,
-                      min=min or -1, max=max or 1, step=step or 0.01, is_slider=is_slider}
+--- Defines a checkbox user interface for the Property (BOOL)
+--- @param description      string   HTML description displayed on graphical user interface
+--- @param long_description string   Long description displayed as tool tip
+--- @return Property        property Instance of the object
+function Property:define_user_interface_checkbox(description, long_description)
+  self.is_editable = true
+  self.description = description or "UNDEFINED DESCRIPTION"
+  self.long_description = long_description
+  return self
 end
 
---- Returns a new Property object initialized as BOOL
---- @param name        string  Name of the property in the data settings
---- @param description string  Description to be displayed on properties dialog
---- @param default     boolean Default value (default false)
-function Property:new_bool(name, description, default)
-  return Property:new{type=PROPERTY_TYPES.BOOL, name=name, description=description, default=default or false}
+--- Defines a text user interface for the Property (STRING)
+--- @param description      string   HTML description displayed on graphical user interface
+--- @param long_description string   Long description displayed as tool tip
+--- @param is_multiline     boolean  User interface allowing multi-line edition if true (STRING)
+--- @return Property        property Instance of the object
+function Property:define_user_interface_text(description, long_description, is_multiline)
+  self.is_editable = true
+  self.description = description or "UNDEFINED DESCRIPTION"
+  self.long_description = long_description
+  self.is_multiline = is_multiline==nil and false or is_multiline
+  return self
 end
 
---- Returns a new Property object initialized as STRING
---- @param name         string  Name of the property in the data settings
---- @param description  string  Description to be displayed on properties dialog
---- @param default      string  Default value
---- @param is_multiline boolean True if the string can contain new lines
-function Property:new_string(name, description, default, is_multiline)
-  return Property:new{type=PROPERTY_TYPES.STRING, name=name, description=description, default=default,
-                      is_multiline=is_multiline}
-end
-
---- Returns a new Property object initialized as VEC2
---- @param name        string        Name of the property in the data settings
---- @param description table|string  Description to be displayed on properties dialog
---- @param default     table|number  Default value (default {0,0})
---- @param min         table|number  Minimum value (default {-100,-100})
---- @param max         table|number  Maximum value (default {100,100})
---- @param step        table|number  Increment (default {1,1})
---- @param is_slider   boolean       Property displayed as sliders (default true)
-function Property:new_vec2(name, description, default, min, max, step, is_slider)
-  if is_slider==nil then is_slider=true end
-  if type(description)=="string" then description = {description, description} end
-  if type(default)=="number" then default = {default, default} end
-  if type(min)=="number" then min = {min, min} end
-  if type(max)=="number" then max = {max, max} end
-  if type(step)=="number" then step = {step, step} end
-  return Property:new{type=PROPERTY_TYPES.VEC2, name=name, description=description, default=default or {0,0},
-                      min=min or {-100,-100}, max=max or {100,100}, step=step or {1,1}, is_slider=is_slider}
-end
-
---- Returns a new Property object initialized as GROUP - Do not use directly
---- @param name         string      Name of the property in the data settings
---- @param description  string      Description to be displayed on properties dialog
---- @param default      nil|boolean Default value, set only if group needs to be checkable
-function Property:new_group(name, description, default)
-  return Property:new{type=PROPERTY_TYPES.GROUP, name=name, description=description, default=default or false,
-                      properties={}, is_checkable=(default~=nil) }
+--- Defines a group user interface for the Property (GROUP)
+--- @param description      string   HTML description displayed on graphical user interface
+--- @param long_description string   Long description displayed as tool tip
+--- @param is_checkable     boolean  Group displayed with check box and using user setting if true (GROUP)
+--- @return Property        property Instance of the object
+function Property:define_user_interface_group(description, long_description, is_checkable)
+  self.is_editable = true
+  self.description = description or "UNDEFINED DESCRIPTION"
+  self.long_description = long_description
+  self.is_checkable = is_checkable==nil and false or is_checkable
+  self.properties = {}
+  return self
 end
 
 --- Sets the default value of the property in OBS data settings
@@ -329,6 +297,22 @@ function Property:read_effect_parameters(effect)
   end
 
 end
+
+--- Sets the effect parameters
+function Property:write_effect_parameters()
+  log_debug("Writing effect parameters for", self.name)
+  if     self.type == PROPERTY_TYPES.INT then
+    obs.gs_effect_set_int(self.param, self.value)
+  elseif self.type == PROPERTY_TYPES.FLOAT then
+    obs.gs_effect_set_float(self.param, self.value)
+  elseif self.type == PROPERTY_TYPES.BOOL or (self.type == PROPERTY_TYPES.GROUP and self.is_checkable) then
+    obs.gs_effect_set_bool(self.param, self.value)
+  elseif self.type == PROPERTY_TYPES.VEC2 then
+    obs.gs_effect_set_vec2(self.param, self.value)
+  end
+
+end
+
 
 --- Retrieves the values of the data settings internally
 --- @param settings userdata Data settings object of type obs_data_t
@@ -421,6 +405,7 @@ function Property:build_user_interface(obs_properties)
 end
 
 
+
 --[[
 local prop
 
@@ -445,11 +430,27 @@ end
 print("tostring(prop): " .. tostring(prop))
 ]]
 
+------------------------------------------- PROPERTY VISIBILITY HELPER CLASS -------------------------------------------
+
+COMPARISON_OPERATORS = {EQUAL=0, DIFFERENT=1, GREATER=2, GREATER_OR_EQUAL=3, LESS=4, LESS_OR_EQUAL=5}
+
+--- @class PropertyCondition
+
+PropertyCondition = {name="UNDEFINED", conditions={}}
+
+
+
+
+
+
 ---------------------------------------------- PROPERTY LIST HELPER CLASS ----------------------------------------------
 
 --- @class PropertyList
---- @field properties table
-PropertyList = {properties={}, index={}, groups={}}
+--- @field properties table Array of Property objects
+--- @field index      table Dictionary of Property objects indexed by Property names
+--- @field groups     table Array of currently opened groups
+--- @field visibility table Dictionary of PropertyVisibility objects indexed by Property names
+PropertyList = {properties={}, index={}, groups={}, visibility={}}
 
 -- TODO: Copy input object template if nothing is given as argument
 
@@ -475,7 +476,7 @@ function PropertyList:new(o)
 end
 
 --- Adds a property to the list
---- @param property Property Property to add
+--- @param property      Property Property to add
 --- @return Property property The property given as argument
 function PropertyList:add(property)
   log_debug("Adding property", property)
@@ -488,13 +489,148 @@ function PropertyList:add(property)
   return property
 end
 
+
+--- Adds a property with an optional numeric user interface of type INT
+--- @param name             string  Name of the property in the data settings
+--- @param default          integer Default value (default 0)
+--- @param description      string  Description to be displayed on properties dialog (not editable if nil)
+--- @param min              integer Minimum value (default -100)
+--- @param max              integer Maximum value (default  100)
+--- @param step             integer Increment (default 1)
+--- @param is_slider        boolean Property displayed as slider (default true)
+--- @param long_description string  Long description displayed as tool tip
+--- @param is_persistent    boolean Data save in settings if true (default true if editable, false otherwise)
+--- @return Property property       The property given as argument
+function PropertyList:add_int(name, default, description, min, max, step, is_slider, long_description, is_persistent)
+  is_persistent = is_persistent~=nil and is_persistent or description~=nil
+  local property = Property:new(PROPERTY_TYPES.INT, name, default or 0, is_persistent)
+  if description then
+    property:define_user_interface_numeric(description, long_description, min or -100, max or 100, step or 1,
+                                           is_slider==nil and true)
+  end
+  return self:add(property)
+end
+
+--- Adds a property with an optional numeric user interface of type FLOAT
+--- @param name             string  Name of the property in the data settings
+--- @param default          number  Default value (default 0.0)
+--- @param description      string  Description to be displayed on properties dialog (not editable if nil)
+--- @param min              number  Minimum value (default -1.0)
+--- @param max              number  Maximum value (default  1.0)
+--- @param step             number  Increment (default 0.01)
+--- @param is_slider        boolean Property displayed as slider (default true)
+--- @param long_description string  Long description displayed as tool tip
+--- @param is_persistent    boolean Data save in settings if true (default true if editable, false otherwise)
+--- @return Property property       The property given as argument
+function PropertyList:add_float(name, default, description, min, max, step, is_slider, long_description, is_persistent)
+  is_persistent = is_persistent~=nil and is_persistent or description~=nil
+  local property = Property:new(PROPERTY_TYPES.FLOAT, name, default or 0.0, is_persistent)
+  if description then
+    property:define_user_interface_numeric(description, long_description, min or -1.0, max or 1.0, step or 0.01,
+                                           is_slider==nil and true)
+  end
+  return self:add(property)
+end
+
+--- Adds a property with an optional numeric user interface of type VEC2
+--- @param name             string       Name of the property in the data settings
+--- @param default          table|number Default value (default {0.0,0.0})
+--- @param description      table|string Description to be displayed on properties dialog (not editable if nil)
+--- @param min              table|number Minimum value (default {-1.0,-1.0})
+--- @param max              table|number Maximum value (default { 1.0, 1.0})
+--- @param step             table|number Increment (default {0.01,0.01})
+--- @param is_slider        boolean      Property displayed as slider (default true)
+--- @param long_description table|string Long description displayed as tool tip
+--- @param is_persistent    boolean      Data save in settings if true (default true if editable, false otherwise)
+--- @return Property property            The property given as argument
+function PropertyList:add_vec2(name, default, description, min, max, step, is_slider, long_description, is_persistent)
+  is_persistent = is_persistent~=nil and is_persistent or description~=nil
+  default = default and (type(default)=="table" and default or {default, default}) or {0.0,0.0}
+  local property = Property:new(PROPERTY_TYPES.VEC2, name, default or {0.0,0.0}, is_persistent)
+  if description then
+    description = type(description)=="table" and description or {description, description}
+    min = min and (type(min)=="table" and min or {min, min}) or {-1.0,-1.0}
+    max = max and (type(max)=="table" and max or {max, max}) or { 1.0, 1.0}
+    step = step and (type(step)=="table" and step or {step, step}) or { 0.01, 0.01}
+    long_description = long_description and (type(long_description)=="table" and long_description or
+                                            {long_description, long_description}) or nil
+    property:define_user_interface_numeric(description, long_description, min, max, step,
+                                           is_slider==nil and true or is_slider)
+  end
+  return self:add(property)
+end
+
+--- Adds a property with a list user interface of type INT
+--- @param name             string  Name of the property in the data settings
+--- @param default          integer Default value (default 0)
+--- @param description      string  Description to be displayed on properties dialog (assumed non-nil)
+--- @param list             table   Table of ordered {DESCRIPTION,VALUE} entries or indexed list of DESCRIPTION strings
+--- @param is_indexed       boolean If true the passed list is dictionary of value-indexed DESCRIPTIONs
+--- @param long_description string  Long description displayed as tool tip
+--- @param is_persistent    boolean Data save in settings if true (default true if editable, false otherwise)
+--- @return Property property       The property given as argument
+function PropertyList:add_int_list(name, default, description, list, is_indexed, long_description, is_persistent)
+  is_persistent = is_persistent~=nil and is_persistent or description~=nil
+  local property = Property:new(PROPERTY_TYPES.INT, name, default or 0, is_persistent)
+  if is_indexed then
+    local indices = {}
+    for k,_ in pairs(list) do
+      if type(k)=="number" then table.insert(indices, k) end
+    end
+    local new_list = {}
+    table.sort(indices)
+    for _,i in ipairs(indices) do table.insert(new_list, {list[i], i}) end
+    list = new_list
+  end
+  property:define_user_interface_list(description, long_description, list or {{"DEFAULT", default or 0}})
+  return self:add(property)
+end
+
+--- Adds a property with an optional checkbox user interface of type BOOL
+--- @param name             string  Name of the property in the data settings
+--- @param default          boolean Default value (default false)
+--- @param description      string  Description to be displayed on properties dialog
+--- @param long_description string  Long description displayed as tool tip
+--- @param is_persistent    boolean Data save in settings if true (default true if editable, false otherwise)
+--- @return Property property       The property given as argument
+function PropertyList:add_bool(name, default, description, long_description, is_persistent)
+  is_persistent = is_persistent~=nil and is_persistent or description~=nil
+  local property = Property:new(PROPERTY_TYPES.BOOL, name, default or false, is_persistent)
+  if description then
+    property:define_user_interface_checkbox(description, long_description)
+  end
+  return self:add(property)
+end
+
+--- Adds a property with an optional text user interface of type STRING
+--- @param name             string  Name of the property in the data settings
+--- @param default          string  Default value (default empty)
+--- @param description      string  Description to be displayed on properties dialog
+--- @param is_multiline     boolean True if the string can contain new lines
+--- @param long_description string  Long description displayed as tool tip
+--- @param is_persistent    boolean Data save in settings if true (default true if editable, false otherwise)
+--- @return Property property       The property given as argument
+function PropertyList:add_bool(name, default, description, is_multiline, long_description, is_persistent)
+  is_persistent = is_persistent~=nil and is_persistent or description~=nil
+  local property = Property:new(PROPERTY_TYPES.STRING, name, default or "", is_persistent)
+  if description then
+    property:define_user_interface_text(description, long_description, is_multiline or false)
+  end
+  return self:add(property)
+end
+
 --- Begins group optionally checkable
---- @param description string      Displayed label
---- @param name        nil|string  Property name
---- @param default     nil|boolean Default value of the checkable flag (group is checkable if not nil)
---- @return Property   group       The group just added
-function PropertyList:begin_group(description, name, default)
-  local group = Property:new_group(name or ("name-"..tostring(math.random(1e10))), description, default)
+--- @param description      string  Displayed description
+--- @param name             string  Property name (group not checkable if nil)
+--- @param default          boolean Default value of the checkable flag
+--- @param long_description string  Long description displayed as tool tip
+--- @param is_persistent    boolean Data save in settings if true (default true if editable, false otherwise)
+--- @return Property   group        The group just added
+function PropertyList:begin_group(description, name, default, long_description, is_persistent)
+  is_persistent = is_persistent~=nil and is_persistent or name~=nil
+  local group = Property:new(PROPERTY_TYPES.GROUP, name or ("name-"..tostring(math.random(1e10))), default or false,
+                             is_persistent)
+  group:define_user_interface_group(description, long_description, name~=nil)
   self:add(group)
   table.insert(self.groups, group)
   return group
@@ -522,13 +658,15 @@ function PropertyList:build_user_interface(obs_properties, start, count)
   index = start
   while index < start+count do
     local property = self.properties[index]
-    local obs_property = property:build_user_interface(obs_properties)
-    if property.type == PROPERTY_TYPES.GROUP then
-      self:build_user_interface(property.obs_properties, index+1, #property.properties)
-      index = index + #property.properties
+    if property.is_editable then
+      local obs_property = property:build_user_interface(obs_properties)
+      if property.type == PROPERTY_TYPES.GROUP then
+        self:build_user_interface(property.obs_properties, index+1, #property.properties)
+        index = index + #property.properties
+      end
+      -- TODO visibility
+      index = index + 1
     end
-    -- TODO visibility
-    index = index + 1
   end
 
   return obs_properties
@@ -538,7 +676,9 @@ end
 --- @param settings any Data settings object of type obs_data_t
 function PropertyList:write_default_values(settings)
   for _,property in ipairs(self.properties) do
-    property:write_default_values(settings)
+    if property.is_persistent then
+      property:write_default_values(settings)
+    end
   end
 end
 
@@ -550,11 +690,23 @@ function PropertyList:read_effect_parameters(effect)
   end
 end
 
+--- Sets the effect parameters
+function PropertyList:write_effect_parameters()
+  for _,property in ipairs(self.properties) do
+    if property.param then
+      property:write_effect_parameters()
+    end
+  end
+end
+
+
 --- Retrieves the values of the data settings internally
 --- @param settings userdata Data settings object of type obs_data_t
 function PropertyList:read_current_values(settings)
   for _,property in ipairs(self.properties) do
-    property:read_current_values(settings)
+    if property.is_persistent then
+      property:read_current_values(settings)
+    end
   end
 end
 
@@ -569,6 +721,16 @@ function PropertyList:get_value(name)
   end
 end
 
+--- Stores the current internal values in the data settings
+--- @param settings userdata Data settings object of type obs_data_t
+function PropertyList:write_current_values(settings)
+  for _,property in ipairs(self.properties) do
+    if property.is_persistent then
+      property:write_current_values(settings)
+    end
+  end
+end
+
 --- Sets the value of the property with given name (to be called before write_current_values)
 --- @param name  string Property name
 --- @param value any    Value to set
@@ -578,14 +740,9 @@ function PropertyList:set_value(name, value)
   end
 end
 
---- Stores the current internal values in the data settings
---- @param settings userdata Data settings object of type obs_data_t
-function PropertyList:write_current_values(settings)
-  for _,property in ipairs(self.properties) do
-    property:write_current_values(settings)
-  end
-end
+function PropertyList:set_visibility(target_property_name, condition_property_name, operator, value)
 
+end
 
 
 ------------------------------------------------ PROPERTIES DEFINITION -------------------------------------------------
@@ -605,22 +762,13 @@ PIXELATION_TYPES =      {BLOCK=1,       [1]="Pixel blocks", -- Downscale defined
 function build_script_property_list()
   local list = PropertyList:new()
 
-  list:begin_group("Global settings")
+  list:begin_group("Global settings", "bla", true)
 
-  list:add(Property:new_int_list("default_usage_mode", "Default usage mode", USAGE_MODES.BASIC, USAGE_MODES, true))
+  list:add_int_list("default_usage_mode", USAGE_MODES.BASIC, "Default usage mode", USAGE_MODES, true)
 
-  list:add(Property:new_int_list("log_level", "Log level", LOG_LEVELS.INFO, LOG_LEVELS, true))
+  list:add_int_list("log_level", LOG_LEVELS.INFO, "Log level", LOG_LEVELS, true)
 
   list:end_group()
-
-  for k,v in pairs(list.properties) do
-    log_debug("Property name:", v.name, "  type:", v.type, "  #list", #v.list, "  #properties", #v.properties)
-    if v.type==PROPERTY_TYPES.GROUP then
-      for _,l in pairs(v.list) do
-        log_debug(l.name)
-      end
-    end
-  end
 
   log_debug("Returned by build_script_property_list:", tostring(list))
   return list
@@ -632,13 +780,12 @@ function build_source_property_list()
 
   -- Pixelation group
   list:begin_group("Pixelation", "pixelation", true)
-  list:add(Property:new_int_list("pixelation_algorithm", "Interpolation algorithm", PIXELATION_ALGORITHMS.SUBSAMPLING,
-           PIXELATION_ALGORITHMS, true))
-  list:add(Property:new_int_list("pixelation_type", "Pixelation type", PIXELATION_TYPES.BLOCK, PIXELATION_TYPES, true))
+  list:add_int_list("pixelation_algorithm", PIXELATION_ALGORITHMS.SUBSAMPLING, "Interpolation algorithm",
+                    PIXELATION_ALGORITHMS, true)
+  list:add_int_list("pixelation_type", PIXELATION_TYPES.BLOCK, "Pixelation type", PIXELATION_TYPES, true)
 
-  list:add(Property:new_vec2("pixelation_block_size", {"Pixel blocks width","Pixel blocks height"}, 2, 1, 20, 1, true))
-  list:add(Property:new_vec2("pixelation_resolution", {"Resolution width","Resolution height"},
-                             {320,200}, 1, 1000, 1, false))
+  list:add_vec2("pixelation_block_size", 2, {"Pixel blocks width","Pixel blocks height"}, 1, 20, 1, true)
+  list:add_vec2("pixelation_resolution", {320,200}, {"Resolution width","Resolution height"}, 10, 1000, 10, false)
 
   list:end_group()
 
@@ -1005,6 +1152,8 @@ source_info.update = function(data, settings)
   -- Keeps a reference on the settings
   data.settings = settings
 
+  data.properties:read_current_values(settings)
+
   local pattern_path = obs.obs_data_get_string(settings, "pattern_path")
   if data.loaded_pattern_path ~= pattern_path then
     data.pattern = load_texture(pattern_path, data.pattern)
@@ -1034,6 +1183,8 @@ source_info.video_render = function(data)
   -- Effect parameters initialization
   obs.gs_effect_set_int(data.params.width, data.width)
   obs.gs_effect_set_int(data.params.height, data.height)
+
+  data.properties:write_effect_parameters()
 
   --[[
   obs.gs_effect_set_float(data.params.gamma, data.gamma)

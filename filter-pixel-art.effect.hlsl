@@ -182,7 +182,7 @@ float4 pixel_shader_pixelation(pixel_data pixel) : TARGET
     else if (pixelation_type == PIXELATION_TYPE_RESOLUTION)
         target_resolution = pixelation_resolution;
 
-    float4 source_sample = image.Sample(point_clamp, round(pixel.uv*target_resolution)/target_resolution);
+    float4 source_sample = image.Sample(linear_clamp, floor(pixel.uv*target_resolution)/target_resolution);
 
     return source_sample;
 }
