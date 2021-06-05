@@ -255,7 +255,7 @@ function Property:define_user_interface_group(description, long_description, is_
   self.description = description or "UNDEFINED DESCRIPTION"
   self.long_description = long_description
   self.is_checkable = is_checkable==nil and false or is_checkable
-  self.properties = {}
+  self.properties_count = 0
   return self
 end
 
@@ -459,7 +459,7 @@ end
 --- @field properties table Array of Property objects
 --- @field index      table Dictionary of Property objects indexed by Property names
 --- @field groups     table Array of currently opened groups
---- @field visibility table Dictionary of PropertyVisibility objects indexed by Property names
+--- @field visibility table Dictionary of array of arrays {NAME,OPERATOR,VALUE} indexed by Property name
 PropertyList = {properties={}, index={}, groups={}, visibility={}}
 
 --- PropertyList constructor
@@ -491,8 +491,9 @@ function PropertyList:add(property)
   table.insert(self.properties, property)
   self.index[property.name] = property
   if #self.groups > 0 then
-    log_debug("Adding", property.name, "to group", self.groups[#self.groups].name)
-    table.insert(self.groups[#self.groups].properties, property)
+    local group = self.groups[#self.groups]
+    log_debug("Adding", property.name, "to group", group.name)
+    group.properties_count = group.properties_count + 1
   end
   return property
 end
@@ -651,11 +652,6 @@ function PropertyList:end_group()
 end
 
 
-
-
-
-
-
 -- Properties "modified callback" to set visible flags of the displayed properties
 function PropertyList:property_modified_callback(obs_properties, obs_property, settings, name)
 
@@ -679,19 +675,21 @@ function PropertyList:build_user_interface(obs_properties, start, count)
   count = count or #self.properties
 
   -- Main loop to process flat list of properties
-  index = start
+  local index = start
   while index < start+count do
     local property = self.properties[index]
     if property.is_editable then
 
       -- Creates the editable OBS property
       local obs_property = property:build_user_interface(obs_properties)
+
+      -- Creates the OBS properties of a group recursively
       if property.type == PROPERTY_TYPES.GROUP then
-        self:build_user_interface(property.obs_properties, index+1, #property.properties)
-        index = index + #property.properties
+        self:build_user_interface(property.obs_properties, index+1, property.properties_count)
+        index = index + property.properties_count
       end
 
-      -- Sets the modified callback
+      -- Sets the modified callback (obs_property may be a table e.g. for vec2)
       for _,p in ipairs(type(obs_property)=="table" and obs_property or {obs_property}) do
         obs.obs_property_set_modified_callback(p, function(props, prop, settings)
           self:property_modified_callback(props, prop, settings, property.name) return true end)
@@ -773,7 +771,9 @@ function PropertyList:set_value(name, value)
 end
 
 --- Adds a condition for visibility
---- @param property_names string|table Name(s) of the properties on which the conditional visibility apply
+--- @param property_names          string|table Name(s) of the properties on which the conditional visibility applies
+--- @param condition_property_name string       Name of the property to get the value to compare
+--- @param operator                string       One of "=", "==", "!=", ">", ">=", "<", "<="
 function PropertyList:add_visibility_condition(property_names, condition_property_name, operator, value)
 
   -- Argument property_names may be a table or a string
@@ -824,8 +824,6 @@ function PropertyList:evaluate_visibility()
         if not is_visible then break end
       end
 
-      print(property.name .. " visibility is " .. tostring(is_visible))
-
       -- Sets resulting visibility on obs_property (possibly a table for e.g. vec2)
       for _,p in ipairs(type(property.obs_property)=="table" and property.obs_property or {property.obs_property}) do
         obs.obs_property_set_visible(p, is_visible)
@@ -854,7 +852,7 @@ PIXELATION_TYPES =      {BLOCK=1,       [1]="Pixel blocks", -- Downscale defined
 function build_script_property_list()
   local list = PropertyList:new()
 
-  list:begin_group("Global settings", "bla", true)
+  list:begin_group("Global settings")
 
   list:add_int_list("default_usage_mode", USAGE_MODES.BASIC, "Default usage mode", USAGE_MODES, true)
 
@@ -870,6 +868,17 @@ end
 function build_source_property_list()
   local list = PropertyList:new()
 
+  -- Global group
+  list:begin_group("Global")
+
+  list:add_int_list("usage_mode", default_usage_mode, "Usage mode", USAGE_MODES, true)
+
+  list:end_group()
+
+  list:begin_group("Second group checkable", "dummy", true)
+  list:end_group()
+
+
   -- Pixelation group
   list:begin_group("Pixelation", "pixelation", true)
   list:add_int_list("pixelation_algorithm", PIXELATION_ALGORITHMS.SUBSAMPLING, "Interpolation algorithm",
@@ -881,6 +890,8 @@ function build_source_property_list()
 
   list:add_visibility_condition("pixelation_block_size", "pixelation_type", "=", PIXELATION_TYPES.BLOCK)
   list:add_visibility_condition("pixelation_resolution", "pixelation_type", "=", PIXELATION_TYPES.RESOLUTION)
+
+  list:add_visibility_condition({"pixelation_block_size", "pixelation_resolution", "pixelation_type", "pixelation_algorithm"}, "pixelation", "=", true)
 
   list:end_group()
 
