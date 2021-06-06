@@ -713,8 +713,28 @@ function PropertyList:read_effect_parameters(effect)
 end
 
 --- Sets the effect parameters
-function PropertyList:write_effect_parameters()
-  for _,property in ipairs(self.properties) do
+--- @param property_names nil|string|table Array of Property names to be set/skipped (all properties set if nil)
+--- @param is_blacklist   nil|boolean      All properties set except the ones given in the array if true
+function PropertyList:write_effect_parameters(property_names, is_blacklist)
+
+  -- Prepares flat array of Property objects
+  property_names = type(property_names)=="string" and {property_names} or property_names
+  local properties = {}
+  if property_names and not is_blacklist then
+    for _,name in ipairs(property_names) do table.insert(properties, self.index[name]) end
+  elseif property_names and is_blacklist then
+    -- TODO optimize, first create set, then create list
+    local blacklist_set = {}
+    for _,name in ipairs(property_names) do blacklist_set[name] = true end
+    for _,property in ipairs(self.properties) do
+      if not blacklist_set[name] then table.insert(properties, property) end
+    end
+  else
+    properties = self.properties
+  end
+
+  -- Iterates over determined set of properties
+  for _,property in ipairs(properties) do
     if property.param then
       property:write_effect_parameters()
     end
@@ -985,56 +1005,6 @@ source_info.get_name = function()
   return name
 end
 
--- Creates the implementation data for the source
-source_info.create = function(settings, source)
-  log_debug("Entering source_info.create")
-
-  -- Initializes the custom data table
-  local data = {}
-  data.source = source -- Keeps a reference to this filter as a source object
-  data.width = 1       -- Dummy value during initialization
-  data.height = 1      -- Dummy value during initialization
-
-  -- Compiles the effect
-  obs.obs_enter_graphics()
-  local effect_file_path = script_path() .. 'filter-pixel-art.effect.hlsl'
-  data.effect = obs.gs_effect_create_from_file(effect_file_path, nil)
-  -- data.effect = obs.gs_effect_create(EFFECT, "halftone_effect_code", nil)
-  obs.obs_leave_graphics()
-
-  -- Destroys the creates structures if the effect was not compiled properly and prevent filter use
-  if data.effect == nil then
-    log_error("Effect compilation failed")
-    source_info.destroy(data)
-    return nil
-  end
-
-  -- Creates the list of properties
-  data.properties = build_source_property_list()
-
-  -- Adds the non-persistent, non-editable properties used for the system
-  data.properties:add_vec2("image_size", {1,1})
-
-  -- Retrieves the effect uniform variables related to the properties
-  data.properties:read_effect_parameters(data.effect)
-
-  -- Calls update to initialize the rest of the properties-managed settings
-  source_info.update(data, settings)
-
-  log_debug("Leaving source_info.create")
-  return data
-end
-
--- Destroys and release resources linked to the custom data
-source_info.destroy = function(data)
-  if data.effect ~= nil then
-    obs.obs_enter_graphics()
-    obs.gs_effect_destroy(data.effect)
-    data.effect = nil
-    obs.obs_leave_graphics()
-  end
-end
-
 -- Sets the default settings for this source
 source_info.get_defaults = function(settings)
   log_debug("Entering source_info.get_defaults")
@@ -1069,6 +1039,76 @@ source_info.update = function(data, settings)
   log_debug("Leaving source_info.update")
 end
 
+
+-- Creates the implementation data for the source
+source_info.create = function(settings, source)
+  log_debug("Entering source_info.create")
+
+  -- Initializes the custom data table
+  local data = {}
+  data.source = source -- Keeps a reference to this filter as a source object
+  data.width = 1       -- Dummy value during initialization
+  data.height = 1      -- Dummy value during initialization
+
+  -- Creates the list of properties
+  data.properties = build_source_property_list()
+
+  -- Adds the non-persistent, non-editable properties used for the system
+  data.properties:add_vec2("image_size", {1,1})
+
+  -- Enters the graphics context
+  obs.obs_enter_graphics()
+
+  -- Compiles the effect
+  local effect_file_path = script_path() .. 'filter-pixel-art.effect.hlsl'
+  data.effect = obs.gs_effect_create_from_file(effect_file_path, nil)
+  -- data.effect = obs.gs_effect_create(EFFECT, "halftone_effect_code", nil)
+
+  -- Destroys the creates structures if the effect was not compiled properly and prevent filter use
+  if data.effect == nil then
+    log_error("Effect compilation failed")
+    source_info.destroy(data)
+    return nil
+  end
+
+  -- Retrieves the effect uniform variables related to the properties
+  data.properties:read_effect_parameters(data.effect)
+
+  data.pixelation_param = obs.gs_effect_get_param_by_name(data.effect, "pixelation_image")
+  data.image_param = obs.gs_effect_get_param_by_name(data.effect, "image")
+  data.pixelation_texture = obs.gs_texrender_create(obs.GS_RGBA, obs.GS_ZS_NONE)
+  data.picture = obs.gs_image_file()
+  obs.gs_image_file_init(data.picture, script_path() .. "../media/Peach.png")
+  if data.picture.loaded then
+    obs.gs_image_file_init_texture(data.picture)
+    print("cx=" .. tostring(data.picture.cx) .. " cy=" .. tostring(data.picture.cy))
+  end
+
+  obs.obs_leave_graphics()
+
+  -- Calls update to initialize the rest of the properties-managed settings
+  source_info.update(data, settings)
+
+  log_debug("Leaving source_info.create")
+  return data
+end
+
+-- Destroys and release resources linked to the custom data
+source_info.destroy = function(data)
+
+  if data.pixelation_texture then
+    obs.gs_texrender_destroy(data.pixelation_texture)
+  end
+
+  if data.effect ~= nil then
+    obs.obs_enter_graphics()
+    obs.gs_effect_destroy(data.effect)
+    data.effect = nil
+    obs.obs_leave_graphics()
+  end
+end
+
+
 ------------------------------------------------- SOURCE INFO RENDER ---------------------------------------------------
 
 -- Called each frame
@@ -1080,10 +1120,53 @@ source_info.video_tick = function(data, seconds) data.nanoseconds = seconds*1e9 
 source_info.video_render = function(data)
 
   -- Retrieves the size of the original source
+  local target = obs.obs_filter_get_target(data.source)
   local parent = obs.obs_filter_get_parent(data.source)
   data.width = obs.obs_source_get_base_width(parent)
   data.height = obs.obs_source_get_base_height(parent)
   data.properties:set_value("image_size", {data.width, data.height})
+
+  -- Pixelation texture rendering
+  obs.gs_texrender_reset(data.pixelation_texture)
+
+  if obs.gs_texrender_begin(data.pixelation_texture, data.width, data.height) then
+
+    -- Clears the rendering area (TODO:necessary?)
+    local clear_color = obs.vec4()
+    obs.vec4_zero(clear_color)
+    obs.gs_clear(obs.GS_CLEAR_COLOR, clear_color, 0, 0)
+
+    --- Pass-through projection and blending parameters
+    obs.gs_blend_state_push()
+    obs.gs_blend_function(obs.GS_BLEND_ONE, obs.GS_BLEND_ZERO)
+    obs.gs_projection_push()
+    obs.gs_ortho(0.0, data.width, 0.0, data.height, -100, 100)
+
+    -- Initializes specific effect technique
+    local pixelation_technique = obs.gs_effect_get_technique(data.effect, "Pixelation")
+    if pixelation_technique then
+      for pass = 0,obs.gs_technique_begin(pixelation_technique)-1 do
+        obs.gs_technique_begin_pass(pixelation_technique, pass)
+        data.properties:write_effect_parameters()
+
+
+        -- obs.obs_render_main_texture();
+        -- obs.obs_source_video_render(data.source);
+        obs.obs_source_video_render(target);
+        --obs.gs_draw(obs.GS_TRIS, 0, 3);
+        
+
+        obs.gs_technique_end_pass(pixelation_technique)
+      end
+      obs.gs_technique_end(pixelation_technique)
+    end
+
+    -- Restores old states of the shader
+    obs.gs_projection_pop()
+    obs.gs_blend_state_pop()
+
+    obs.gs_texrender_end(data.pixelation_texture)
+  end
 
   -- Begins the rendering of the source
   obs.obs_source_process_filter_begin(data.source, obs.GS_RGBA, obs.OBS_NO_DIRECT_RENDERING)
@@ -1091,34 +1174,10 @@ source_info.video_render = function(data)
   -- Sets the user defined properties into the shader
   data.properties:write_effect_parameters()
 
-  --[[
-  local pixelation_texture = obs.gs_texrender_create(obs.GS_RGBA, obs.GS_ZS_NONE)
+  local tex = obs.gs_texrender_get_texture(data.pixelation_texture)
+  obs.gs_effect_set_texture(data.pixelation_param, tex)
 
-  obs.gs_texrender_reset(pixelation_texture)
-
-  if obs.gs_texrender_begin(pixelation_texture, data.width, data.height) then
-
-    -- Clears the rendering area (TODO:necessary?)
-    local clear_color = obs.vec4()
-    obs.vec4_zero(clear_color)
-    obs.gs_clear(obs.GS_CLEAR_COLOR, clear_color, 0, 0)
-
-    obs.gs_ortho(0, source_width, 0, source_height, -100, 100)
-
-      obs.gs_blend_state_push()
-      obs.gs_blend_function(obs.GS_BLEND_ONE, obs.GS_BLEND_ZERO)
-
-      obs.obs_source_inc_showing(source)
-      obs.obs_source_video_render(source)
-      obs.obs_source_dec_showing(source)
-
-      obs.gs_blend_state_pop()
-
-      obs.gs_texrender_end(render_texture)
-  end
-]]
-
-  obs.obs_source_process_filter_tech_end(data.source, data.effect, data.width, data.height, "Draw")
+  obs.obs_source_process_filter_tech_end(data.source, data.effect, data.width, data.height, "Render")
 end
 
 --[[

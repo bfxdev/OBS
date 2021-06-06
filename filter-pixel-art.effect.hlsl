@@ -18,8 +18,9 @@ uniform Texture2D image;   // Texture containing the source picture
 
 // Size of the source picture
 uniform float2 image_size;
-//uniform int width;
-//uniform int height;
+
+uniform Texture2D pixelation_image;
+//uniform float2 pixelation_image_size;
 
 // Pixelation algorithms
 // uniform bool pixelation = true;
@@ -174,6 +175,14 @@ float4 pixel_shader_passthrough(pixel_data pixel) : TARGET
   return source_sample;
 }
 
+float4 pixel_shader_luminance(pixel_data pixel) : TARGET
+{
+  float4 source_sample = image.Sample(linear_clamp, pixel.uv);
+  float luminance = dot(source_sample.rgb, float3(0.299, 0.587, 0.114));
+  return float4(luminance.xxx, source_sample.a);
+}
+
+
 float4 pixel_shader_pixelation(pixel_data pixel) : TARGET
 {
   float2 target_resolution = image_size;
@@ -184,15 +193,23 @@ float4 pixel_shader_pixelation(pixel_data pixel) : TARGET
 
   float4 source_sample = image.Sample(linear_clamp, floor(pixel.uv*target_resolution)/target_resolution);
 
+  // return float4(pixel.uv.x, pixel.uv.y, 0, 1);
   return source_sample;
 }
+
+float4 pixel_shader_render(pixel_data pixel) : TARGET
+{
+  float4 source_sample = pixelation_image.Sample(linear_clamp, pixel.uv);
+  return source_sample;
+}
+
 
 technique Draw
 {
   pass
   {
     vertex_shader = vertex_shader_standard(vertex);
-    pixel_shader  = pixel_shader_pixelation(pixel);
+    pixel_shader  = pixel_shader_luminance(pixel);
   }
 }
 
@@ -204,3 +221,13 @@ technique Pixelation
     pixel_shader  = pixel_shader_pixelation(pixel);
   }
 }
+
+technique Render
+{
+  pass
+  {
+    vertex_shader = vertex_shader_standard(vertex);
+    pixel_shader  = pixel_shader_render(pixel);
+  }
+}
+
