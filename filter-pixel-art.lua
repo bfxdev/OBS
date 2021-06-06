@@ -51,7 +51,7 @@
 --              - GUI allowing the user to activate/de-activate the different processing stages, to understand easily --
 --                which parameters are related to which stage, and to see directly the result of any change           --
 
---              - Single-pixel outline based on Sobel filters or pixel-level rules, then optimized according to        --
+--              - Single-pixel outline based on Sobel filters or pixel-level rules, then optimized according to       --
 --                https://sites.google.com/site/tiffanycinglis/research/pixelating-vector-line-art                    --
 
 --                                                                                                                    --
@@ -429,54 +429,6 @@ function Property:build_user_interface(obs_properties)
   return obs_property
 end
 
-
-
---[[
-local prop
-
-prop = Property:new_int("new name", "new description", 12, -10, 10, 2, false)
-print("\n\nDefinition new_int:")
-for k,_ in pairs(prop) do
-  print("prop." .. k .. ": " .. tostring(prop[k]))
-end
-
-prop = Property:new_int_list("new name", "new description")
-print("\n\nDefinition new_int_list:")
-for k,_ in pairs(prop) do
-  print("prop." .. k .. ": " .. tostring(prop[k]))
-end
-
-prop = Property:new_int2("new name", "new description")
-print("\n\nDefinition new_int2:")
-for k,_ in pairs(prop) do
-  print("prop." .. k .. ": " .. tostring(prop[k]))
-end
-
-print("tostring(prop): " .. tostring(prop))
-]]
-
-------------------------------------------- PROPERTY VISIBILITY HELPER CLASS -------------------------------------------
-
-COMPARISON_OPERATORS = {EQUAL=0, DIFFERENT=1, GREATER=2, GREATER_OR_EQUAL=3, LESS=4, LESS_OR_EQUAL=5}
-
---- @class PropertyCondition
-
-PropertyCondition = {list={}}
-
-function PropertyCondition:new(o)
-  o = o or {}
-  setmetatable(o, self)
-  self.__index = self
-  self.__tostring = as_string
-  o.list = {}
-  return o
-end
-
-function PropertyCondition:add(name, operator, value)
-end
-
-
-
 ---------------------------------------------- PROPERTY LIST HELPER CLASS ----------------------------------------------
 
 --- @class PropertyList
@@ -529,7 +481,6 @@ function PropertyList:add(property)
   end
   return property
 end
-
 
 --- Adds a property with an optional numeric user interface of type INT
 --- @param name             string  Name of the property in the data settings
@@ -942,6 +893,376 @@ function build_source_property_list()
   return list
 end
 
+----------------------------------------------- GLOBAL SCRIPT FUNCTIONS ------------------------------------------------
+
+-- List of properties as PropertyList for the main script functions (not source_info part)
+properties = build_script_property_list()
+
+-- Returns the description to be displayed in the Scripts window
+function script_description()
+  log_debug("Entering script_description")
+
+  local alien="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABMAAAAVCAYAAACkCdXRAAAAAXNSR0IArs4c6QAAAARnQU1BAACxj"..
+  "wv8YQUAAAAJcEhZcwAADsIAAA7CARUoSoAAAADwSURBVDhPtZQxDsIwDEUDYoSBHWhHbsPC2tOxsnAbxhbYGWBEAn0rBid20lDBk1BS17z+hBT3"..
+  "S0Z+TFItq6efuu7cZfuTN1ky26/d9XCh2mR3pzElNYsQQSJhIYDUEqqCJWL6hGM/EjlRzKOZBvsJ3uZSkUwHZMIgWQnzzcLPNGTkVLftkYqMlTT"..
+  "uwXI5nUrWnlr6gPiLfC17JOYy61XtZx+BFMv7EiXjRuvJsmYJSYb14slyj6zmuCb3C9cq2TfnLCY4wSVnLfcWmD/AUIJkIJeu791UMmAJB/1rMB"..
+  "BihJRFkABLBJIyhqUgJfkDzr0Amw2KoGT2/LMAAAAASUVORK5CYII="
+
+  local description = [[<center><h2>Pixel Art</h2></center>
+  <center><img width=38 height=42 src=']] .. alien .. [['/><br/>
+  <a href="https://github.com/bfxdev/OBS">bfxdev</a> - 2021</center>
+  <p>This Lua script adds a new filter named "Pixel Art". It can be applied to any video source to reduce the
+  pixel resolution and the number of colors, and hence obtain a retro-computer looking picture.</p>
+  <p>It works with a custom or a pre-defined palette and features dithering, down-scaling, outlines, etc.</p>
+  <p>As a main global setting, the default preset can be chosen below. Additional settings are available when the filter
+  is added to a source.</p>]]
+
+  log_debug("Leaving script_description")
+  return description
+end
+
+--- Initializes default values if necessary - Called by OBS
+function script_defaults(settings)
+  log_debug("Entering script_defaults")
+
+  -- Setups default values and calls update to set global settings once
+  properties:write_default_values(settings)
+  script_update(settings)
+
+  log_debug("Leaving script_defaults")
+end
+
+--- Registers the source_info structure - Called by OBS
+function script_load(settings)
+  log_debug("Entering script_load")
+
+  -- Registers the source_info data structure defined below
+  obs.obs_register_source(source_info)
+
+  log_debug("Leaving script_load")
+end
+
+--- Reads the current values from the settings - Called by OBS
+function script_update(settings)
+  log_debug("Entering script_update")
+
+  -- Reads from settings, then sets global variables for logging and source creation
+  properties:read_current_values(settings)
+  log_level = properties:get_value("log_level")
+  default_usage_mode = properties:get_value("default_usage_mode")
+  default_main_preset = properties:get_value("default_main_preset")
+
+  log_debug("Leaving script_update")
+end
+
+--- Builds the properties GUI - Called by OBS
+function script_properties()
+  log_debug("Entering script_properties")
+
+  -- Builds the GUI visible in the Scripts window
+  local props = properties:build_user_interface()
+
+  log_debug("Leaving script_properties")
+  return props
+end
+
+---------------------------------------------- SOURCE INFO DEFINITION --------------------------------------------------
+
+-- Instance of the list of properties for the source, used only to set defaults
+static_source_properties = build_source_property_list()
+
+-- Definition of the global variable containing the source_info structure
+source_info = {}
+source_info.id = 'filter-pixel-art'             -- Unique string identifier of the source type
+source_info.type = obs.OBS_SOURCE_TYPE_FILTER   -- INPUT or FILTER or TRANSITION
+source_info.output_flags = obs.OBS_SOURCE_VIDEO -- Combination of VIDEO/AUDIO/ASYNC/etc
+
+-- Returns the name displayed in the list of filters
+source_info.get_name = function()
+  log_debug("Entering source_info.get_name")
+  local name = "Pixel Art"
+  log_debug("Leaving source_info.get_name")
+  return name
+end
+
+-- Creates the implementation data for the source
+source_info.create = function(settings, source)
+  log_debug("Entering source_info.create")
+
+  -- Initializes the custom data table
+  local data = {}
+  data.source = source -- Keeps a reference to this filter as a source object
+  data.width = 1       -- Dummy value during initialization
+  data.height = 1      -- Dummy value during initialization
+
+  -- Compiles the effect
+  obs.obs_enter_graphics()
+  local effect_file_path = script_path() .. 'filter-pixel-art.effect.hlsl'
+  data.effect = obs.gs_effect_create_from_file(effect_file_path, nil)
+  -- data.effect = obs.gs_effect_create(EFFECT, "halftone_effect_code", nil)
+  obs.obs_leave_graphics()
+
+  -- Destroys the creates structures if the effect was not compiled properly and prevent filter use
+  if data.effect == nil then
+    log_error("Effect compilation failed")
+    source_info.destroy(data)
+    return nil
+  end
+
+  -- Creates the list of properties
+  data.properties = build_source_property_list()
+
+  -- Adds the non-persistent, non-editable properties used for the system
+  data.properties:add_vec2("image_size", {1,1})
+
+  -- Retrieves the effect uniform variables related to the properties
+  data.properties:read_effect_parameters(data.effect)
+
+  -- Calls update to initialize the rest of the properties-managed settings
+  source_info.update(data, settings)
+
+  log_debug("Leaving source_info.create")
+  return data
+end
+
+-- Destroys and release resources linked to the custom data
+source_info.destroy = function(data)
+  if data.effect ~= nil then
+    obs.obs_enter_graphics()
+    obs.gs_effect_destroy(data.effect)
+    data.effect = nil
+    obs.obs_leave_graphics()
+  end
+end
+
+-- Sets the default settings for this source
+source_info.get_defaults = function(settings)
+  log_debug("Entering source_info.get_defaults")
+
+  -- Populate default values
+  static_source_properties:write_default_values(settings)
+
+  log_debug("Leaving source_info.get_defaults")
+end
+
+-- Gets the property information of this source
+source_info.get_properties = function(data)
+  log_debug("Entering source_info.get_properties")
+
+  -- Main properties object
+  local props = data.properties:build_user_interface()
+
+  log_debug("Leaving source_info.get_properties")
+  return props
+end
+
+-- Updates the internal data for this source upon settings change
+source_info.update = function(data, settings)
+  log_debug("Entering source_info.update")
+
+  -- Keeps a reference on the settings
+  data.settings = settings
+
+  -- Updates the mirrored values from what the user just changed or was read from the persistent user settings
+  data.properties:read_current_values(settings)
+
+  log_debug("Leaving source_info.update")
+end
+
+------------------------------------------------- SOURCE INFO RENDER ---------------------------------------------------
+
+-- Called each frame
+source_info.get_width = function(data) return data.width end
+source_info.get_height = function(data) return data.height end
+source_info.video_tick = function(data, seconds) data.nanoseconds = seconds*1e9 end
+
+-- Called when rendering the source with the graphics subsystem
+source_info.video_render = function(data)
+
+  -- Retrieves the size of the original source
+  local parent = obs.obs_filter_get_parent(data.source)
+  data.width = obs.obs_source_get_base_width(parent)
+  data.height = obs.obs_source_get_base_height(parent)
+  data.properties:set_value("image_size", {data.width, data.height})
+
+  -- Begins the rendering of the source
+  obs.obs_source_process_filter_begin(data.source, obs.GS_RGBA, obs.OBS_NO_DIRECT_RENDERING)
+
+  -- Sets the user defined properties into the shader
+  data.properties:write_effect_parameters()
+
+  --[[
+  local pixelation_texture = obs.gs_texrender_create(obs.GS_RGBA, obs.GS_ZS_NONE)
+
+  obs.gs_texrender_reset(pixelation_texture)
+
+  if obs.gs_texrender_begin(pixelation_texture, data.width, data.height) then
+
+    -- Clears the rendering area (TODO:necessary?)
+    local clear_color = obs.vec4()
+    obs.vec4_zero(clear_color)
+    obs.gs_clear(obs.GS_CLEAR_COLOR, clear_color, 0, 0)
+
+    obs.gs_ortho(0, source_width, 0, source_height, -100, 100)
+
+      obs.gs_blend_state_push()
+      obs.gs_blend_function(obs.GS_BLEND_ONE, obs.GS_BLEND_ZERO)
+
+      obs.obs_source_inc_showing(source)
+      obs.obs_source_video_render(source)
+      obs.obs_source_dec_showing(source)
+
+      obs.gs_blend_state_pop()
+
+      obs.gs_texrender_end(render_texture)
+  end
+]]
+
+  obs.obs_source_process_filter_tech_end(data.source, data.effect, data.width, data.height, "Draw")
+end
+
+--[[
+
+	gs_texrender_reset(texrender);
+
+	upload_raw_frame(tex, frame);
+
+	uint32_t cx = source->async_width;
+	uint32_t cy = source->async_height;
+
+	gs_effect_t *conv = obs->video.conversion_effect;
+	const char *tech_name =
+		select_conversion_technique(frame->format, frame->full_range);
+	gs_technique_t *tech = gs_effect_get_technique(conv, tech_name);
+
+	const bool success = gs_texrender_begin(texrender, cx, cy);
+
+	if (success) {
+		gs_enable_blending(false);
+
+		gs_technique_begin(tech);
+		gs_technique_begin_pass(tech, 0);
+
+		if (tex[0])
+			gs_effect_set_texture(
+				gs_effect_get_param_by_name(conv, "image"),
+				tex[0]);
+		if (tex[1])
+			gs_effect_set_texture(
+				gs_effect_get_param_by_name(conv, "image1"),
+				tex[1]);
+		if (tex[2])
+			gs_effect_set_texture(
+				gs_effect_get_param_by_name(conv, "image2"),
+				tex[2]);
+		if (tex[3])
+			gs_effect_set_texture(
+				gs_effect_get_param_by_name(conv, "image3"),
+				tex[3]);
+		set_eparam(conv, "width", (float)cx);
+		set_eparam(conv, "height", (float)cy);
+		set_eparam(conv, "width_d2", (float)cx * 0.5f);
+		set_eparam(conv, "height_d2", (float)cy * 0.5f);
+		set_eparam(conv, "width_x2_i", 0.5f / (float)cx);
+
+		struct vec4 vec0, vec1, vec2;
+		vec4_set(&vec0, frame->color_matrix[0], frame->color_matrix[1],
+			 frame->color_matrix[2], frame->color_matrix[3]);
+		vec4_set(&vec1, frame->color_matrix[4], frame->color_matrix[5],
+			 frame->color_matrix[6], frame->color_matrix[7]);
+		vec4_set(&vec2, frame->color_matrix[8], frame->color_matrix[9],
+			 frame->color_matrix[10], frame->color_matrix[11]);
+		gs_effect_set_vec4(
+			gs_effect_get_param_by_name(conv, "color_vec0"), &vec0);
+		gs_effect_set_vec4(
+			gs_effect_get_param_by_name(conv, "color_vec1"), &vec1);
+		gs_effect_set_vec4(
+			gs_effect_get_param_by_name(conv, "color_vec2"), &vec2);
+		if (!frame->full_range) {
+			gs_eparam_t *min_param = gs_effect_get_param_by_name(
+				conv, "color_range_min");
+			gs_effect_set_val(min_param, frame->color_range_min,
+					  sizeof(float) * 3);
+			gs_eparam_t *max_param = gs_effect_get_param_by_name(
+				conv, "color_range_max");
+			gs_effect_set_val(max_param, frame->color_range_max,
+					  sizeof(float) * 3);
+		}
+
+		gs_draw(GS_TRIS, 0, 3);
+
+		gs_technique_end_pass(tech);
+		gs_technique_end(tech);
+
+		gs_enable_blending(true);
+
+		gs_texrender_end(texrender);
+	}
+
+]]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+--[[
+
+-- Sets a texture with its size in the shader, updates the GIF animation step if necessary, size set to (-1,-1)
+--  if the image is not available
+function set_texture_effect_parameters(image, param_texture, param_size, nanoseconds)
+  local size = obs.vec2()
+  if image then
+    obs.gs_image_file_tick(image, nanoseconds)
+    obs.gs_image_file_update_texture(image)
+    obs.gs_effect_set_texture(param_texture, image.texture)
+    obs.vec2_set(size, image.cx, image.cy)
+  else
+    obs.vec2_set(size, -1, -1)
+  end
+  obs.gs_effect_set_vec2(param_size, size)
+end
+
+-- Returns new texture and free current texture if loaded
+function load_texture(path, current_texture)
+
+  obs.obs_enter_graphics()
+
+  -- Free any existing image
+  if current_texture then
+    obs.gs_image_file_free(current_texture)
+  end
+
+  -- Loads and inits image for texture
+  local new_texture = nil
+  if string.len(path) > 0 then
+    new_texture = obs.gs_image_file()
+    obs.gs_image_file_init(new_texture, path)
+    if new_texture.loaded then
+      obs.gs_image_file_init_texture(new_texture)
+    else
+      obs.blog(obs.LOG_ERROR, "Cannot load image " .. path)
+      obs.gs_image_file_free(current_texture)
+      new_texture = nil
+    end
+  end
+
+  obs.obs_leave_graphics()
+  return new_texture
+end
+
+
+]]
+
 
 --[[
   list:add(Property:new_float("gamma", 1.0))
@@ -994,225 +1315,8 @@ end
   end
   ]]
 
------------------------------------------------ GLOBAL SCRIPT FUNCTIONS ------------------------------------------------
-
--- List of properties as PropertyList for the main script functions (not source_info part)
-properties = build_script_property_list()
-
--- Returns the description to be displayed in the Scripts window
-function script_description()
-
-  local alien="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABMAAAAVCAYAAACkCdXRAAAAAXNSR0IArs4c6QAAAARnQU1BAACxj"..
-  "wv8YQUAAAAJcEhZcwAADsIAAA7CARUoSoAAAADwSURBVDhPtZQxDsIwDEUDYoSBHWhHbsPC2tOxsnAbxhbYGWBEAn0rBid20lDBk1BS17z+hBT3"..
-  "S0Z+TFItq6efuu7cZfuTN1ky26/d9XCh2mR3pzElNYsQQSJhIYDUEqqCJWL6hGM/EjlRzKOZBvsJ3uZSkUwHZMIgWQnzzcLPNGTkVLftkYqMlTT"..
-  "uwXI5nUrWnlr6gPiLfC17JOYy61XtZx+BFMv7EiXjRuvJsmYJSYb14slyj6zmuCb3C9cq2TfnLCY4wSVnLfcWmD/AUIJkIJeu791UMmAJB/1rMB"..
-  "BihJRFkABLBJIyhqUgJfkDzr0Amw2KoGT2/LMAAAAASUVORK5CYII="
-
-  local description = [[<center><h2>Pixel Art</h2></center>
-  <center><img width=38 height=42 src=']] .. alien .. [['/><br/>
-  <a href="https://github.com/bfxdev/OBS">bfxdev</a> - 2021</center>
-  <p>This Lua script adds a new filter named "Pixel Art". It can be applied to any video source to reduce the
-  pixel resolution and the number of colors, and hence obtain a retro-computer looking picture.</p>
-  <p>It works with a custom or a pre-defined palette and features dithering, down-scaling, outlines, etc.</p>
-  <p>As a main global setting, the default preset can be chosen below. Additional settings are available when the filter
-  is added to a source.</p>]]
-
-  return description
-end
-
---- Initializes default values if necessary - Called by OBS
-function script_defaults(settings)
-  log_debug("Begin script_defaults")
-
-  -- Setups default values and calls update to set global settings once
-  properties:write_default_values(settings)
-  script_update(settings)
-
-  log_debug("End script_defaults")
-end
-
---- Registers the source_info structure - Called by OBS
-function script_load(settings)
-  log_debug("Begin script_load")
-
-  -- Registers the source_info data structure defined below 
-  obs.obs_register_source(source_info)
-
-  log_debug("End script_load")
-end
-
---- Reads the current values from the settings - Called by OBS
-function script_update(settings)
-  log_debug("Begin script_update")
-
-  -- Reads and sets global variables for logging and source creation
-  properties:read_current_values(settings)
-  log_level = properties:get_value("log_level")
-  default_usage_mode = properties:get_value("default_usage_mode")
-  default_main_preset = properties:get_value("default_main_preset")
-
-  log_debug("End script_update")
-end
-
---- Builds the properties GUI - Called by OBS
-function script_properties()
-  log_debug("Begin script_properties")
-  local props = properties:build_user_interface()
-  log_debug("End script_properties")
-  return props
-end
 
 
-------------------------------------- SOURCE INFO DEFINITION AND HELPER FUNCTIONS --------------------------------------
-
--- Instance of the list of properties for the source, used only to set defaults
-static_source_properties = build_source_property_list()
-
--- Definition of the global variable containing the source_info structure
-source_info = {}
-source_info.id = 'filter-pixel-art'             -- Unique string identifier of the source type
-source_info.type = obs.OBS_SOURCE_TYPE_FILTER   -- INPUT or FILTER or TRANSITION
-source_info.output_flags = obs.OBS_SOURCE_VIDEO -- Combination of VIDEO/AUDIO/ASYNC/etc
-
--- Returns the name displayed in the list of filters
-source_info.get_name = function()
-  return "Pixel Art"
-end
-
--- Creates the implementation data for the source
-source_info.create = function(settings, source)
-  log_debug("Begin source_info.create")
-
-  -- Initializes the custom data table
-  local data = {}
-  data.source = source -- Keeps a reference to this filter as a source object
-  --data.width = 1       -- Dummy value during initialization phase
-  --data.height = 1      -- Dummy value during initialization phase
-
-  -- Compiles the effect
-  obs.obs_enter_graphics()
-  local effect_file_path = script_path() .. 'filter-pixel-art.effect.hlsl'
-  data.effect = obs.gs_effect_create_from_file(effect_file_path, nil)
-  -- data.effect = obs.gs_effect_create(EFFECT, "halftone_effect_code", nil)
-  obs.obs_leave_graphics()
-
-  -- Destroys the creates structures if the effect was not compiled properly and do not allow the source to be used
-  if data.effect == nil then
-    log_error("Effect compilation failed")
-    source_info.destroy(data)
-    return nil
-  end
-
-  -- Creates the list of properties
-  data.properties = build_source_property_list()
-
-  -- Adds the non-persistent, non-editable properties
-  data.properties:add_vec2("image_size", {1,1})
-
-  -- Retrieves the common effect uniform variables
-  --data.params = {}
-  --data.params.width = obs.gs_effect_get_param_by_name(data.effect, "width")
-  --data.params.height = obs.gs_effect_get_param_by_name(data.effect, "height")
-
-  -- Retrieves the effect uniform variables related to the properties
-  data.properties:read_effect_parameters(data.effect)
-
-  -- Calls update to initialize the rest of the properties-managed settings
-  source_info.update(data, settings)
-
-  log_debug("End source_info.create")
-  return data
-end
-
--- Sets the default settings for this source
-source_info.get_defaults = function(settings)
-  log_debug("Begin source_info.get_defaults")
-
-  -- Populate default values
-  static_source_properties:write_default_values(settings)
-
-  log_debug("End source_info.get_defaults")
-end
-
-
--- Returns the width of the source
-source_info.get_width = function(data)
-  --return data.width
-  return data.properties:get_value("image_size")[1]
-end
-
--- Returns the height of the source
-source_info.get_height = function(data)
-  --return data.height
-  return data.properties:get_value("image_size")[2]
-end
-
--- Called each frame for GIF animation
-source_info.video_tick = function(data, seconds)
-  data.nanoseconds = seconds*1e9
-end
-
--- Sets a texture with its size in the shader, updates the GIF animation step if necessary, size set to (-1,-1)
---  if the image is not available
-function set_texture_effect_parameters(image, param_texture, param_size, nanoseconds)
-  local size = obs.vec2()
-  if image then
-    obs.gs_image_file_tick(image, nanoseconds)
-    obs.gs_image_file_update_texture(image)
-    obs.gs_effect_set_texture(param_texture, image.texture)
-    obs.vec2_set(size, image.cx, image.cy)
-  else
-    obs.vec2_set(size, -1, -1)
-  end
-  obs.gs_effect_set_vec2(param_size, size)
-end
-
--- Destroys and release resources linked to the custom data
-source_info.destroy = function(data)
-  if data.effect ~= nil then
-    obs.obs_enter_graphics()
-    obs.gs_effect_destroy(data.effect)
-    data.effect = nil
-    obs.obs_leave_graphics()
-  end
-end
-
--- Returns new texture and free current texture if loaded
-function load_texture(path, current_texture)
-
-  obs.obs_enter_graphics()
-
-  -- Free any existing image
-  if current_texture then
-    obs.gs_image_file_free(current_texture)
-  end
-
-  -- Loads and inits image for texture
-  local new_texture = nil
-  if string.len(path) > 0 then
-    new_texture = obs.gs_image_file()
-    obs.gs_image_file_init(new_texture, path)
-    if new_texture.loaded then
-      obs.gs_image_file_init_texture(new_texture)
-    else
-      obs.blog(obs.LOG_ERROR, "Cannot load image " .. path)
-      obs.gs_image_file_free(current_texture)
-      new_texture = nil
-    end
-  end
-
-  obs.obs_leave_graphics()
-  return new_texture
-end
-
------------------------------------------------ SOURCE INFO PROPERTIES -------------------------------------------------
-
--- Gets the property information of this source
-source_info.get_properties = function(data)
-  log_debug("Entering source_info.get_properties")
-
-  -- Main properties object
-  local props = data.properties:build_user_interface()
 
 --[[
 
@@ -1234,19 +1338,6 @@ source_info.get_properties = function(data)
   obs.obs_properties_add_float_slider(gprops, "palette_gamma", "Palette gamma exponent", 1.0, 2.2, 0.2)
   ]]
 
-  log_debug("Leaving source_info.get_properties")
-  return props
-end
-
--- Updates the internal data for this source upon settings change
-source_info.update = function(data, settings)
-  log_debug("Entering source_info.update")
-
-  -- Keeps a reference on the settings
-  data.settings = settings
-
-  -- Updates the mirrored values from what the user just changed or was read from the persistent user settings
-  data.properties:read_current_values(settings)
 
   --[[
   local pattern_path = obs.obs_data_get_string(settings, "pattern_path")
@@ -1264,32 +1355,6 @@ source_info.update = function(data, settings)
   data.palette_gamma = obs.obs_data_get_double(settings, "palette_gamma")
   ]]
 
-  log_debug("Leaving source_info.update")
-end
-
-------------------------------------------------- SOURCE INFO RENDER ---------------------------------------------------
-
--- Called when rendering the source with the graphics subsystem
-source_info.video_render = function(data)
-
-  -- Retrieves the size of the original source (not the displayed size)
-  --local parent = obs.obs_filter_get_parent(data.source)
-  --data.width = obs.obs_source_get_base_width(parent)
-  --data.height = obs.obs_source_get_base_height(parent)
-
-  -- Retrieves the size of the original source (not the displayed size)
-  local parent = obs.obs_filter_get_parent(data.source)
-  local width = obs.obs_source_get_base_width(parent)
-  local height = obs.obs_source_get_base_height(parent)
-  data.properties:set_value("image_size", {width, height})
-
-  obs.obs_source_process_filter_begin(data.source, obs.GS_RGBA, obs.OBS_NO_DIRECT_RENDERING)
-
-  -- Effect parameters initialization
-  --obs.gs_effect_set_int(data.params.width, data.width)
-  --obs.gs_effect_set_int(data.params.height, data.height)
-
-  data.properties:write_effect_parameters()
 
   --[[
   obs.gs_effect_set_float(data.params.gamma, data.gamma)
@@ -1305,9 +1370,6 @@ source_info.video_render = function(data)
                                 data.params.palette_size, data.nanoseconds)
   obs.gs_effect_set_float(data.params.palette_gamma, data.palette_gamma)
   ]]
-
-  obs.obs_source_process_filter_end(data.source, data.effect, width, height)
-end
 
 
 --[[
@@ -1347,61 +1409,6 @@ end
 
         obs.gs_stage_texture(stage_surface, obs.gs_texrender_get_texture(render_texture))
 
-    else:
-
-      res,data,linesize = obs.gs_stagesurface_map(stage_surface)
-
-      if res:
-
-        bitmap = bytearray(source_width*source_height*4)
-        for y in range(source_height):
-          bitmap[y*source_width*4 : (y+1)*source_width*4] = data[y*linesize : y*linesize + source_width*4]
-
-        obs.gs_stagesurface_unmap(stage_surface)
-        
-        image = Image.frombuffer("RGBA", (source_width,source_height), bitmap)
-        cv_image = cv2.cvtColor(np.asarray(image), cv2.COLOR_RGB2GRAY)
-
-        faces = detector(cv_image)
-
-        for face in faces:
-            x1 = face.left() # left point
-            y1 = face.top() # top point
-            x2 = face.right() # right point
-            y2 = face.bottom() # bottom point
-            # Draw a rectangle
-            # cv2.rectangle(img=img, pt1=(x1, y1), pt2=(x2, y2), color=(0, 255, 0), thickness=4)
-
-            landmarks = predictor(image=cv_image, box=face)
-            for i in range(67):
-              x = landmarks.part(i).x
-              y = landmarks.part(i).y
-              cv2.circle(img=cv_image, center=(x, y), radius=2, color=(0, 255, 0), thickness=-1)
-
-        global counter
-        counter = counter - 1
-        if counter <= 0:
-          counter = 100
-
-          print("width:", obs.gs_stagesurface_get_width(stage_surface))
-          print("height:", obs.gs_stagesurface_get_height(stage_surface))
-          print("linesize:", linesize)
-          print("data:", data)
-          print("data.hex():", data.hex())
-          #print("len(data):", len(data))
-          print("type(data):", type(data))
-          print("bitmap.hex():", bitmap.hex())
-          print("cv_image:", cv_image)
-          print("faces:", faces)
-          cv2.imshow(winname="Face", mat=cv_image)
-
-      obs.gs_stagesurface_destroy(stage_surface)
-      stage_surface = None
-      obs.gs_texrender_destroy(render_texture)
-      render_texture = None
-
-    obs.obs_leave_graphics()
-    obs.obs_source_release(source)
 
 
 ]]
