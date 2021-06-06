@@ -121,7 +121,7 @@ LOG_LEVELS = {ERROR=obs.LOG_ERROR,     [obs.LOG_ERROR]    = "ERROR",
               DEBUG=obs.LOG_DEBUG,     [obs.LOG_DEBUG]    = "DEBUG"}
 
 --- Global default log level
-log_level = LOG_LEVELS.DEBUG
+log_level = LOG_LEVELS.WARNING
 
 --- Main log function (do not use directly) with parameter `level` to track if we are at level 0 (no quotes on string)
 --- and avoid infinite recursions, multiple arguments `...` displayed with spaces between them (python-like)
@@ -313,7 +313,6 @@ function Property:write_effect_parameters()
 
 end
 
-
 --- Retrieves the values of the data settings internally
 --- @param settings userdata Data settings object of type obs_data_t
 function Property:read_current_values(settings)
@@ -329,10 +328,31 @@ function Property:read_current_values(settings)
   elseif self.type == PROPERTY_TYPES.VEC2 then
     local val1 = obs.obs_data_get_double(settings, self.name .. "_1")
     local val2 = obs.obs_data_get_double(settings, self.name .. "_2")
-    self.value = obs.vec2()
-    obs.vec2_set(self.value, val1, val2)
+    self:set_value({val1, val2})
   end
 end
+
+--- Gets the internally stored values as a native type or table for composite values
+--- @return any value
+function Property:get_value()
+  if self.type == PROPERTY_TYPES.VEC2 then
+    return {self.value.x, self.value.y}
+  else
+    return self.value
+  end
+end
+
+--- Sets the internally stored values given as a native type or table for composite values
+--- @param value any
+function Property:set_value(value)
+  if self.type == PROPERTY_TYPES.VEC2 then
+    self.value = obs.vec2()
+    obs.vec2_set(self.value, value[1], value[2])
+  else
+    self.value = value
+  end
+end
+
 
 --- Stores the current internal values in the data settings
 --- @param settings userdata Data settings object of type obs_data_t
@@ -357,8 +377,12 @@ end
 --- @param obs_properties userdata List of OBS properties to create GUI in
 --- @return userdata|table obs_property  Created OBS structure of type obs_property_t
 function Property:build_user_interface(obs_properties)
-  log_debug("Building user interface for", self.name)
 
+  -- Just in case
+  if not self.is_editable then return nil end
+
+  -- The return value is either directly a single OBS property object or a table of them
+  log_debug("Building user interface for", self.name)
   local obs_property = {}
 
   if self.type == PROPERTY_TYPES.INT and self.list and #self.list > 0 then -- TODO other types
@@ -480,6 +504,7 @@ function PropertyList:new(o)
   o.properties = {}
   o.index = {}
   o.groups = {}
+  o.visibility = {}
   return o
 end
 
@@ -491,9 +516,16 @@ function PropertyList:add(property)
   table.insert(self.properties, property)
   self.index[property.name] = property
   if #self.groups > 0 then
+
+    -- Count property in current group
     local group = self.groups[#self.groups]
     log_debug("Adding", property.name, "to group", group.name)
     group.properties_count = group.properties_count + 1
+
+    -- Set visibility of added property to follow group check
+    if group.is_checkable then
+      self:add_visibility_condition(property.name, group.name, "==", true)
+    end
   end
   return property
 end
@@ -654,12 +686,21 @@ end
 
 -- Properties "modified callback" to set visible flags of the displayed properties
 function PropertyList:property_modified_callback(obs_properties, obs_property, settings, name)
+  log_debug("Entering PropertyList:property_modified_callback for", name)
 
-  self:read_current_values(settings)
+  -- Retrieves value that just changed
+  self.index[name]:read_current_values(settings)
+
+  -- Sets visible flags on OBS properties
   self:evaluate_visibility()
 
   --self:write_current_values(settings)
-  return true
+  log_debug("Leaving PropertyList:property_modified_callback for", name)
+
+  -- Returns true to refresh GUI
+  if not self.index[name].is_slider then
+    return true
+  end
 end
 
 --- Builds graphical user interface in OBS structure of type obs_properties_t
@@ -674,29 +715,29 @@ function PropertyList:build_user_interface(obs_properties, start, count)
   start = start or 1
   count = count or #self.properties
 
-  -- Main loop to process flat list of properties
+  -- Main loop to process flat list of properties and groups
   local index = start
   while index < start+count do
     local property = self.properties[index]
-    if property.is_editable then
 
-      -- Creates the editable OBS property
+    -- Creates the editable OBS property GUI
+    if property.is_editable then
       local obs_property = property:build_user_interface(obs_properties)
 
-      -- Creates the OBS properties of a group recursively
-      if property.type == PROPERTY_TYPES.GROUP then
-        self:build_user_interface(property.obs_properties, index+1, property.properties_count)
-        index = index + property.properties_count
-      end
-
-      -- Sets the modified callback (obs_property may be a table e.g. for vec2)
+      -- Sets the modified callback (obs_property may be a table e.g. for vec2) for visibility
       for _,p in ipairs(type(obs_property)=="table" and obs_property or {obs_property}) do
         obs.obs_property_set_modified_callback(p, function(props, prop, settings)
-          self:property_modified_callback(props, prop, settings, property.name) return true end)
+          return self:property_modified_callback(props, prop, settings, property.name) end)
       end
-
-      index = index + 1
     end
+
+    -- Creates the OBS properties of a group recursively for the next values of index
+    if property.type == PROPERTY_TYPES.GROUP then
+      self:build_user_interface(property.obs_properties, index+1, property.properties_count)
+      index = index + property.properties_count
+    end
+
+    index = index + 1
   end
 
   return obs_properties
@@ -744,11 +785,8 @@ end
 --- @param name string Property name
 --- @return any value
 function PropertyList:get_value(name)
-  if self.index[name] then
-    return self.index[name].value
-  else
-    return nil
-  end
+  assert(self.index[name], "Cannot find property " .. name .. " for get_value()")
+  return self.index[name]:get_value()
 end
 
 --- Stores the current internal values in the data settings
@@ -765,9 +803,8 @@ end
 --- @param name  string Property name
 --- @param value any    Value to set
 function PropertyList:set_value(name, value)
-  if self.index[name] then
-    self.index[name].value = value
-  end
+  assert(self.index[name], "Cannot find property " .. name .. " for set_value()")
+  self.index[name]:set_value(value)
 end
 
 --- Adds a condition for visibility
@@ -784,7 +821,7 @@ function PropertyList:add_visibility_condition(property_names, condition_propert
       self.visibility[name] = {}
     end
 
-    -- Inserts condition as simple array
+    -- Inserts condition as a simple array
     table.insert(self.visibility[name], {condition_property_name, operator, value})
 
   end
@@ -849,14 +886,23 @@ PIXELATION_ALGORITHMS = {SUBSAMPLING=1, [1]="Sub-sampling", -- No interpolation,
 PIXELATION_TYPES =      {BLOCK=1,       [1]="Pixel blocks", -- Downscale defined as blocks of pixels
                          RESOLUTION=2,  [2]="Resolution"}   -- Downscale to target resolution
 
+MAIN_PRESETS = {{"Custom", 0}, {"CPC Mode 0",1}, {"CPC Mode 1",1}}  -- TODO now for GUI only, transform to clean enum
+
+-- Global script properties (log_level see above)
+default_main_preset = 0   -- TODO redefine
+default_usage_mode = USAGE_MODES.BASIC
+
+-- Builds the global PropertyList for the script
 function build_script_property_list()
   local list = PropertyList:new()
 
   list:begin_group("Global settings")
 
-  list:add_int_list("default_usage_mode", USAGE_MODES.BASIC, "Default usage mode", USAGE_MODES, true)
+  list:add_int_list("default_usage_mode", default_usage_mode, "Default usage mode", USAGE_MODES, true)
 
-  list:add_int_list("log_level", LOG_LEVELS.INFO, "Log level", LOG_LEVELS, true)
+  list:add_int_list("default_main_preset", default_main_preset, "Default main preset", MAIN_PRESETS, false)
+
+  list:add_int_list("log_level", log_level, "Log level", LOG_LEVELS, true)
 
   list:end_group()
 
@@ -864,7 +910,7 @@ function build_script_property_list()
   return list
 end
 
---- Returns the set of persistent properties as a PropertyList
+-- Builds the global PropertyList for the source info
 function build_source_property_list()
   local list = PropertyList:new()
 
@@ -872,12 +918,9 @@ function build_source_property_list()
   list:begin_group("Global")
 
   list:add_int_list("usage_mode", default_usage_mode, "Usage mode", USAGE_MODES, true)
+  list:add_int_list("main_preset", default_main_preset, "Main preset", MAIN_PRESETS, false)
 
   list:end_group()
-
-  list:begin_group("Second group checkable", "dummy", true)
-  list:end_group()
-
 
   -- Pixelation group
   list:begin_group("Pixelation", "pixelation", true)
@@ -886,12 +929,12 @@ function build_source_property_list()
   list:add_int_list("pixelation_type", PIXELATION_TYPES.BLOCK, "Pixelation type", PIXELATION_TYPES, true)
 
   list:add_vec2("pixelation_block_size", 2, {"Pixel blocks width","Pixel blocks height"}, 1, 20, 1, true)
-  list:add_vec2("pixelation_resolution", {320,200}, {"Resolution width","Resolution height"}, 10, 1000, 10, false)
+  list:add_vec2("pixelation_resolution", {320,200}, {"Resolution width","Resolution height"}, 1, 1000, 1, true)
 
   list:add_visibility_condition("pixelation_block_size", "pixelation_type", "=", PIXELATION_TYPES.BLOCK)
   list:add_visibility_condition("pixelation_resolution", "pixelation_type", "=", PIXELATION_TYPES.RESOLUTION)
 
-  list:add_visibility_condition({"pixelation_block_size", "pixelation_resolution", "pixelation_type", "pixelation_algorithm"}, "pixelation", "=", true)
+  --list:add_visibility_condition({"pixelation_block_size", "pixelation_resolution", "pixelation_type", "pixelation_algorithm"}, "pixelation", "=", true)
 
   list:end_group()
 
@@ -956,9 +999,6 @@ end
 -- List of properties as PropertyList for the main script functions (not source_info part)
 properties = build_script_property_list()
 
--- Default values for source creation
-default_usage_mode = USAGE_MODES.BASIC
-
 -- Returns the description to be displayed in the Scripts window
 function script_description()
 
@@ -1009,8 +1049,8 @@ function script_update(settings)
   properties:read_current_values(settings)
   log_level = properties:get_value("log_level")
   default_usage_mode = properties:get_value("default_usage_mode")
+  default_main_preset = properties:get_value("default_main_preset")
 
-  --log_debug("Properties:", tostring(properties))
   log_debug("End script_update")
 end
 
@@ -1046,8 +1086,8 @@ source_info.create = function(settings, source)
   -- Initializes the custom data table
   local data = {}
   data.source = source -- Keeps a reference to this filter as a source object
-  data.width = 1       -- Dummy value during initialization phase
-  data.height = 1      -- Dummy value during initialization phase
+  --data.width = 1       -- Dummy value during initialization phase
+  --data.height = 1      -- Dummy value during initialization phase
 
   -- Compiles the effect
   obs.obs_enter_graphics()
@@ -1066,10 +1106,13 @@ source_info.create = function(settings, source)
   -- Creates the list of properties
   data.properties = build_source_property_list()
 
+  -- Adds the non-persistent, non-editable properties
+  data.properties:add_vec2("image_size", {1,1})
+
   -- Retrieves the common effect uniform variables
-  data.params = {}
-  data.params.width = obs.gs_effect_get_param_by_name(data.effect, "width")
-  data.params.height = obs.gs_effect_get_param_by_name(data.effect, "height")
+  --data.params = {}
+  --data.params.width = obs.gs_effect_get_param_by_name(data.effect, "width")
+  --data.params.height = obs.gs_effect_get_param_by_name(data.effect, "height")
 
   -- Retrieves the effect uniform variables related to the properties
   data.properties:read_effect_parameters(data.effect)
@@ -1094,12 +1137,14 @@ end
 
 -- Returns the width of the source
 source_info.get_width = function(data)
-  return data.width
+  --return data.width
+  return data.properties:get_value("image_size")[1]
 end
 
 -- Returns the height of the source
 source_info.get_height = function(data)
-  return data.height
+  --return data.height
+  return data.properties:get_value("image_size")[2]
 end
 
 -- Called each frame for GIF animation
@@ -1162,34 +1207,6 @@ end
 
 ----------------------------------------------- SOURCE INFO PROPERTIES -------------------------------------------------
 
-
--- Properties "modified callback" to set visible flags of the displayed properties
-function set_properties_visibility(props, property, settings)
-
-  -- Flags
-  local pattern = string.len(obslua.obs_data_get_string(settings, "pattern_path")) > 0
-  local palette = string.len(obslua.obs_data_get_string(settings, "palette_path")) > 0
-
-  obs.obs_property_set_visible(obs.obs_properties_get(props, "pattern_gamma"), pattern)
-  obs.obs_property_set_visible(obs.obs_properties_get(props, "palette_gamma"), palette)
-
-  -- Flags and values
-  local pixelation = obs.obs_data_get_bool(settings, "pixelation")
-  local pixelation_type = obs.obs_data_get_int(settings, "pixelation_type")
-
-  -- Properties
-  local data = {["pixelation_algorithm"] = pixelation, ["pixelation_type"] = pixelation,
-                ["pixelation_block_width"] = pixelation and pixelation_type==0,
-                ["pixelation_block_height"] = pixelation and pixelation_type==0,
-                ["pixelation_resolution_width"] = pixelation and pixelation_type>=1,
-                ["pixelation_resolution_height"] = pixelation and pixelation_type>=1}
-  for name,flag in pairs(data) do
-    obs.obs_property_set_visible(obs.obs_properties_get(props, name), flag)
-  end
-
-  return true
-end
-
 -- Gets the property information of this source
 source_info.get_properties = function(data)
   log_debug("Entering source_info.get_properties")
@@ -1198,35 +1215,6 @@ source_info.get_properties = function(data)
   local props = data.properties:build_user_interface()
 
 --[[
-
-  -- Pixelation group
-  local gprops = obs.obs_properties_create()
-  local p = obs.obs_properties_add_group(props, "pixelation", "Pixelation", obs.OBS_GROUP_CHECKABLE, gprops)
-  obs.obs_property_set_modified_callback(p, set_properties_visibility)
-
-  -- Interpolation algorithm
-  p = obs.obs_properties_add_list(gprops, "pixelation_algorithm", "Interpolation algorithm",
-                                  obs.OBS_COMBO_TYPE_LIST, obs.OBS_COMBO_FORMAT_INT)
-  for n,v in pairs({[0]="Sub-sampling", [1]="Bilinear", [2]="Bicubic", [3]="Lanczos"}) do
-    obs.obs_property_list_add_int(p, v, n)
-  end
-  obs.obs_property_set_modified_callback(p, set_properties_visibility)
-
-  -- Pixelation type
-  p = obs.obs_properties_add_list(gprops, "pixelation_type", "Pixelation type",
-                                  obs.OBS_COMBO_TYPE_LIST, obs.OBS_COMBO_FORMAT_INT)
-  for n,v in pairs({[0]="Pixel blocks", [1]="Resolution"}) do
-    obs.obs_property_list_add_int(p, v, n)
-  end
-  obs.obs_property_set_modified_callback(p, set_properties_visibility)
-
-  -- Pixelation parameters for pixel blocks
-  obs.obs_properties_add_int_slider(gprops, "pixelation_block_width", "Block width", 1, 20, 1)
-  obs.obs_properties_add_int_slider(gprops, "pixelation_block_height", "Block height", 1, 20, 1)
-
-  -- Pixelation parameters for resolution
-  obs.obs_properties_add_int(gprops, "pixelation_resolution_width", "Resolution width", 1, 1024, 1)
-  obs.obs_properties_add_int(gprops, "pixelation_resolution_height", "Resolution height", 1, 1024, 1)
 
   -- Pattern group
   gprops = obs.obs_properties_create()
@@ -1252,14 +1240,15 @@ end
 
 -- Updates the internal data for this source upon settings change
 source_info.update = function(data, settings)
-  data.gamma = obs.obs_data_get_double(settings, "gamma")
-  data.gamma_shift = obs.obs_data_get_double(settings, "gamma_shift")
+  log_debug("Entering source_info.update")
 
   -- Keeps a reference on the settings
   data.settings = settings
 
+  -- Updates the mirrored values from what the user just changed or was read from the persistent user settings
   data.properties:read_current_values(settings)
 
+  --[[
   local pattern_path = obs.obs_data_get_string(settings, "pattern_path")
   if data.loaded_pattern_path ~= pattern_path then
     data.pattern = load_texture(pattern_path, data.pattern)
@@ -1273,22 +1262,32 @@ source_info.update = function(data, settings)
     data.loaded_palette_path = palette_path
   end
   data.palette_gamma = obs.obs_data_get_double(settings, "palette_gamma")
+  ]]
 
+  log_debug("Leaving source_info.update")
 end
 
 ------------------------------------------------- SOURCE INFO RENDER ---------------------------------------------------
 
 -- Called when rendering the source with the graphics subsystem
 source_info.video_render = function(data)
+
+  -- Retrieves the size of the original source (not the displayed size)
+  --local parent = obs.obs_filter_get_parent(data.source)
+  --data.width = obs.obs_source_get_base_width(parent)
+  --data.height = obs.obs_source_get_base_height(parent)
+
+  -- Retrieves the size of the original source (not the displayed size)
   local parent = obs.obs_filter_get_parent(data.source)
-  data.width = obs.obs_source_get_base_width(parent)
-  data.height = obs.obs_source_get_base_height(parent)
+  local width = obs.obs_source_get_base_width(parent)
+  local height = obs.obs_source_get_base_height(parent)
+  data.properties:set_value("image_size", {width, height})
 
   obs.obs_source_process_filter_begin(data.source, obs.GS_RGBA, obs.OBS_NO_DIRECT_RENDERING)
 
   -- Effect parameters initialization
-  obs.gs_effect_set_int(data.params.width, data.width)
-  obs.gs_effect_set_int(data.params.height, data.height)
+  --obs.gs_effect_set_int(data.params.width, data.width)
+  --obs.gs_effect_set_int(data.params.height, data.height)
 
   data.properties:write_effect_parameters()
 
@@ -1307,7 +1306,7 @@ source_info.video_render = function(data)
   obs.gs_effect_set_float(data.params.palette_gamma, data.palette_gamma)
   ]]
 
-  obs.obs_source_process_filter_end(data.source, data.effect, data.width, data.height)
+  obs.obs_source_process_filter_end(data.source, data.effect, width, height)
 end
 
 

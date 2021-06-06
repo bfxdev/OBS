@@ -17,8 +17,9 @@ uniform float4x4 ViewProj; // View-projection matrix used in the vertex shader
 uniform Texture2D image;   // Texture containing the source picture
 
 // Size of the source picture
-uniform int width;
-uniform int height;
+uniform float2 image_size;
+//uniform int width;
+//uniform int height;
 
 // Pixelation algorithms
 // uniform bool pixelation = true;
@@ -176,9 +177,9 @@ float4 pixel_shader_passthrough(pixel_data pixel) : TARGET
 
 float4 pixel_shader_pixelation(pixel_data pixel) : TARGET
 {
-    float2 target_resolution = float2(width, height);
+    float2 target_resolution = image_size;
     if (pixelation_type == PIXELATION_TYPE_BLOCK)
-        target_resolution = float2(width, height) / pixelation_block_size;
+        target_resolution = image_size / pixelation_block_size;
     else if (pixelation_type == PIXELATION_TYPE_RESOLUTION)
         target_resolution = pixelation_resolution;
 
