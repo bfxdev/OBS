@@ -19,20 +19,24 @@ uniform Texture2D image;   // Texture containing the source picture
 // Size of the source picture
 uniform float2 image_size;
 
-uniform Texture2D pixelation_image;
-//uniform float2 pixelation_image_size;
+// Pixelation group active
+uniform bool pixelation_active = true;
 
 // Pixelation algorithms
-// uniform bool pixelation = true;
+#define PIXELATION_ALGORITHM_SUBSAMPLING 1
 uniform int pixelation_algorithm = 1;
 
 // Pixelation types
-#define PIXELATION_TYPE_BLOCK      1
-#define PIXELATION_TYPE_RESOLUTION 2
-uniform int pixelation_type = PIXELATION_TYPE_RESOLUTION;
+//#define PIXELATION_TYPE_BLOCK      1
+//#define PIXELATION_TYPE_RESOLUTION 2
+//uniform int pixelation_type = PIXELATION_TYPE_RESOLUTION;
 
-uniform float2 pixelation_block_size = {4.0,4.0};
-uniform float2 pixelation_resolution = {320.0,200.0};
+//uniform float2 pixelation_block_size = {4.0,4.0};
+//uniform float2 pixelation_resolution = {320.0,200.0};
+
+// Pixelation result texture
+uniform Texture2D pixelation_image;
+uniform float2 pixelation_image_size;
 
 
 /*
@@ -177,7 +181,7 @@ float4 pixel_shader_passthrough(pixel_data pixel) : TARGET
 
 float4 pixel_shader_luminance(pixel_data pixel) : TARGET
 {
-  float4 source_sample = image.Sample(linear_clamp, pixel.uv);
+  float4 source_sample = image.Sample(point_clamp, pixel.uv);
   float luminance = dot(source_sample.rgb, float3(0.299, 0.587, 0.114));
   return float4(luminance.xxx, source_sample.a);
 }
@@ -185,26 +189,28 @@ float4 pixel_shader_luminance(pixel_data pixel) : TARGET
 
 float4 pixel_shader_pixelation(pixel_data pixel) : TARGET
 {
-  float2 target_resolution = image_size;
+  /*float2 target_resolution = image_size;
   if (pixelation_type == PIXELATION_TYPE_BLOCK)
     target_resolution = image_size / pixelation_block_size;
   else if (pixelation_type == PIXELATION_TYPE_RESOLUTION)
     target_resolution = pixelation_resolution;
+*/
+  float2 uv = floor(pixel.uv*pixelation_image_size)/pixelation_image_size;
 
-  float4 source_sample = image.Sample(linear_clamp, floor(pixel.uv*target_resolution)/target_resolution);
+  float4 source_sample = image.Sample(point_clamp, uv);
 
-  // return float4(pixel.uv.x, pixel.uv.y, 0, 1);
+  //return float4(pixel.uv.x, pixel.uv.y, 0, 1);
   return source_sample;
 }
 
 float4 pixel_shader_render(pixel_data pixel) : TARGET
 {
-  float4 source_sample = pixelation_image.Sample(linear_clamp, pixel.uv);
+  float4 source_sample = pixelation_image.Sample(point_clamp, pixel.uv);
   return source_sample;
 }
 
 
-technique Draw
+technique Drawxxx
 {
   pass
   {

@@ -178,13 +178,13 @@ function Property:new(type, name, default, is_persistent)
   -- Stores given parameters
   o.type = type or PROPERTY_TYPES.UNDEFINED
   o.name = name or "UNDEFINED NAME"
-  o.default = default or nil
+  o.default = default or "UNDEFINED"
   o.is_persistent = is_persistent==nil and false or is_persistent
 
   -- Additional members
   o.is_editable = false
   o.param = nil
-  o.value = o.default
+  o:set_value(default)
 
   return o
 end
@@ -842,20 +842,19 @@ function PropertyList:evaluate_visibility()
 
 end
 
-
 ------------------------------------------------ PROPERTIES DEFINITION -------------------------------------------------
 
 USAGE_MODES =           {BASIC=1,       [1]="Basic",
                          ADVANCED=2,    [2]="Advanced",
                          EXPERT=3,      [3]="Expert"}
 
-PIXELATION_ALGORITHMS = {SUBSAMPLING=1, [1]="Sub-sampling", -- No interpolation, one pixel color used per block
-                         BILINEAR=2,    [2]="Bilinear",     -- Bilinear interpolation
-                         BICUBIC=3,     [3]="Bicubic",      -- Bicubic interpolation
-                         LANCZOS=4,     [4]="Lanczos"}      -- Lanczos interpolation
+PIXELATION_ALGORITHMS = {SUBSAMPLING=1, [1]="Sub-sampling",     -- No interpolation, one pixel color used per block
+                         BILINEAR=2,    [2]="Bilinear",         -- Bilinear interpolation
+                         BICUBIC=3,     [3]="Bicubic",          -- Bicubic interpolation
+                         LANCZOS=4,     [4]="Lanczos"}          -- Lanczos interpolation
 
-PIXELATION_TYPES =      {BLOCK=1,       [1]="Pixel blocks", -- Downscale defined as blocks of pixels
-                         RESOLUTION=2,  [2]="Resolution"}   -- Downscale to target resolution
+PIXELATION_TYPES =      {BLOCK=1,       [1]="Pixel blocks",     -- Downscale defined as blocks of pixels
+                         RESOLUTION=2,  [2]="Resolution"}       -- Downscale to target resolution
 
 MAIN_PRESETS = {{"Custom", 0}, {"CPC Mode 0",1}, {"CPC Mode 1",1}}  -- TODO now for GUI only, transform to clean enum
 
@@ -894,7 +893,7 @@ function build_source_property_list()
   list:end_group()
 
   -- Pixelation group
-  list:begin_group("Pixelation", "pixelation", true)
+  list:begin_group("Pixelation", "pixelation_active", true)
   list:add_int_list("pixelation_algorithm", PIXELATION_ALGORITHMS.SUBSAMPLING, "Interpolation algorithm",
                     PIXELATION_ALGORITHMS, true)
   list:add_int_list("pixelation_type", PIXELATION_TYPES.BLOCK, "Pixelation type", PIXELATION_TYPES, true)
@@ -905,7 +904,8 @@ function build_source_property_list()
   list:add_visibility_condition("pixelation_block_size", "pixelation_type", "=", PIXELATION_TYPES.BLOCK)
   list:add_visibility_condition("pixelation_resolution", "pixelation_type", "=", PIXELATION_TYPES.RESOLUTION)
 
-  --list:add_visibility_condition({"pixelation_block_size", "pixelation_resolution", "pixelation_type", "pixelation_algorithm"}, "pixelation", "=", true)
+  -- Pixelation result
+  list:add_vec2("pixelation_image_size", {320,200})
 
   list:end_group()
 
@@ -1039,7 +1039,6 @@ source_info.update = function(data, settings)
   log_debug("Leaving source_info.update")
 end
 
-
 -- Creates the implementation data for the source
 source_info.create = function(settings, source)
   log_debug("Entering source_info.create")
@@ -1126,15 +1125,51 @@ source_info.video_render = function(data)
   data.height = obs.obs_source_get_base_height(parent)
   data.properties:set_value("image_size", {data.width, data.height})
 
-  -- Pixelation texture rendering
+  ------------------------------------------- PIXELATION -------------------------------------------
+
+  -- Adapts resolution from user settings
+  local resolution = data.properties:get_value("pixelation_resolution")
+  local pixelation_type = data.properties:get_value("pixelation_type")
+  if pixelation_type == PIXELATION_TYPES.BLOCK then
+    local block_size = data.properties:get_value("pixelation_block_size")
+    resolution[1] = math.floor(data.width/block_size[1])
+    resolution[2] = math.floor(data.height/block_size[2])
+  end
+  data.properties:set_value("pixelation_image_size", resolution)
+
+  -- Chooses down-scale pixelation effect
+  local base_effect_type = nil
+  local technique_name = "Draw"
+  local pixelation_algorithm = data.properties:get_value("pixelation_algorithm")
+  if pixelation_algorithm == PIXELATION_ALGORITHMS.SUBSAMPLING then
+    base_effect_type = obs.OBS_EFFECT_DEFAULT
+  elseif pixelation_algorithm == PIXELATION_ALGORITHMS.BILINEAR then
+    base_effect_type = obs.OBS_EFFECT_BILINEAR_LOWRES
+  elseif pixelation_algorithm == PIXELATION_ALGORITHMS.BICUBIC then
+    base_effect_type = obs.OBS_EFFECT_BICUBIC
+  elseif pixelation_algorithm == PIXELATION_ALGORITHMS.LANCZOS then
+    base_effect_type = obs.OBS_EFFECT_LANCZOS
+  end
+
+  local effect = base_effect_type and obs.obs_get_base_effect(base_effect_type) or data.effect
+
+  -- Sets additional parameters for Bicubic and Lanczos
+  if base_effect_type == obs.OBS_EFFECT_BICUBIC or base_effect_type == obs.OBS_EFFECT_BICUBIC then
+    --local param = obs.gs_effect_get_param_by_name(effect, "undistort_factor")
+    --obs.gs_effect_set_float(param, 2.0)
+    local dimension = obs.vec2()
+    obs.vec2_set(dimension, resolution[1], resolution[2])
+    param = obs.gs_effect_get_param_by_name(effect, "base_dimension")
+    obs.gs_effect_set_vec2(param, dimension)
+    obs.vec2_set(dimension, 1/resolution[1], 1/resolution[2])
+    param = obs.gs_effect_get_param_by_name(effect, "base_dimension_i")
+    obs.gs_effect_set_vec2(param, dimension)
+  end
+
+  -- Renders texture
   obs.gs_texrender_reset(data.pixelation_texture)
 
-  if obs.gs_texrender_begin(data.pixelation_texture, data.width, data.height) then
-
-    -- Clears the rendering area (TODO:necessary?)
-    local clear_color = obs.vec4()
-    obs.vec4_zero(clear_color)
-    obs.gs_clear(obs.GS_CLEAR_COLOR, clear_color, 0, 0)
+  if obs.gs_texrender_begin(data.pixelation_texture, resolution[1], resolution[2]) then
 
     --- Pass-through projection and blending parameters
     obs.gs_blend_state_push()
@@ -1142,23 +1177,10 @@ source_info.video_render = function(data)
     obs.gs_projection_push()
     obs.gs_ortho(0.0, data.width, 0.0, data.height, -100, 100)
 
-    -- Initializes specific effect technique
-    local pixelation_technique = obs.gs_effect_get_technique(data.effect, "Pixelation")
-    if pixelation_technique then
-      for pass = 0,obs.gs_technique_begin(pixelation_technique)-1 do
-        obs.gs_technique_begin_pass(pixelation_technique, pass)
-        data.properties:write_effect_parameters()
-
-
-        -- obs.obs_render_main_texture();
-        -- obs.obs_source_video_render(data.source);
-        obs.obs_source_video_render(target);
-        --obs.gs_draw(obs.GS_TRIS, 0, 3);
-        
-
-        obs.gs_technique_end_pass(pixelation_technique)
-      end
-      obs.gs_technique_end(pixelation_technique)
+    -- Initializes specific effect technique and perform passes
+    while obs.gs_effect_loop(effect, technique_name) do
+      data.properties:write_effect_parameters()
+      obs.obs_source_video_render(target)
     end
 
     -- Restores old states of the shader
