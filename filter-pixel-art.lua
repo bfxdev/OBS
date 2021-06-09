@@ -848,10 +848,8 @@ USAGE_MODES =           {BASIC=1,       [1]="Basic",
                          ADVANCED=2,    [2]="Advanced",
                          EXPERT=3,      [3]="Expert"}
 
-PIXELATION_ALGORITHMS = {SUBSAMPLING=1, [1]="Sub-sampling",     -- No interpolation, one pixel color used per block
-                         BILINEAR=2,    [2]="Bilinear",         -- Bilinear interpolation
-                         BICUBIC=3,     [3]="Bicubic",          -- Bicubic interpolation
-                         LANCZOS=4,     [4]="Lanczos"}          -- Lanczos interpolation
+PIXELATION_ALGORITHMS = {SUBSAMPLING=1, [1]="Nearest neighbors", -- No interpolation, one pixel color used per block
+                         BILINEAR=2,    [2]="Bilinear"}          -- Bilinear interpolation
 
 PIXELATION_TYPES =      {BLOCK=1,       [1]="Pixel blocks",     -- Downscale defined as blocks of pixels
                          RESOLUTION=2,  [2]="Resolution"}       -- Downscale to target resolution
@@ -1145,26 +1143,9 @@ source_info.video_render = function(data)
     base_effect_type = obs.OBS_EFFECT_DEFAULT
   elseif pixelation_algorithm == PIXELATION_ALGORITHMS.BILINEAR then
     base_effect_type = obs.OBS_EFFECT_BILINEAR_LOWRES
-  elseif pixelation_algorithm == PIXELATION_ALGORITHMS.BICUBIC then
-    base_effect_type = obs.OBS_EFFECT_BICUBIC
-  elseif pixelation_algorithm == PIXELATION_ALGORITHMS.LANCZOS then
-    base_effect_type = obs.OBS_EFFECT_LANCZOS
   end
 
   local effect = base_effect_type and obs.obs_get_base_effect(base_effect_type) or data.effect
-
-  -- Sets additional parameters for Bicubic and Lanczos
-  if base_effect_type == obs.OBS_EFFECT_BICUBIC or base_effect_type == obs.OBS_EFFECT_BICUBIC then
-    --local param = obs.gs_effect_get_param_by_name(effect, "undistort_factor")
-    --obs.gs_effect_set_float(param, 2.0)
-    local dimension = obs.vec2()
-    obs.vec2_set(dimension, resolution[1], resolution[2])
-    param = obs.gs_effect_get_param_by_name(effect, "base_dimension")
-    obs.gs_effect_set_vec2(param, dimension)
-    obs.vec2_set(dimension, 1/resolution[1], 1/resolution[2])
-    param = obs.gs_effect_get_param_by_name(effect, "base_dimension_i")
-    obs.gs_effect_set_vec2(param, dimension)
-  end
 
   -- Renders texture
   obs.gs_texrender_reset(data.pixelation_texture)
@@ -1201,98 +1182,6 @@ source_info.video_render = function(data)
 
   obs.obs_source_process_filter_tech_end(data.source, data.effect, data.width, data.height, "Render")
 end
-
---[[
-
-	gs_texrender_reset(texrender);
-
-	upload_raw_frame(tex, frame);
-
-	uint32_t cx = source->async_width;
-	uint32_t cy = source->async_height;
-
-	gs_effect_t *conv = obs->video.conversion_effect;
-	const char *tech_name =
-		select_conversion_technique(frame->format, frame->full_range);
-	gs_technique_t *tech = gs_effect_get_technique(conv, tech_name);
-
-	const bool success = gs_texrender_begin(texrender, cx, cy);
-
-	if (success) {
-		gs_enable_blending(false);
-
-		gs_technique_begin(tech);
-		gs_technique_begin_pass(tech, 0);
-
-		if (tex[0])
-			gs_effect_set_texture(
-				gs_effect_get_param_by_name(conv, "image"),
-				tex[0]);
-		if (tex[1])
-			gs_effect_set_texture(
-				gs_effect_get_param_by_name(conv, "image1"),
-				tex[1]);
-		if (tex[2])
-			gs_effect_set_texture(
-				gs_effect_get_param_by_name(conv, "image2"),
-				tex[2]);
-		if (tex[3])
-			gs_effect_set_texture(
-				gs_effect_get_param_by_name(conv, "image3"),
-				tex[3]);
-		set_eparam(conv, "width", (float)cx);
-		set_eparam(conv, "height", (float)cy);
-		set_eparam(conv, "width_d2", (float)cx * 0.5f);
-		set_eparam(conv, "height_d2", (float)cy * 0.5f);
-		set_eparam(conv, "width_x2_i", 0.5f / (float)cx);
-
-		struct vec4 vec0, vec1, vec2;
-		vec4_set(&vec0, frame->color_matrix[0], frame->color_matrix[1],
-			 frame->color_matrix[2], frame->color_matrix[3]);
-		vec4_set(&vec1, frame->color_matrix[4], frame->color_matrix[5],
-			 frame->color_matrix[6], frame->color_matrix[7]);
-		vec4_set(&vec2, frame->color_matrix[8], frame->color_matrix[9],
-			 frame->color_matrix[10], frame->color_matrix[11]);
-		gs_effect_set_vec4(
-			gs_effect_get_param_by_name(conv, "color_vec0"), &vec0);
-		gs_effect_set_vec4(
-			gs_effect_get_param_by_name(conv, "color_vec1"), &vec1);
-		gs_effect_set_vec4(
-			gs_effect_get_param_by_name(conv, "color_vec2"), &vec2);
-		if (!frame->full_range) {
-			gs_eparam_t *min_param = gs_effect_get_param_by_name(
-				conv, "color_range_min");
-			gs_effect_set_val(min_param, frame->color_range_min,
-					  sizeof(float) * 3);
-			gs_eparam_t *max_param = gs_effect_get_param_by_name(
-				conv, "color_range_max");
-			gs_effect_set_val(max_param, frame->color_range_max,
-					  sizeof(float) * 3);
-		}
-
-		gs_draw(GS_TRIS, 0, 3);
-
-		gs_technique_end_pass(tech);
-		gs_technique_end(tech);
-
-		gs_enable_blending(true);
-
-		gs_texrender_end(texrender);
-	}
-
-]]
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
