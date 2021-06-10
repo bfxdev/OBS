@@ -498,7 +498,7 @@ function PropertyList:add_int(name, default, description, min, max, step, is_sli
   local property = Property:new(PROPERTY_TYPES.INT, name, default or 0, is_persistent)
   if description then
     property:define_user_interface_numeric(description, long_description, min or -100, max or 100, step or 1,
-                                           is_slider==nil and true)
+                                           is_slider==nil and true or is_slider)
   end
   return self:add(property)
 end
@@ -519,7 +519,7 @@ function PropertyList:add_float(name, default, description, min, max, step, is_s
   local property = Property:new(PROPERTY_TYPES.FLOAT, name, default or 0.0, is_persistent)
   if description then
     property:define_user_interface_numeric(description, long_description, min or -1.0, max or 1.0, step or 0.01,
-                                           is_slider==nil and true)
+                                           is_slider==nil and true or is_slider)
   end
   return self:add(property)
 end
@@ -848,11 +848,14 @@ USAGE_MODES =           {BASIC=1,       [1]="Basic",
                          ADVANCED=2,    [2]="Advanced",
                          EXPERT=3,      [3]="Expert"}
 
-PIXELATION_ALGORITHMS = {SUBSAMPLING=1, [1]="Nearest neighbors", -- No interpolation, one pixel color used per block
-                         BILINEAR=2,    [2]="Bilinear"}          -- Bilinear interpolation
+PIXELATION_ALGORITHMS = {SUBSAMPLING=1, [1]="Nearest neighbor",        -- No interpolation
+                         BILINEAR=2,    [2]="Bilinear"}                -- Bilinear interpolation
 
-PIXELATION_TYPES =      {BLOCK=1,       [1]="Pixel blocks",     -- Downscale defined as blocks of pixels
-                         RESOLUTION=2,  [2]="Resolution"}       -- Downscale to target resolution
+PIXELATION_TYPES =      {BLOCK=1,       [1]="Pixel blocks dimensions", -- Specify width and height of pixel blocks
+                         BLOCK_RATIO=2, [2]="Pixel blocks ratio/size", -- Specify width and ratio of pixel blocks
+                         RESOLUTION=3,  [3]="Raw target resolution",   -- Raw target resolution, ratio unspecific
+                         HOMOGENEOUS=4, [4]="Homogeneous scale"}       -- Scale with kept aspect ratio and border
+
 
 MAIN_PRESETS = {{"Custom", 0}, {"CPC Mode 0",1}, {"CPC Mode 1",1}}  -- TODO now for GUI only, transform to clean enum
 
@@ -896,10 +899,18 @@ function build_source_property_list()
                     PIXELATION_ALGORITHMS, true)
   list:add_int_list("pixelation_type", PIXELATION_TYPES.BLOCK, "Pixelation type", PIXELATION_TYPES, true)
 
+  -- Block given by dimensions
   list:add_vec2("pixelation_block_size", 2, {"Pixel blocks width","Pixel blocks height"}, 1, 20, 1, true)
-  list:add_vec2("pixelation_resolution", {320,200}, {"Resolution width","Resolution height"}, 1, 1000, 1, true)
-
   list:add_visibility_condition("pixelation_block_size", "pixelation_type", "=", PIXELATION_TYPES.BLOCK)
+
+  -- Block given by ratio and size
+  list:add_float("pixelation_block_ratio", 1.5, "Pixel blocks aspect ratio", 0.1, 10, 0.01, true)
+  list:add_float("pixelation_block_diagonal", 2.0, "Pixel blocks diagonal size", 1.0, 50, 0.1, true)
+  list:add_visibility_condition({"pixelation_block_ratio", "pixelation_block_diagonal"},
+                                "pixelation_type", "=", PIXELATION_TYPES.BLOCK_RATIO)
+
+
+  list:add_vec2("pixelation_resolution", {320,200}, {"Resolution width","Resolution height"}, 1, 1000, 1, true)
   list:add_visibility_condition("pixelation_resolution", "pixelation_type", "=", PIXELATION_TYPES.RESOLUTION)
 
   -- Pixelation result
@@ -1132,6 +1143,13 @@ source_info.video_render = function(data)
     local block_size = data.properties:get_value("pixelation_block_size")
     resolution[1] = math.floor(data.width/block_size[1])
     resolution[2] = math.floor(data.height/block_size[2])
+  elseif pixelation_type == PIXELATION_TYPES.BLOCK_RATIO then
+    local ratio = data.properties:get_value("pixelation_block_ratio")
+    local diagonal = data.properties:get_value("pixelation_block_diagonal")
+    local block_size_y = math.sqrt(diagonal*diagonal / (1 + ratio*ratio))
+    local block_size_x = ratio*block_size_y
+    resolution[1] = math.floor(data.width/block_size_x)
+    resolution[2] = math.floor(data.height/block_size_y)
   end
   data.properties:set_value("pixelation_image_size", resolution)
 
