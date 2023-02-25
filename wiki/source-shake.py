@@ -1,4 +1,4 @@
-import obspython as obs
+import  obspython as obs
 import math, time
 
 # Description displayed in the Scripts dialog window

@@ -905,10 +905,9 @@ function build_source_property_list()
 
   -- Block given by ratio and size
   list:add_float("pixelation_block_ratio", 1.5, "Pixel blocks aspect ratio", 0.1, 10, 0.01, true)
-  list:add_float("pixelation_block_diagonal", 2.0, "Pixel blocks diagonal size", 1.0, 50, 0.1, true)
+  list:add_float("pixelation_block_diagonal", 2.0, "Pixel blocks diagonal size", 1.0, 100, 0.1, true)
   list:add_visibility_condition({"pixelation_block_ratio", "pixelation_block_diagonal"},
                                 "pixelation_type", "=", PIXELATION_TYPES.BLOCK_RATIO)
-
 
   list:add_vec2("pixelation_resolution", {320,200}, {"Resolution width","Resolution height"}, 1, 1000, 1, true)
   list:add_visibility_condition("pixelation_resolution", "pixelation_type", "=", PIXELATION_TYPES.RESOLUTION)
@@ -1154,16 +1153,14 @@ source_info.video_render = function(data)
   data.properties:set_value("pixelation_image_size", resolution)
 
   -- Chooses down-scale pixelation effect
-  local base_effect_type = nil
+  local effect = data.effect
   local technique_name = "Draw"
   local pixelation_algorithm = data.properties:get_value("pixelation_algorithm")
   if pixelation_algorithm == PIXELATION_ALGORITHMS.SUBSAMPLING then
-    base_effect_type = obs.OBS_EFFECT_DEFAULT
+    effect = obs.obs_get_base_effect(obs.OBS_EFFECT_DEFAULT)
   elseif pixelation_algorithm == PIXELATION_ALGORITHMS.BILINEAR then
-    base_effect_type = obs.OBS_EFFECT_BILINEAR_LOWRES
+    effect = obs.obs_get_base_effect(obs.OBS_EFFECT_BILINEAR_LOWRES)
   end
-
-  local effect = base_effect_type and obs.obs_get_base_effect(base_effect_type) or data.effect
 
   -- Renders texture
   obs.gs_texrender_reset(data.pixelation_texture)

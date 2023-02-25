@@ -1,0 +1,87 @@
+
+/* Mapping re-implemented and ignored functions
+
+SCRIPTING DOC: script_path() -->  in obs-scripting-lua.c
+
+SCRIPTING DOC: timer_add(callback, milliseconds) --> timer_add in obs-scripting-lua.c (not in C API see defer_call_post)
+SCRIPTING DOC: timer_remove(callback) --> timer_remove in obs-scripting-lua.c (not in C API see remove_current_callback)
+
+SCRIPTING DOC: obs_register_source(info) --> obs_lua_register_source in obs-scripting-lua-source.c
+
+SCRIPTING DOC: obs_enum_sources() --> enum_sources in obs-scripting-lua.c
+SCRIPTING DOC: obs_scene_enum_items(scene) --> scene_enum_items in obs-scripting-lua.c
+SCRIPTING DOC: obs_add_main_render_callback(callback) --> obs_lua_add_main_render_callback in obs-scripting-lua.c
+SCRIPTING DOC: obs_remove_main_render_callback(callback) --> obs_lua_remove_main_render_callback in obs-scripting-lua.c
+SCRIPTING DOC: signal_handler_connect(handler, signal, callback) --> obs_lua_signal_handler_connect in obs-scripting-lua.c
+SCRIPTING DOC: signal_handler_disconnect(handler, signal, callback) --> obs_lua_signal_handler_disconnect in obs-scripting-lua.c
+SCRIPTING DOC: signal_handler_connect_global(handler, callback) --> obs_lua_signal_handler_connect_global in obs-scripting-lua.c
+SCRIPTING DOC: signal_handler_disconnect_global(handler, callback) --> obs_lua_signal_handler_disconnect_global in obs-scripting-lua.c
+SCRIPTING DOC: obs_hotkey_register_frontend(name, description, callback) --> hotkey_register_frontend in obs-scripting-lua.c
+SCRIPTING DOC: obs_hotkey_unregister(callback) --> hotkey_unregister in obs-scripting-lua.c
+SCRIPTING DOC: obs_properties_add_button(properties, setting_name, text, callback) --> properties_add_button in obs-scripting-lua.c
+SCRIPTING DOC: source_list_release(source_list) --> source_list_release in obs-scripting-lua.c
+SCRIPTING DOC: remove_current_callback() --> remove_current_callback in obs-scripting-lua.c (not in C API see remove_script_callback)
+SCRIPTING DOC: sceneitem_list_release(item_list) --> sceneitem_list_release in obs-scripting-lua.c
+SCRIPTING DOC: calldata_source(calldata, name) --> calldata_source in obs-scripting-lua.c
+SCRIPTING DOC: calldata_sceneitem(calldata, name) --> calldata_sceneitem in obs-scripting-lua.c
+
+NO DOC: script_log(TBD) --> lua_script_log in obs-scripting-lua.c
+C DOC: obs_source_enum_filters(source, callback, param) --> source_enum_filters in obs-scripting-lua.c
+NO DOC: obs_add_tick_callback(TBD) --> obs_lua_add_tick_callback in obs-scripting-lua.c
+NO DOC: obs_remove_tick_callback(TBD) --> obs_lua_remove_tick_callback in obs-scripting-lua.c
+C DOC: obs_property_set_modified_callback(p, modified) --> property_set_modified_callback in obs-scripting-lua.c
+
+C DOC: obs_frontend_get_scene_names(TBD) -->  get_scene_names in obs-scripting-lua-frontend.c
+C DOC: obs_frontend_get_scenes(TBD) -->  get_scenes in obs-scripting-lua-frontend.c
+C DOC: obs_frontend_get_current_scene(TBD) -->  get_current_scene in obs-scripting-lua-frontend.c
+C DOC: obs_frontend_set_current_scene(TBD) -->  set_current_scene in obs-scripting-lua-frontend.c
+C DOC: obs_frontend_get_transitions(TBD) -->  get_transitions in obs-scripting-lua-frontend.c
+C DOC: obs_frontend_get_current_transition(TBD) -->  get_current_transition in obs-scripting-lua-frontend.c
+C DOC: obs_frontend_set_current_transition(TBD) -->  set_current_transition in obs-scripting-lua-frontend.c
+C DOC: obs_frontend_get_scene_collections(TBD) -->  get_scene_collections in obs-scripting-lua-frontend.c
+C DOC: obs_frontend_get_current_scene_collection(TBD) -->  get_current_scene_collection in obs-scripting-lua-frontend.c
+C DOC: obs_frontend_set_current_scene_collection(TBD) -->  set_current_scene_collection in obs-scripting-lua-frontend.c
+C DOC: obs_frontend_get_profiles(TBD) -->  get_profiles in obs-scripting-lua-frontend.c
+C DOC: obs_frontend_get_current_profile(TBD) -->  get_current_profile in obs-scripting-lua-frontend.c
+C DOC: obs_frontend_set_current_profile(TBD) -->  set_current_profile in obs-scripting-lua-frontend.c
+C DOC: obs_frontend_remove_event_callback(TBD) -->  remove_event_callback in obs-scripting-lua-frontend.c
+C DOC: obs_frontend_add_event_callback(TBD) -->  add_event_callback in obs-scripting-lua-frontend.c
+C DOC: obs_frontend_remove_save_callback(TBD) -->  remove_save_callback in obs-scripting-lua-frontend.c
+C DOC: obs_frontend_add_save_callback(TBD) -->  add_save_callback in obs-scripting-lua-frontend.c
+
+*/
+
+
+
+// Avoid memory leak for functions that return a memory allocated string
+%newobject bstrdup; // no mention of need to free allocated data
+%newobject bstrdup_n; // no mention of need to free allocated data
+%newobject obs_find_module_file;
+// %newobject obs_frontend_get_current_profile; // Defined in obs-scripting-lua-frontend.c
+// %newobject obs_frontend_get_current_scene_collection; // Defined in obs-scripting-lua-frontend.c
+%newobject obs_module_get_config_path;
+%newobject os_generate_formatted_filename;
+%newobject os_get_abs_path_ptr; // no mention of need to free allocated data
+%newobject os_get_config_path_ptr; // no mention of need to free allocated data
+%newobject os_get_program_data_path_ptr; // no mention of need to free allocated data
+%newobject os_getcwd;
+%newobject os_quick_read_utf8_file;
+
+// TODO: list of strings returned in one complex block by these functions:
+// obs_frontend_get_profiles, obs_frontend_get_scene_collections, obs_frontend_get_scene_names
+// --> No need, all functions defined in obs-scripting-lua-frontend.c
+
+
+// Typemap for: int os_get_config_path(char *dst, size_t size, const char *name)
+
+%typemap(argout) char *CHAR_POINTER_BY_REFERENCE %{
+// OBS-specific typemap in obslua.i for char* buffer passed as ref
+lua_pushstring(L,(const char *)$1); SWIG_arg++;
+bfree($1); %}
+
+%apply char *CHAR_POINTER_BY_REFERENCE {char *dst};
+// %inline %{int os_get_config_path(char *CHAR_POINTER_BY_REFERENCE, size_t size, const char *name); %}
+
+
+
+
