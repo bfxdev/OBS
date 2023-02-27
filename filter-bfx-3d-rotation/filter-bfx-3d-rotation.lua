@@ -494,7 +494,7 @@ PixelData vertex_shader_perspective(VertexData input_vertex_data)
 
   // Adjusts x and y such the it looks like the vanishing point is at the center of the source
   if (perspective_centered)
-    result.screen_position.xy += (result.screen_position.w-1.0)*source_center;
+    result.screen_position.xy += (result.screen_position.w-1.0)*source_center.xy;
 
   // Passes UV texture coordinates through
   result.uv = input_vertex_data.uv;
