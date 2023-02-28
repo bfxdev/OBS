@@ -21,10 +21,10 @@ The parameters of the filter are:
 - **Control Mode**: 3 different modes to control the rotation:
   - _Rotation around X then Y_: classical rotation around the X axis (top-bottom) then around the Y axis (left-right)
   - _Rotation around Y then X_: classical rotation around the Y axis then around the X axis
-  - _Rotation around axis in XY plane_: rotation around an arbitrary axis located in the plane of the source (XY plane). The axis is defined only by its angle.
-- **Rotation X** and **Rotation Y**: Rotation angles for a classical rotation
-- **Rotation Angle**: Rotation angle around the arbitrary axis
-- **Axis Angle**: Orientation angle of the arbitrary axis
+  - _Rotation around axis in XY plane_: rotation around an arbitrary axis located in the plane of the screen (XY plane).
+- **Rotation X** and **Rotation Y**: Rotation angles for the classical rotations around the X and Y axes
+- **Rotation Angle**: Rotation angle of the source around the arbitrary axis
+- **Axis Angle**: Rotation angle of the arbitrary axis within the plane of the screen in trigonometric convention i.e. $0$ for an horizontal axis (same as rotation around the X axis only), $90$ for a vertical axis, etc.
 
 The different control modes with the related parameters are just different ways to rotate the source picture around the X and Y axes only. An additional rotation of the Transform can be used as well for the rotation around the Z axis:
 
